@@ -79,7 +79,7 @@ If backend storage is empty, `Load API` will report that no server snapshot exis
 
 ## AI API (Implemented Scaffold)
 
-**Current implementation phase: Phase 7 (rollback-ready apply history and reviewer-gated undo).**
+**Current implementation phase: Phase 8 (reviewer-facing apply history query APIs).**
 
 The backend now includes a provider-agnostic AI scaffold with deterministic fallback logic.
 These endpoints are available today and can be progressively wired to real provider SDK calls.
@@ -94,6 +94,8 @@ These endpoints are available today and can be progressively wired to real provi
 - `POST /api/ai/feedback`
 - `POST /api/ai/apply`
 - `POST /api/ai/rollback`
+- `GET /api/ai/apply-history`
+- `GET /api/ai/apply-history/:applyId`
 
 Phase 4 additions in the deterministic path:
 
@@ -119,6 +121,12 @@ Phase 7 additions in the deterministic path:
 - Every successful apply now stores a durable apply-history record with `applyId`, prior state snapshot, and reviewer metadata.
 - New `POST /api/ai/rollback` endpoint restores the pre-apply snapshot when a reviewer provides `applyId` and `rolledBackBy`.
 - Rollbacks append an AI rollback audit event and automatically update provider rollback/violation metrics.
+
+Phase 8 additions in the deterministic path:
+
+- New reviewer-friendly apply history APIs provide compact records by default to avoid returning heavy state snapshots.
+- `GET /api/ai/apply-history` supports `limit` and `includeStates=true` query parameters for listing recent apply events.
+- `GET /api/ai/apply-history/:applyId` returns a single record and can include full pre/post snapshots when explicitly requested.
 
 ### AI Environment Variables
 

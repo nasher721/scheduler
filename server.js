@@ -80,6 +80,36 @@ async function writeApplyHistory(history) {
   await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify(history, null, 2), "utf-8");
 }
 
+function sanitizeApplyHistoryEntry(entry, options = {}) {
+  const includeStates = options.includeStates === true;
+  if (!entry || typeof entry !== "object") return null;
+
+  const base = {
+    id: entry.id,
+    timestamp: entry.timestamp,
+    approvedBy: entry.approvedBy || null,
+    rolloutMode: entry.rolloutMode || null,
+    objectiveScore: Number.isFinite(entry?.result?.objectiveScore) ? entry.result.objectiveScore : null,
+    confidenceScore: Number.isFinite(entry?.result?.rollout?.confidenceScore) ? entry.result.rollout.confidenceScore : null,
+    hardViolationCount: Number.isFinite(entry?.result?.guardrails?.hardViolationCount)
+      ? Number(entry.result.guardrails.hardViolationCount)
+      : null,
+    rolledBackAt: entry.rolledBackAt || null,
+    rolledBackBy: entry.rolledBackBy || null,
+    rollbackReason: entry.rollbackReason || null,
+    changeCount: isArray(entry?.result?.changes) ? entry.result.changes.length : 0,
+  };
+
+  if (!includeStates) return base;
+
+  return {
+    ...base,
+    result: entry.result || null,
+    previousState: entry.previousState || null,
+    appliedState: entry.appliedState || null,
+  };
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "nicu-scheduler-api" });
 });
@@ -298,6 +328,47 @@ app.post("/api/ai/rollback", async (req, res) => {
     rolledBackBy,
     recorded,
     state: restoredState,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.get("/api/ai/apply-history", async (req, res) => {
+  const limitRaw = Number.parseInt(String(req.query?.limit || "20"), 10);
+  const limit = Number.isFinite(limitRaw) ? Math.min(200, Math.max(1, limitRaw)) : 20;
+  const includeStates = String(req.query?.includeStates || "false").toLowerCase() === "true";
+
+  const history = await readApplyHistory();
+  const records = [...history]
+    .reverse()
+    .slice(0, limit)
+    .map((entry) => sanitizeApplyHistoryEntry(entry, { includeStates }))
+    .filter(Boolean);
+
+  return res.json({
+    records,
+    total: history.length,
+    limit,
+    includeStates,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.get("/api/ai/apply-history/:applyId", async (req, res) => {
+  const applyId = typeof req.params?.applyId === "string" ? req.params.applyId.trim() : "";
+  const includeStates = String(req.query?.includeStates || "false").toLowerCase() === "true";
+  if (!applyId) {
+    return res.status(400).json({ error: "applyId path parameter is required." });
+  }
+
+  const history = await readApplyHistory();
+  const entry = history.find((record) => record?.id === applyId);
+  if (!entry) {
+    return res.status(404).json({ error: `Apply record not found for applyId ${applyId}.` });
+  }
+
+  return res.json({
+    record: sanitizeApplyHistoryEntry(entry, { includeStates }),
+    includeStates,
     updatedAt: new Date().toISOString(),
   });
 });
