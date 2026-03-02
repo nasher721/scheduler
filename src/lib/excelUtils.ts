@@ -1,14 +1,55 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { useScheduleStore, Provider } from "../store";
+import { useScheduleStore, Provider, ShiftSlot } from "../store";
+import { parseISO, format } from "date-fns";
+
+// Columns in MASTER excel:
+// 0: Month
+// 1: G20
+// 2: H22
+// 3: Akron
+// 4: Nights
+// 5: Consults
+// 6: AMET
+// 7: Jeopardy
+// 8: Recovery
+// 9: Vacations
+
+const COLUMN_HEADERS = [
+  "Month / Date",
+  "G20",
+  "H22",
+  "Akron",
+  "Nights",
+  "Consults",
+  "AMET / NMET",
+  "Jeopardy",
+  "Recovery",
+  "Vacations",
+];
+
+// Mapping our specific slot IDs or types to standard column indexes
+const slotToColumnMap: Record<string, number> = {
+  "DAY-G20": 1,
+  "DAY-H22": 2,
+  "DAY-Akron": 3,
+  "NIGHT-Main Campus": 4, // or NIGHT-0
+  "NIGHT-0": 4,
+  "CONSULTS-Main Campus": 5,
+  "CONSULTS-0": 5,
+  "NMET-Main Campus": 6,
+  "NMET-0": 6,
+  "JEOPARDY-Main Campus": 7,
+  "JEOPARDY-0": 7,
+  "RECOVERY-Main Campus": 8,
+  "RECOVERY-0": 8,
+  "VACATION-Any": 9,
+  "VACATION-0": 9,
+};
 
 export const exportScheduleToExcel = () => {
   const { slots, startDate, providers } = useScheduleStore.getState();
-
-  // We want to create a grid:
-  // Rows: specific shift slots (Day 1, Day 2, Day 3, NMET, Night, Jeopardy)
-  // Columns: Dates across the schedule
 
   // Group slots by date
   const slotsByDate: Record<string, typeof slots> = {};
@@ -19,38 +60,44 @@ export const exportScheduleToExcel = () => {
 
   const dates = Object.keys(slotsByDate).sort();
 
-  // Build the Header Row
-  const header = ["Shift Type", ...dates];
+  const wsData: any[][] = [COLUMN_HEADERS];
 
-  // Build Rows
-  // The types to extract in order:
-  const rowTypes = [
-    { type: "DAY", label: "Day 1", index: 0 },
-    { type: "DAY", label: "Day 2", index: 1 },
-    { type: "DAY", label: "Day 3 (Wkday Only)", index: 2 },
-    { type: "NMET", label: "NMET", index: 0 },
-    { type: "NIGHT", label: "Night", index: 0 },
-    { type: "JEOPARDY", label: "Jeopardy", index: 0 },
-  ];
+  dates.forEach((date) => {
+    const row = new Array(COLUMN_HEADERS.length).fill(null);
+    const dateObj = parseISO(date);
 
-  const wsData: any[][] = [header];
+    // Check if it's the 1st of the month to inject a month header row
+    if (dateObj.getDate() === 1 || date === dates[0]) {
+      const monthRow = new Array(COLUMN_HEADERS.length).fill(format(dateObj, "MMMM"));
+      wsData.push(monthRow);
+    }
 
-  rowTypes.forEach((rt) => {
-    const row = [rt.label];
-    dates.forEach((date) => {
-      const typeSlots = slotsByDate[date].filter((s: any) => s.type === rt.type);
-      const slot = typeSlots[rt.index];
-      if (slot) {
-        const p = providers.find((prov: any) => prov.id === slot.providerId);
-        row.push(p ? p.name : "Unassigned");
-      } else {
-        row.push("N/A (Weekend)");
+    // First column is the Date itself
+    row[0] = dateObj; // Excel can format dates
+
+    const daySlots = slotsByDate[date];
+    daySlots.forEach((slot: ShiftSlot) => {
+      // Find the right column
+      let colKey = `${slot.type}-${slot.location}`;
+      if (!slotToColumnMap[colKey]) {
+        // Fallback for generic slots
+        colKey = `${slot.type}-0`;
+      }
+
+      const colIdx = slotToColumnMap[colKey];
+
+      if (colIdx !== undefined) {
+        if (slot.providerId) {
+          const p = providers.find((prov: Provider) => prov.id === slot.providerId);
+          row[colIdx] = p ? p.name : "";
+        }
       }
     });
+
     wsData.push(row);
   });
 
-  // Add Provider Target Stats
+  // Add Provider Target Stats at the bottom
   wsData.push([]);
   wsData.push(["Provider Stats"]);
   wsData.push([
@@ -74,6 +121,16 @@ export const exportScheduleToExcel = () => {
   });
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Format the Date column (A)
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1:A1");
+  for (let R = 1; R <= range.e.r; ++R) {
+    const cellRef = XLSX.utils.encode_cell({ c: 0, r: R });
+    if (ws[cellRef] && ws[cellRef].t === 'd') {
+      ws[cellRef].z = "mm/dd/yyyy";
+    }
+  }
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "NICU Schedule");
 
@@ -89,27 +146,27 @@ export const importScheduleFromExcel = (file: File) => {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const wb = XLSX.read(data, { type: "binary" });
+        const wb = XLSX.read(data, { type: "binary", cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: "yyyy-mm-dd" }) as any[][];
 
         if (!aoa || aoa.length === 0) throw new Error("Empty spreadsheet");
 
         const store = useScheduleStore.getState();
-        const dates = aoa[0].slice(1); // the headers
-
-        // This is a naive import that assumes the exact format exported above
-        // We will just create or match existing providers and set their names
-
         const providers = [...store.providers];
-        const getOrCreateProviderId = (name: string) => {
-          if (!name || name === "Unassigned" || name.startsWith("N/A"))
+
+        const getOrCreateProviderId = (name: string | undefined | null) => {
+          if (!name || typeof name !== "string") return null;
+          const cleanName = name.trim();
+          if (!cleanName || cleanName === "Unassigned" || cleanName.startsWith("N/A") || cleanName === "Open") {
             return null;
-          let p = providers.find((prov) => prov.name === name);
+          }
+
+          let p = providers.find((prov) => prov.name === cleanName);
           if (!p) {
             const newProvider: Provider = {
               id: crypto.randomUUID(),
-              name,
+              name: cleanName,
               targetWeekDays: 0,
               targetWeekendDays: 0,
               targetWeekNights: 0,
@@ -126,41 +183,82 @@ export const importScheduleFromExcel = (file: File) => {
           return p.id;
         };
 
-        const newSlots = [...store.slots]; // start with current structure
+        const newSlots = [...store.slots];
 
-        // Note: Real world we would parse dynamically or define strictly.
-        // For artifact viability, we will do a targeted best effort parse over the known row index
+        // Search for rows that look like dates and map columns
+        // Master format has Month on Row 0, actual dates starting later
+        for (let rowIndex = 0; rowIndex < aoa.length; rowIndex++) {
+          const row = aoa[rowIndex];
+          if (!row || !row[0]) continue;
 
-        const rowMapping = [
-          { rowIndex: 1, type: "DAY", shiftIndex: 0 },
-          { rowIndex: 2, type: "DAY", shiftIndex: 1 },
-          { rowIndex: 3, type: "DAY", shiftIndex: 2 },
-          { rowIndex: 4, type: "NMET", shiftIndex: 0 },
-          { rowIndex: 5, type: "NIGHT", shiftIndex: 0 },
-          { rowIndex: 6, type: "JEOPARDY", shiftIndex: 0 },
-        ];
+          let dateStr: string | null = null;
 
-        rowMapping.forEach((mapping) => {
-          const row = aoa[mapping.rowIndex];
-          if (row) {
-            dates.forEach((dateStr, colIdx) => {
-              const cellValue = row[colIdx + 1];
-              const providerId = getOrCreateProviderId(cellValue);
+          // Try to parse the first column as a date
+          try {
+            const potentialDate = new Date(row[0]);
+            if (!isNaN(potentialDate.getTime())) {
+              // Make sure it wasn't just parsing a month string like "January"
+              if (row[0].length > 8) {
+                dateStr = format(potentialDate, "yyyy-MM-dd");
+              }
+            }
+          } catch {
+            // not a valid date, likely just the Month row or header row
+          }
 
-              // Find slot in newSlots that matches date, type, and index
-              const typeSlots = newSlots.filter(
-                (s) => s.date === dateStr && s.type === mapping.type,
-              );
-              const matchingSlot = typeSlots[mapping.shiftIndex];
+          // Special case: Sometimes dates are exported as pure strings YYYY-MM-DD
+          if (!dateStr && typeof row[0] === 'string' && row[0].match(/^\d{4}-\d{2}-\d{2}$/)) {
+            dateStr = row[0];
+          }
 
-              if (matchingSlot) {
-                matchingSlot.providerId = providerId;
+          if (dateStr) {
+            // It's a valid date row. Map columns back to slots
+            // Col 1: G20
+            // Col 2: H22
+            // Col 3: Akron
+            // Col 4: Nights
+            // Col 5: Consults
+            // Col 6: AMET
+            // Col 7: Jeopardy
+            // Col 8: Recovery
+            // Col 9: Vacations
+
+            const assignments = [
+              { col: 1, type: "DAY", loc: "G20" },
+              { col: 2, type: "DAY", loc: "H22" },
+              { col: 3, type: "DAY", loc: "Akron" },
+              { col: 4, type: "NIGHT", loc: "Main Campus" },
+              { col: 5, type: "CONSULTS", loc: "Main Campus" },
+              { col: 6, type: "NMET", loc: "Main Campus" },
+              { col: 7, type: "JEOPARDY", loc: "Main Campus" },
+              { col: 8, type: "RECOVERY", loc: "Main Campus" },
+              { col: 9, type: "VACATION", loc: "Any" },
+            ];
+
+            assignments.forEach(assign => {
+              const cellVal = row[assign.col];
+              if (cellVal) {
+                // Handle split shifts like "Bates & Hassett"
+                const providerNames = cellVal.toString().split("&").map((s: string) => s.trim());
+
+                providerNames.forEach((name: string) => {
+                  const providerId = getOrCreateProviderId(name);
+                  if (providerId) {
+                    // Find matching slot for this date/type/location
+                    const matchingSlot = newSlots.find(
+                      (s) => s.date === dateStr && s.type === assign.type && (s.location === assign.loc || s.location.includes(assign.loc))
+                    );
+
+                    if (matchingSlot) {
+                      matchingSlot.providerId = providerId;
+                    }
+                  }
+                });
               }
             });
           }
-        });
+        }
 
-        // Update the global store directly
         useScheduleStore.setState({ providers, slots: newSlots });
         resolve();
       } catch (err) {

@@ -2,7 +2,7 @@ import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from 
 import { useDroppable } from "@dnd-kit/core";
 import { parseISO, format, startOfMonth } from "date-fns";
 import { motion } from "framer-motion";
-import { Sun, Moon, AlertTriangle, Sparkles, MapPin } from "lucide-react";
+import { Sun, Moon, AlertTriangle, Sparkles, MapPin, Activity, Stethoscope } from "lucide-react";
 import React, { useState } from "react";
 import Calendar from "react-lightweight-calendar";
 import "react-lightweight-calendar/dist/styles/styles.css";
@@ -32,6 +32,24 @@ const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; col
     colorClass: 'text-rose-600',
     bgClass: 'bg-rose-50 border-rose-200'
   },
+  RECOVERY: {
+    label: 'Recovery',
+    icon: <Activity className="w-3 h-3" />,
+    colorClass: 'text-teal-600',
+    bgClass: 'bg-teal-50 border-teal-200'
+  },
+  CONSULTS: {
+    label: 'Consults',
+    icon: <Stethoscope className="w-3 h-3" />,
+    colorClass: 'text-sky-600',
+    bgClass: 'bg-sky-50 border-sky-200'
+  },
+  VACATION: {
+    label: 'Vacation',
+    icon: <Moon className="w-3 h-3" />,
+    colorClass: 'text-slate-500',
+    bgClass: 'bg-slate-100 border-slate-200'
+  },
 };
 
 function CalendarSlot({
@@ -51,38 +69,38 @@ function CalendarSlot({
   return (
     <motion.div
       ref={setNodeRef}
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.02 }}
-      className={`min-h-[32px] rounded-lg p-2 mb-1 flex items-center justify-between gap-2 transition-all border ${isOver
-        ? 'border-blue-400 bg-blue-50/80 shadow-inner ring-2 ring-blue-400/20'
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.01, translateY: -1 }}
+      className={`min-h-[34px] rounded-xl p-2.5 mb-1.5 flex items-center justify-between gap-3 transition-all border ${isOver
+        ? 'border-blue-500 bg-blue-50/90 shadow-lg ring-2 ring-blue-500/20'
         : provider
-          ? 'bg-white/90 border-slate-200/60 shadow-sm hover:shadow'
-          : 'bg-slate-50/50 border-dashed border-slate-200/60 hover:bg-slate-100/50'
-        } ${slot.isBackup || slot.type === 'JEOPARDY' ? 'ring-1 ring-rose-300 bg-rose-50/50' : ''}`}
+          ? 'bg-white/95 border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80'
+          : 'bg-slate-50/40 border-dashed border-slate-300/40 hover:bg-slate-100/60'
+        } ${slot.isBackup || slot.type === 'JEOPARDY' ? 'ring-1 ring-rose-200 bg-rose-50/30' : ''}`}
     >
-      <div className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider shrink-0 ${config.colorClass}`}>
-        {config.icon}
-        <span>{slot.isBackup ? 'BACKUP' : config.label}</span>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <div className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest ${config.colorClass}`}>
+          {config.icon}
+          <span>{slot.isBackup ? 'BACKUP' : config.label}</span>
+        </div>
         {slot.location && (
-          <div className="flex items-center gap-0.5 ml-1 px-1 rounded bg-slate-100/50 text-slate-500 font-medium text-[9px]" title={slot.location}>
-            <MapPin className="w-2.5 h-2.5" />
-            <span className="truncate max-w-[40px]">{slot.location.split(' ')[0]}</span>
+          <div className="flex items-center gap-1 text-slate-400 font-medium text-[8px]" title={slot.location}>
+            <MapPin className="w-2 h-2" />
+            <span className="truncate max-w-[60px]">{slot.location}</span>
           </div>
         )}
       </div>
       {provider ? (
         <motion.div
           layoutId={`monthly-assigned-${slot.id}`}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className={`text-[11px] font-semibold py-0.5 px-2.5 rounded-full truncate ${config.bgClass} ${config.colorClass} border`}
+          className={`text-[10.5px] font-bold py-1 px-3 rounded-lg truncate shadow-sm border ${config.bgClass} ${config.colorClass} border-white/40 backdrop-blur-sm`}
         >
           {provider.name}
         </motion.div>
       ) : (
-        <div className="text-[10px] text-slate-400 font-medium px-1 italic">
-          Open
+        <div className="text-[10px] text-slate-400 font-bold px-2 py-1 rounded-md bg-slate-100/30 border border-slate-200/20 italic">
+          OPEN
         </div>
       )}
     </motion.div>

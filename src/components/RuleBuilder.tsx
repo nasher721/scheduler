@@ -34,7 +34,7 @@ export function RuleBuilder() {
     };
 
     return (
-        <div className="flex-1 overflow-auto p-6 md:p-8 bg-slate-50/50">
+        <div className="flex-1 overflow-auto p-2">
             <div className="max-w-4xl mx-auto space-y-8">
 
                 {/* Header section */}
@@ -175,8 +175,8 @@ export function RuleBuilder() {
                     <h3 className="text-xl font-bold text-slate-800">Custom Engine Rules</h3>
 
                     {customRules.length === 0 ? (
-                        <div className="glass-panel py-16 flex flex-col items-center justify-center text-center">
-                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                        <div className="glass-panel-heavy py-16 flex flex-col items-center justify-center text-center">
+                            <div className="w-16 h-16 bg-white/40 rounded-full border border-white/60 flex items-center justify-center mb-4 text-slate-400">
                                 <AlertCircle className="w-8 h-8" />
                             </div>
                             <h3 className="text-lg font-bold text-slate-700 mb-1">No Custom Rules Configured</h3>
@@ -191,7 +191,7 @@ export function RuleBuilder() {
                                         initial={{ opacity: 0, scale: 0.95 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0, scale: 0.95 }}
-                                        className="glass-panel p-5 flex items-start gap-4 group"
+                                        className="glass-panel-heavy p-5 flex items-start gap-4 group"
                                     >
                                         <div className={`p-2.5 rounded-xl shrink-0 ${rule.type === 'AVOID_PAIRING' ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}`}>
                                             {rule.type === 'AVOID_PAIRING' ? <Users className="w-5 h-5" /> : <CalendarClock className="w-5 h-5" />}

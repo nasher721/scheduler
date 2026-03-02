@@ -1,7 +1,7 @@
 import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday } from "date-fns";
-import { GripVertical, Sun, Moon, AlertTriangle, Sparkles, Info, MapPin } from 'lucide-react';
+import { GripVertical, Sun, Moon, AlertTriangle, Sparkles, Info, MapPin, Activity, Stethoscope } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 
@@ -29,6 +29,24 @@ const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; col
     icon: <AlertTriangle className="w-3.5 h-3.5" />,
     colorClass: 'text-rose-600',
     bgClass: 'bg-rose-50 border-rose-200'
+  },
+  RECOVERY: {
+    label: 'Recovery',
+    icon: <Activity className="w-3.5 h-3.5" />,
+    colorClass: 'text-teal-600',
+    bgClass: 'bg-teal-50 border-teal-200'
+  },
+  CONSULTS: {
+    label: 'Consults',
+    icon: <Stethoscope className="w-3.5 h-3.5" />,
+    colorClass: 'text-sky-600',
+    bgClass: 'bg-sky-50 border-sky-200'
+  },
+  VACATION: {
+    label: 'Vacation',
+    icon: <Moon className="w-3.5 h-3.5" />,
+    colorClass: 'text-slate-500',
+    bgClass: 'bg-slate-100 border-slate-200'
   },
 };
 

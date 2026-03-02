@@ -30,12 +30,12 @@ export function AnalyticsDashboard() {
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="glass-panel p-6 shadow-xl flex flex-col items-start gap-4"
+                    className="glass-panel-heavy p-6 flex flex-col items-start gap-4"
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <h2 className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">Shift Equity Analysis</h2>
                     </div>
-                    <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                    <div className="w-full overflow-x-auto rounded-xl border border-white/40 bg-white/20 backdrop-blur-sm">
                         <table className="w-full text-left text-sm border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
@@ -95,7 +95,7 @@ export function AnalyticsDashboard() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.1 }}
-                    className="glass-panel p-6 shadow-xl flex flex-col items-start gap-4"
+                    className="glass-panel-heavy p-6 flex flex-col items-start gap-4"
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <h2 className="text-xl font-bold bg-gradient-to-r from-rose-600 to-rose-400 bg-clip-text text-transparent">Burnout / Fatigue Risk</h2>
@@ -156,7 +156,7 @@ export function AnalyticsDashboard() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="glass-panel p-6 shadow-xl flex flex-col gap-4"
+                    className="glass-panel-heavy p-6 flex flex-col gap-4"
                 >
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -172,9 +172,9 @@ export function AnalyticsDashboard() {
                                 <div key={entry.id} className="p-3 rounded-lg border border-slate-100 bg-white/50 flex flex-col gap-1 transition-all hover:border-slate-300">
                                     <div className="flex items-center justify-between">
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.action === "ASSIGN" ? "bg-blue-100 text-blue-700" :
-                                                entry.action === "UNASSIGN" ? "bg-slate-100 text-slate-700" :
-                                                    entry.action === "AUTO_ASSIGN" ? "bg-purple-100 text-purple-700" :
-                                                        "bg-amber-100 text-amber-700"
+                                            entry.action === "UNASSIGN" ? "bg-slate-100 text-slate-700" :
+                                                entry.action === "AUTO_ASSIGN" ? "bg-purple-100 text-purple-700" :
+                                                    "bg-amber-100 text-amber-700"
                                             }`}>
                                             {entry.action}
                                         </span>
@@ -198,7 +198,7 @@ export function AnalyticsDashboard() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3 }}
-                    className="glass-panel p-6 shadow-xl flex flex-col gap-4"
+                    className="glass-panel-heavy p-6 flex flex-col gap-4"
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-5 h-5 text-amber-500" />

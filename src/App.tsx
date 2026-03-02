@@ -235,13 +235,13 @@ export default function App() {
               </motion.button>
 
               <motion.button
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={exportScheduleToExcel}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-primary btn-sm bg-gradient-to-r from-emerald-500 to-teal-600 shadow-emerald-500/20"
               >
                 <FileSpreadsheet className="w-4 h-4" />
-                Export
+                Export Excel
               </motion.button>
 
               <motion.button
@@ -302,8 +302,9 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="stat-card"
+              className="stat-card group"
             >
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <TrendingUp className="stat-icon w-5 h-5 text-emerald-500" />
               <p className="stat-value">{coverage}%</p>
               <p className="stat-label">Coverage</p>

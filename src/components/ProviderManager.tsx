@@ -146,7 +146,7 @@ export function ProviderManager() {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="p-3 bg-white/40 rounded-xl border border-white/60 backdrop-blur-md shadow-sm">
               <div className="flex gap-2">
                 <input
                   autoFocus
@@ -214,7 +214,7 @@ export function ProviderManager() {
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
                 key={p.id}
-                className="provider-card group"
+                className="provider-card group bg-white/40 border border-white/50 backdrop-blur-md"
               >
                 {/* Header Row */}
                 <div className="flex justify-between items-start mb-3">

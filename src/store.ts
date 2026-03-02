@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
 
-export type ShiftType = "DAY" | "NIGHT" | "NMET" | "JEOPARDY";
+export type ShiftType = "DAY" | "NIGHT" | "NMET" | "JEOPARDY" | "RECOVERY" | "CONSULTS" | "VACATION";
 
 export type TimeOffType = "PTO" | "CME" | "SICK" | "UNAVAILABLE";
 
@@ -139,6 +139,9 @@ const shiftRequirements: Record<ShiftType, { skill: string; priority: "CRITICAL"
   NIGHT: { skill: "NIGHT_FLOAT", priority: "CRITICAL" },
   NMET: { skill: "AIRWAY", priority: "STANDARD" },
   JEOPARDY: { skill: "STROKE", priority: "STANDARD" },
+  RECOVERY: { skill: "NEURO_CRITICAL", priority: "STANDARD" },
+  CONSULTS: { skill: "NEURO_CRITICAL", priority: "STANDARD" },
+  VACATION: { skill: "NEURO_CRITICAL", priority: "STANDARD" },
 };
 
 const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot[] => {
@@ -153,24 +156,20 @@ const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
     const isWeekendNight = dayOfWeek === 0 || dayOfWeek === 4 || dayOfWeek === 5 || dayOfWeek === 6;
 
-    const numDayShifts = isWeekendDay ? 2 : 3;
-    for (let i = 0; i < numDayShifts; i += 1) {
-      slots.push({
-        id: `${dateStr}-DAY-${i}`,
-        date: dateStr,
-        type: "DAY",
-        providerId: null,
-        isWeekendLayout: isWeekendDay,
-        requiredSkill: shiftRequirements.DAY.skill,
-        priority: shiftRequirements.DAY.priority,
-        isBackup: false,
-        location: i % 2 === 0 ? "Main Campus" : "South Campus",
-      });
-    }
+    // G20, H22, Akron are essentially our Day units
+    slots.push({ id: `${dateStr}-DAY-G20`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "G20" });
+    slots.push({ id: `${dateStr}-DAY-H22`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "H22" });
+    slots.push({ id: `${dateStr}-DAY-Akron`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "Akron" });
 
+    // Other roles mapped directly
     slots.push({ id: `${dateStr}-NIGHT-0`, date: dateStr, type: "NIGHT", providerId: null, isWeekendLayout: isWeekendNight, requiredSkill: shiftRequirements.NIGHT.skill, priority: shiftRequirements.NIGHT.priority, isBackup: false, location: "Main Campus" });
+    slots.push({ id: `${dateStr}-CONSULTS-0`, date: dateStr, type: "CONSULTS", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.CONSULTS.skill, priority: shiftRequirements.CONSULTS.priority, isBackup: false, location: "Main Campus" });
     slots.push({ id: `${dateStr}-NMET-0`, date: dateStr, type: "NMET", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.NMET.skill, priority: shiftRequirements.NMET.priority, isBackup: false, location: "Main Campus" });
     slots.push({ id: `${dateStr}-JEOPARDY-0`, date: dateStr, type: "JEOPARDY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.JEOPARDY.skill, priority: shiftRequirements.JEOPARDY.priority, isBackup: true, location: "Main Campus" });
+    slots.push({ id: `${dateStr}-RECOVERY-0`, date: dateStr, type: "RECOVERY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.RECOVERY.skill, priority: shiftRequirements.RECOVERY.priority, isBackup: false, location: "Main Campus" });
+    // Vacations can just be time-off requests, but the sheet has a column. 
+    // We could store it as a slot or derive it. For now, we'll store as a slot for 1-to-1 excel parity.
+    slots.push({ id: `${dateStr}-VACATION-0`, date: dateStr, type: "VACATION", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.VACATION.skill, priority: shiftRequirements.VACATION.priority, isBackup: false, location: "Any" });
   }
 
   return slots;

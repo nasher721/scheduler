@@ -7,14 +7,16 @@
 }
 
 .monthly-calendar-container .rlc-month-view-cell {
-    background: rgba(255, 255, 255, 0.7) !important;
-    border-right: 1px solid rgba(226, 232, 240, 0.8) !important;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
-    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.4) !important;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border-right: 1px solid rgba(226, 232, 240, 0.4) !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.4) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .monthly-calendar-container .rlc-month-view-cell:hover {
-    background: rgba(255, 255, 255, 0.95) !important;
+    background: rgba(255, 255, 255, 0.8) !important;
 }
 
 /* Make weekends slightly different */
@@ -62,8 +64,8 @@
 
 /* Header styling */
 .monthly-calendar-container .rlc-month-view-header {
-    border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
-    background: linear-gradient(to bottom, rgba(241, 245, 249, 0.8), rgba(248, 250, 252, 0.5)) !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.4) !important;
+    background: rgba(241, 245, 249, 0.4) !important;
 }
 
 .monthly-calendar-container .rlc-month-view-header-cell {
@@ -71,9 +73,9 @@
     font-weight: 700 !important;
     text-transform: uppercase !important;
     letter-spacing: 0.05em !important;
-    color: #64748b !important;
+    color: #475569 !important;
     padding: 12px 0 !important;
-    border-right: 1px solid rgba(226, 232, 240, 0.8) !important;
+    border-right: 1px solid rgba(226, 232, 240, 0.4) !important;
 }
 
 .monthly-calendar-container .rlc-month-view-header-cell:last-child {
