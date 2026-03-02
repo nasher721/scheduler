@@ -4,9 +4,8 @@ import { parseISO, format, startOfMonth, isToday } from "date-fns";
 import { motion } from "framer-motion";
 import { Sun, Moon, AlertTriangle, Sparkles, Activity, Stethoscope, CalendarDays, CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import React, { useMemo, useState } from "react";
-import Calendar from "react-lightweight-calendar";
-import "react-lightweight-calendar/dist/styles/styles.css";
-import "./MonthlyCalendarOverrides.css";
+import { IlamyCalendar, type CalendarEvent } from "@ilamy/calendar";
+import dayjs from "dayjs";
 
 const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string; borderClass: string }> = {
   DAY: { label: 'Day Shift', icon: <Sun className="w-3 h-3" />, colorClass: 'text-success', bgClass: 'bg-success-muted/30', borderClass: 'border-success/20' },
@@ -76,14 +75,14 @@ export function MonthlyCalendar() {
 
   const selectedDaySlots = useMemo(() => slots.filter((slot) => slot.date === selectedDate), [slots, selectedDate]);
 
-  const calendarData = slots.map((slot) => ({
+  const calendarEvents = useMemo<CalendarEvent[]>(() => slots.map((slot) => ({
     id: slot.id,
-    startTime: `${slot.date}T00:00:00Z`,
-    endTime: `${slot.date}T23:59:59Z`,
-    type: slot.type,
-    providerId: slot.providerId,
-    _slot: slot,
-  }));
+    title: `${slot.type} • ${slot.location}`,
+    start: dayjs(`${slot.date}T07:00:00`),
+    end: dayjs(`${slot.date}T19:00:00`),
+    allDay: true,
+    data: { slotId: slot.id, providerId: slot.providerId, slotType: slot.type },
+  })), [slots]);
 
   const onDaySummarySelect = (date: string) => {
     setSelectedDate(date);
@@ -134,19 +133,20 @@ export function MonthlyCalendar() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-0 flex-1 min-h-0">
         <div className="bg-slate-50/50 relative overflow-y-auto w-full h-full p-2">
-          <Calendar
-            data={calendarData}
-            currentView='MONTH'
-            currentDate={currentDate}
-            setCurrentDate={(date) => setCurrentDate(typeof date === 'string' ? date : format(date, 'yyyy-MM-dd'))}
-            activeTimeDateField='startTime'
-            weekStartsOn={1}
-            renderItem={(data) => {
-              const itemData = data as Record<string, unknown>;
-              const provider = providers.find((p) => p.id === itemData.providerId);
-              return <CalendarSlot slot={itemData._slot as ShiftSlot} provider={provider} />;
+          <IlamyCalendar
+            events={calendarEvents}
+            initialView="month"
+            initialDate={currentDate}
+            firstDayOfWeek="monday"
+            dayMaxEvents={4}
+            onDateChange={(date) => setCurrentDate(date.format("YYYY-MM-DD"))}
+            onCellClick={(info) => setSelectedDate(info.start.format("YYYY-MM-DD"))}
+            renderEvent={(event) => {
+              const slot = slots.find((item) => item.id === event.id);
+              if (!slot) return null;
+              const provider = providers.find((p) => p.id === slot.providerId);
+              return <CalendarSlot slot={slot} provider={provider} />;
             }}
-            disableHoverEffect={true}
           />
         </div>
 
