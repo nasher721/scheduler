@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus, ShieldAlert, History, Calendar as CalendarIcon, User, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { ExportCenter } from "./ExportCenter";
 
 export function AnalyticsDashboard() {
     const { slots, providers, auditLog, customRules } = useScheduleStore();
@@ -18,6 +19,19 @@ export function AnalyticsDashboard() {
 
     return (
         <div className="w-full flex flex-col gap-6">
+            {/* Print-only Institutional Header */}
+            <div className="hidden print:block mb-8 border-b-2 border-slate-900 pb-6">
+                <h1 className="text-4xl font-serif text-slate-900 tracking-tight">Institutional Neurology Schedule</h1>
+                <p className="text-sm font-bold uppercase tracking-[0.3em] text-slate-500 mt-2">Clinical Operations & Equity Report</p>
+                <div className="flex justify-between mt-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <span>Generated: {format(new Date(), "MMMM dd, yyyy HH:mm")}</span>
+                    <span>System: NICU Precision Scheduler v2.0</span>
+                </div>
+            </div>
+
+            <div className="no-print">
+                <ExportCenter />
+            </div>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
 
                 {/* Equity Overview */}

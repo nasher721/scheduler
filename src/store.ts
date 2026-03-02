@@ -157,16 +157,16 @@ const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot
     const isWeekendNight = dayOfWeek === 0 || dayOfWeek === 4 || dayOfWeek === 5 || dayOfWeek === 6;
 
     // G20, H22, Akron are essentially our Day units
-    slots.push({ id: `${dateStr}-DAY-G20`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "G20" });
-    slots.push({ id: `${dateStr}-DAY-H22`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "H22" });
+    slots.push({ id: `${dateStr}-DAY-G20`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "G20 Unit" });
+    slots.push({ id: `${dateStr}-DAY-H22`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "H22 Unit" });
     slots.push({ id: `${dateStr}-DAY-Akron`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "Akron" });
 
     // Other roles mapped directly
-    slots.push({ id: `${dateStr}-NIGHT-0`, date: dateStr, type: "NIGHT", providerId: null, isWeekendLayout: isWeekendNight, requiredSkill: shiftRequirements.NIGHT.skill, priority: shiftRequirements.NIGHT.priority, isBackup: false, location: "Main Campus" });
-    slots.push({ id: `${dateStr}-CONSULTS-0`, date: dateStr, type: "CONSULTS", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.CONSULTS.skill, priority: shiftRequirements.CONSULTS.priority, isBackup: false, location: "Main Campus" });
-    slots.push({ id: `${dateStr}-NMET-0`, date: dateStr, type: "NMET", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.NMET.skill, priority: shiftRequirements.NMET.priority, isBackup: false, location: "Main Campus" });
-    slots.push({ id: `${dateStr}-JEOPARDY-0`, date: dateStr, type: "JEOPARDY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.JEOPARDY.skill, priority: shiftRequirements.JEOPARDY.priority, isBackup: true, location: "Main Campus" });
-    slots.push({ id: `${dateStr}-RECOVERY-0`, date: dateStr, type: "RECOVERY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.RECOVERY.skill, priority: shiftRequirements.RECOVERY.priority, isBackup: false, location: "Main Campus" });
+    slots.push({ id: `${dateStr}-NIGHT-0`, date: dateStr, type: "NIGHT", providerId: null, isWeekendLayout: isWeekendNight, requiredSkill: shiftRequirements.NIGHT.skill, priority: shiftRequirements.NIGHT.priority, isBackup: false, location: "Main Campus (Nights)" });
+    slots.push({ id: `${dateStr}-CONSULTS-0`, date: dateStr, type: "CONSULTS", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.CONSULTS.skill, priority: shiftRequirements.CONSULTS.priority, isBackup: false, location: "Main Campus (Consults)" });
+    slots.push({ id: `${dateStr}-NMET-0`, date: dateStr, type: "NMET", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.NMET.skill, priority: shiftRequirements.NMET.priority, isBackup: false, location: "Main Campus (NMET)" });
+    slots.push({ id: `${dateStr}-JEOPARDY-0`, date: dateStr, type: "JEOPARDY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.JEOPARDY.skill, priority: shiftRequirements.JEOPARDY.priority, isBackup: true, location: "Jeopardy" });
+    slots.push({ id: `${dateStr}-RECOVERY-0`, date: dateStr, type: "RECOVERY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.RECOVERY.skill, priority: shiftRequirements.RECOVERY.priority, isBackup: false, location: "Recovery" });
     // Vacations can just be time-off requests, but the sheet has a column. 
     // We could store it as a slot or derive it. For now, we'll store as a slot for 1-to-1 excel parity.
     slots.push({ id: `${dateStr}-VACATION-0`, date: dateStr, type: "VACATION", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.VACATION.skill, priority: shiftRequirements.VACATION.priority, isBackup: false, location: "Any" });
@@ -518,7 +518,21 @@ export const useScheduleStore = create<ScheduleState>()(
           };
           const prevHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
 
-          const newSlots = [...state.slots];
+          const getLocationPriority = (location: string) => {
+            const loc = location.toLowerCase();
+            if (loc.includes("g20") || loc.includes("h22") || loc.includes("akron")) return 0;
+            if (loc.includes("main campus") || loc.includes("consults") || loc.includes("nmet") || loc.includes("nights")) return 1;
+            if (loc.includes("jeopardy")) return 2;
+            return 3;
+          };
+
+          const newSlots = [...state.slots].sort((a, b) => {
+            const prioA = getLocationPriority(a.location);
+            const prioB = getLocationPriority(b.location);
+            if (prioA !== prioB) return prioA - prioB;
+            // Secondary sort by date to keep it chronological within priority
+            return a.date.localeCompare(b.date);
+          });
           const counts = getProviderCounts(newSlots, state.providers);
           const logs: string[] = [];
           const newAuditEntries: AuditLogEntry[] = [];

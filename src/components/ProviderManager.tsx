@@ -403,35 +403,31 @@ export function ProviderManager() {
                         <div className="flex flex-col gap-3 pt-2">
                           <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">Tactical Exclusions</span>
                           <div className="flex flex-wrap gap-2">
-                            {p.timeOffRequests.map((req, i) => {
-                              const borderColors: Record<string, string> = {
-                                PTO: '#10b981',
-                                CME: '#3b82f6',
-                                SICK: '#f43f5e'
-                              };
-                              return (
-                                <div key={i} className="flex items-center gap-2 bg-white border border-slate-200/60 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border-l-4 transition-all hover:shadow-sm" style={{ borderLeftColor: borderColors[req.type] || '#f59e0b' }}>
-                                  <span className={
-                                    req.type === "PTO" ? "text-emerald-500" :
-                                      req.type === "CME" ? "text-blue-500" :
-                                        req.type === "SICK" ? "text-rose-500" : "text-amber-500"
-                                  }>{req.type}</span>
-                                  <span className="text-slate-600 font-mono tracking-tight">{req.date}</span>
-                                  <button
-                                    title="Remove request"
-                                    aria-label="Remove request"
-                                    onClick={() => {
-                                      const newReqs = [...p.timeOffRequests];
-                                      newReqs.splice(i, 1);
-                                      updateProvider(p.id, { timeOffRequests: newReqs });
-                                    }}
-                                    className="text-slate-300 hover:text-error ml-1.5 transition-colors"
-                                  >
-                                    <X className="w-3 h-3 stroke-[3]" />
-                                  </button>
-                                </div>
-                              );
-                            })}
+                            {p.timeOffRequests.map((req, i) => (
+                              <div key={i} className={`flex items-center gap-2 bg-white border border-slate-200/60 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border-l-4 transition-all hover:shadow-sm ${req.type === "PTO" ? "border-l-emerald-500" :
+                                  req.type === "CME" ? "border-l-blue-500" :
+                                    req.type === "SICK" ? "border-l-rose-500" : "border-l-amber-500"
+                                }`}>
+                                <span className={
+                                  req.type === "PTO" ? "text-emerald-500" :
+                                    req.type === "CME" ? "text-blue-500" :
+                                      req.type === "SICK" ? "text-rose-500" : "text-amber-500"
+                                }>{req.type}</span>
+                                <span className="text-slate-600 font-mono tracking-tight">{req.date}</span>
+                                <button
+                                  title="Remove request"
+                                  aria-label="Remove request"
+                                  onClick={() => {
+                                    const newReqs = [...p.timeOffRequests];
+                                    newReqs.splice(i, 1);
+                                    updateProvider(p.id, { timeOffRequests: newReqs });
+                                  }}
+                                  className="text-slate-300 hover:text-error ml-1.5 transition-colors"
+                                >
+                                  <X className="w-3 h-3 stroke-[3]" />
+                                </button>
+                              </div>
+                            ))}
                           </div>
                           <TimeOffForm
                             onAdd={(date, type) => {

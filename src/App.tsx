@@ -7,7 +7,6 @@ import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
 import {
-  FileSpreadsheet,
   AlertTriangle,
   Save,
   Trash,
@@ -19,7 +18,7 @@ import {
 } from "lucide-react";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { exportScheduleToExcel, importScheduleFromExcel } from "./lib/excelUtils";
+import { importScheduleFromExcel } from "./lib/excelUtils";
 import { saveScheduleState } from "./lib/api";
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -165,15 +164,6 @@ export default function App() {
 
                 <div className="flex items-center gap-1">
                   <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Import</button>
-                  <motion.button
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={exportScheduleToExcel}
-                    className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-slate-900/10 flex items-center gap-2"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-primary" />
-                    Export
-                  </motion.button>
                 </div>
 
                 <div className="w-px h-6 bg-slate-200/60 mx-1" />

@@ -1074,6 +1074,49 @@
     /* Firefox */
   }
 
+  /* Print Optimization for Clinical Luxury Reports */
+  @media print {
+    body {
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    .no-print,
+    nav,
+    button:not(.print-only),
+    .satin-panel:not(.print-visible),
+    input,
+    select,
+    .ExportCenter {
+      display: none !important;
+    }
+
+    .satin-panel {
+      background: white !important;
+      border: 1px solid #e2e8f0 !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    .CalendarSlot {
+      border: 1px solid #cbd5e1 !important;
+      break-inside: avoid;
+    }
+
+    h1,
+    h2,
+    h3 {
+      color: #0f172a !important;
+    }
+
+    /* Ensure the grid doesn't break across pages if possible */
+    .grid {
+      display: grid !important;
+    }
+  }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }

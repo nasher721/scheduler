@@ -122,17 +122,31 @@ export const exportScheduleToExcel = () => {
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
+  // Set column widths for a professional layout
+  ws["!cols"] = [
+    { wch: 15 }, // Month / Date
+    { wch: 18 }, // G20
+    { wch: 18 }, // H22
+    { wch: 18 }, // Akron
+    { wch: 18 }, // Nights
+    { wch: 18 }, // Consults
+    { wch: 18 }, // AMET / NMET
+    { wch: 12 }, // Jeopardy
+    { wch: 12 }, // Recovery
+    { wch: 15 }, // Vacations
+  ];
+
   // Format the Date column (A)
   const range = XLSX.utils.decode_range(ws["!ref"] || "A1:A1");
   for (let R = 1; R <= range.e.r; ++R) {
     const cellRef = XLSX.utils.encode_cell({ c: 0, r: R });
     if (ws[cellRef] && ws[cellRef].t === 'd') {
-      ws[cellRef].z = "mm/dd/yyyy";
+      ws[cellRef].z = "mm-dd-yyyy";
     }
   }
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "NICU Schedule");
+  XLSX.utils.book_append_sheet(wb, ws, "NICU Institutional Schedule");
 
   const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   const data = new Blob([excelBuffer], { type: "application/octet-stream" });
