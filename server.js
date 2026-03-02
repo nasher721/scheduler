@@ -88,6 +88,17 @@ function getPayloadState(body) {
   return body;
 }
 
+function buildAiAuditEntry({ action, mode, accepted, details = {} }) {
+  return {
+    id: `ai-audit-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    action,
+    mode,
+    accepted,
+    details,
+  };
+}
+
 app.get("/api/ai/providers", (_req, res) => {
   return res.json({ providers: listProviders() });
 });
@@ -103,6 +114,74 @@ app.post("/api/ai/feedback", (req, res) => {
 
   const recorded = recordAutomationOutcome(req.body);
   return res.json({ ok: true, recorded, updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/apply", async (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Apply payload must be an object." });
+  }
+
+  const result = req.body?.result;
+  if (!result || typeof result !== "object") {
+    return res.status(400).json({ error: "Apply payload requires a result object." });
+  }
+
+  const optimizedState = result?.optimizedState;
+  const validationError = validateStatePayload(optimizedState);
+  if (validationError) {
+    return res.status(400).json({ error: `Invalid optimized state payload. ${validationError}` });
+  }
+
+  const rolloutMode = String(result?.rollout?.mode || "shadow").toLowerCase();
+  const approvedBy = typeof req.body?.approvedBy === "string" ? req.body.approvedBy.trim() : "";
+
+  if (rolloutMode === "shadow") {
+    return res.status(409).json({
+      error: "Rollout mode is shadow. Use optimize/recommend endpoints without applying state.",
+      rolloutMode,
+    });
+  }
+
+  if (rolloutMode === "human_review" && !approvedBy) {
+    return res.status(400).json({
+      error: "Human-review rollout requires approvedBy before applying.",
+      rolloutMode,
+    });
+  }
+
+  const nextState = {
+    ...optimizedState,
+    auditLog: isArray(optimizedState.auditLog) ? [...optimizedState.auditLog] : [],
+  };
+
+  const violationCount = Number.isFinite(result?.guardrails?.hardViolationCount)
+    ? Math.max(0, Number(result.guardrails.hardViolationCount))
+    : 0;
+
+  nextState.auditLog.push(
+    buildAiAuditEntry({
+      action: "ai_apply",
+      mode: rolloutMode,
+      accepted: true,
+      details: {
+        approvedBy: approvedBy || null,
+        objectiveScore: Number.isFinite(result?.objectiveScore) ? result.objectiveScore : null,
+        confidenceScore: Number.isFinite(result?.rollout?.confidenceScore) ? result.rollout.confidenceScore : null,
+        hardViolationCount: violationCount,
+      },
+    }),
+  );
+
+  await writeState(nextState);
+  const recorded = recordAutomationOutcome({ result, accepted: true, rolledBack: false, violationCount });
+  return res.json({
+    ok: true,
+    rolloutMode,
+    approvedBy: approvedBy || null,
+    recorded,
+    state: nextState,
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 app.post("/api/ai/recommendations", async (req, res) => {

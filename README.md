@@ -79,7 +79,7 @@ If backend storage is empty, `Load API` will report that no server snapshot exis
 
 ## AI API (Implemented Scaffold)
 
-**Current implementation phase: Phase 5 (provider telemetry and rollout feedback loops).**
+**Current implementation phase: Phase 6 (guarded apply workflow and approval gates).**
 
 The backend now includes a provider-agnostic AI scaffold with deterministic fallback logic.
 These endpoints are available today and can be progressively wired to real provider SDK calls.
@@ -92,6 +92,7 @@ These endpoints are available today and can be progressively wired to real provi
 - `POST /api/ai/explain`
 - `GET /api/ai/metrics`
 - `POST /api/ai/feedback`
+- `POST /api/ai/apply`
 
 Phase 4 additions in the deterministic path:
 
@@ -105,6 +106,12 @@ Phase 5 additions in the deterministic path:
 - Per-provider/model telemetry now tracks request volume, latency, fallback rate, and estimated spend.
 - Rollout feedback can be posted back to the API to track acceptance, rollback, and violation rates over time.
 - Metrics are exposed with `GET /api/ai/metrics` to support provider routing decisions.
+
+Phase 6 additions in the deterministic path:
+
+- New `POST /api/ai/apply` endpoint applies optimized schedules only when rollout mode permits it.
+- `shadow` results are blocked from persistence, and `human_review` mode requires an explicit `approvedBy` reviewer.
+- Successful apply operations append an AI audit event and write acceptance/violation outcomes into provider metrics.
 
 ### AI Environment Variables
 
