@@ -3,6 +3,7 @@ import { Calendar } from "./components/Calendar";
 import { MonthlyCalendar } from "./components/MonthlyCalendar";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RuleBuilder } from "./components/RuleBuilder";
+import { SchedulingStrategyWorkbench } from "./components/SchedulingStrategyWorkbench";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
@@ -337,6 +338,8 @@ export default function App() {
                     <MonthlyCalendar />
                   ) : viewMode === "rules" ? (
                     <RuleBuilder />
+                  ) : viewMode === "strategy" ? (
+                    <SchedulingStrategyWorkbench />
                   ) : (
                     <Calendar />
                   )}
