@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { useScheduleStore } from "../store";
+import { useScheduleStore, Provider } from "../store";
 
 export const exportScheduleToExcel = () => {
   const { slots, startDate, providers } = useScheduleStore.getState();
@@ -69,7 +69,7 @@ export const exportScheduleToExcel = () => {
       p.targetWeekendDays,
       p.targetWeekNights,
       p.targetWeekendNights,
-      p.unavailableDates.join(", "),
+      (p.timeOffRequests || []).map((r: any) => r.date).join(", "),
     ]);
   });
 
@@ -107,19 +107,20 @@ export const importScheduleFromExcel = (file: File) => {
             return null;
           let p = providers.find((prov) => prov.name === name);
           if (!p) {
-            p = {
+            const newProvider: Provider = {
               id: crypto.randomUUID(),
               name,
               targetWeekDays: 0,
               targetWeekendDays: 0,
               targetWeekNights: 0,
               targetWeekendNights: 0,
-              unavailableDates: [],
+              timeOffRequests: [],
               preferredDates: [],
               skills: ["NEURO_CRITICAL"],
               maxConsecutiveNights: 2,
               minDaysOffAfterNight: 1,
             };
+            p = newProvider;
             providers.push(p);
           }
           return p.id;
