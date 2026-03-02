@@ -87,3 +87,59 @@ test("apply history endpoints return redacted and detailed records", async () =>
     await new Promise((resolve) => server.on("exit", resolve));
   }
 });
+
+
+test("apply history summary endpoint reports range aggregates", async () => {
+  const server = spawn("node", ["server.js"], {
+    env: { ...process.env, PORT: String(PORT) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    await waitForHealth(BASE_URL);
+
+    const setRes = await fetch(`${BASE_URL}/api/state`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sampleState),
+    });
+    assert.equal(setRes.ok, true);
+
+    const optimizeRes = await fetch(`${BASE_URL}/api/ai/optimize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sampleState),
+    });
+    assert.equal(optimizeRes.ok, true);
+    const optimizePayload = await optimizeRes.json();
+
+    const applyRes = await fetch(`${BASE_URL}/api/ai/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ result: optimizePayload.result, approvedBy: "lead" }),
+    });
+    assert.equal(applyRes.ok, true);
+    const applyPayload = await applyRes.json();
+
+    const rollbackRes = await fetch(`${BASE_URL}/api/ai/rollback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ applyId: applyPayload.applyId, rolledBackBy: "ops" }),
+    });
+    assert.equal(rollbackRes.ok, true);
+
+    const summaryRes = await fetch(`${BASE_URL}/api/ai/apply-history/summary?days=7`);
+    assert.equal(summaryRes.ok, true);
+    const summaryPayload = await summaryRes.json();
+
+    assert.equal(summaryPayload.rangeDays, 7);
+    assert.equal(summaryPayload.totalInRange >= 1, true);
+    assert.equal(summaryPayload.summary.applyCount >= 1, true);
+    assert.equal(summaryPayload.summary.rollbackCount >= 1, true);
+    assert.ok(Number.isFinite(summaryPayload.summary.rollbackRate));
+    assert.ok(Object.keys(summaryPayload.summary.byRolloutMode).length >= 1);
+  } finally {
+    server.kill("SIGTERM");
+    await new Promise((resolve) => server.on("exit", resolve));
+  }
+});

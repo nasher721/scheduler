@@ -79,7 +79,7 @@ If backend storage is empty, `Load API` will report that no server snapshot exis
 
 ## AI API (Implemented Scaffold)
 
-**Current implementation phase: Phase 8 (reviewer-facing apply history query APIs).**
+**Current implementation phase: Phase 9 (apply history analytics summary API).**
 
 The backend now includes a provider-agnostic AI scaffold with deterministic fallback logic.
 These endpoints are available today and can be progressively wired to real provider SDK calls.
@@ -127,6 +127,11 @@ Phase 8 additions in the deterministic path:
 - New reviewer-friendly apply history APIs provide compact records by default to avoid returning heavy state snapshots.
 - `GET /api/ai/apply-history` supports `limit` and `includeStates=true` query parameters for listing recent apply events.
 - `GET /api/ai/apply-history/:applyId` returns a single record and can include full pre/post snapshots when explicitly requested.
+
+Phase 9 additions in the deterministic path:
+
+- New `GET /api/ai/apply-history/summary` endpoint returns reviewer-facing aggregates over a configurable date range (`days`, default 30).
+- Summary output includes apply count, rollback count/rate, average objective and confidence scores, average hard-constraint violations, and per-rollout-mode totals.
 
 ### AI Environment Variables
 
