@@ -1,16 +1,36 @@
 # Neuro ICU Scheduler
 
-A modern React + TypeScript scheduler for ICU physician planning.
+A modern React + TypeScript scheduler for complex neuro ICU physician planning.
 
-## Highlights
+## Five Standout Features
+
+1. **Skill-aware assignment engine**
+   - Every shift carries a required competency (`NEURO_CRITICAL`, `NIGHT_FLOAT`, `AIRWAY`, `STROKE`).
+   - Providers can only be assigned to slots that match their declared skill profile.
+
+2. **Fatigue & safety guardrails**
+   - Configurable per-provider limits for maximum consecutive nights.
+   - Configurable recovery days required after a night shift before non-night assignment.
+
+3. **Preference-weighted smart auto-fill**
+   - Auto-fill balances target deficits and boosts candidates on preferred dates.
+   - Preserves hard constraints (availability, skills, fatigue, no same-day double-booking).
+
+4. **Scenario sandboxing**
+   - Save, load, and delete named scenarios for “what-if” planning.
+   - Compare holiday plans, surge plans, or staffing-reduction plans without losing baseline schedules.
+
+5. **Live operational risk analytics**
+   - At-a-glance KPIs for coverage, critical unfilled shifts, skill mismatch risk, overload, and fatigue exposure.
+   - Supports rapid operational decisions in high-acuity scheduling windows.
+
+## Additional Capabilities
 
 - Drag-and-drop assignment of providers to shift slots.
-- Smart auto-assignment that balances staffing targets and fairness.
-- Conflict prevention (no double-booking on the same date, respects unavailable dates).
-- Editable provider targets and unavailable dates from the UI.
 - Monthly and classic grid schedule views.
+- Editable provider targets, skills, preferences, and availability.
 - Excel import/export for offline sharing.
-- Local persistence using browser storage.
+- Persistent local state in browser storage.
 
 ## Tech Stack
 
@@ -23,7 +43,6 @@ A modern React + TypeScript scheduler for ICU physician planning.
 - Tailwind CSS for styling
 
 ## Getting Started
-
 ```bash
 pnpm install
 pnpm dev
@@ -32,7 +51,6 @@ pnpm dev
 Then open `http://localhost:5173`.
 
 ## Available Scripts
-
 ```bash
 pnpm dev
 pnpm build
@@ -40,17 +58,11 @@ pnpm lint
 pnpm preview
 ```
 
-## Scheduling Behavior
-
-- **Day shifts:** 3 on weekdays, 2 on weekends.
-- **Night shifts:** 1 daily (with weekend-night weighting Thu-Sun).
-- **NMET / Jeopardy:** 1 each daily.
-- Auto-fill prioritizes providers with the largest remaining target deficit.
 
 ## Data Persistence
 
 Schedule state is stored under local storage key:
 
-- `nicu-schedule-store-v2`
+- `nicu-schedule-store-v3`
 
 Clear browser storage to fully reset persisted plans.

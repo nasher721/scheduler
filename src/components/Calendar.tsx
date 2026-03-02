@@ -46,14 +46,12 @@ export function DraggableProvider({ id, name }: { id: string, name: string }) {
     data: { providerId: id }
   });
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
-
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined
+      }}
       {...listeners}
       {...attributes}
       className={`flex items-center gap-2 group cursor-grab active:cursor-grabbing font-medium

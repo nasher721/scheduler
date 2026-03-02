@@ -115,6 +115,10 @@ export const importScheduleFromExcel = (file: File) => {
               targetWeekNights: 0,
               targetWeekendNights: 0,
               unavailableDates: [],
+              preferredDates: [],
+              skills: ["NEURO_CRITICAL"],
+              maxConsecutiveNights: 2,
+              minDaysOffAfterNight: 1,
             };
             providers.push(p);
           }
