@@ -110,6 +110,68 @@ function sanitizeApplyHistoryEntry(entry, options = {}) {
   };
 }
 
+function toPositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function buildApplyHistorySummary(history) {
+  const totals = {
+    applyCount: history.length,
+    rollbackCount: 0,
+    objectiveScoreSum: 0,
+    objectiveScoreCount: 0,
+    confidenceScoreSum: 0,
+    confidenceScoreCount: 0,
+    hardViolationSum: 0,
+    hardViolationCount: 0,
+  };
+  const byRolloutMode = {};
+
+  for (const entry of history) {
+    if (!entry || typeof entry !== "object") continue;
+
+    const mode = entry.rolloutMode || "unknown";
+    if (!byRolloutMode[mode]) {
+      byRolloutMode[mode] = { applyCount: 0, rollbackCount: 0 };
+    }
+    byRolloutMode[mode].applyCount += 1;
+
+    if (entry.rolledBackAt) {
+      totals.rollbackCount += 1;
+      byRolloutMode[mode].rollbackCount += 1;
+    }
+
+    if (Number.isFinite(entry?.result?.objectiveScore)) {
+      totals.objectiveScoreSum += entry.result.objectiveScore;
+      totals.objectiveScoreCount += 1;
+    }
+
+    if (Number.isFinite(entry?.result?.rollout?.confidenceScore)) {
+      totals.confidenceScoreSum += entry.result.rollout.confidenceScore;
+      totals.confidenceScoreCount += 1;
+    }
+
+    if (Number.isFinite(entry?.result?.guardrails?.hardViolationCount)) {
+      totals.hardViolationSum += Number(entry.result.guardrails.hardViolationCount);
+      totals.hardViolationCount += 1;
+    }
+  }
+
+  return {
+    applyCount: totals.applyCount,
+    rollbackCount: totals.rollbackCount,
+    rollbackRate: totals.applyCount > 0 ? Number((totals.rollbackCount / totals.applyCount).toFixed(3)) : 0,
+    avgObjectiveScore:
+      totals.objectiveScoreCount > 0 ? Number((totals.objectiveScoreSum / totals.objectiveScoreCount).toFixed(3)) : null,
+    avgConfidenceScore:
+      totals.confidenceScoreCount > 0 ? Number((totals.confidenceScoreSum / totals.confidenceScoreCount).toFixed(3)) : null,
+    avgHardViolationCount:
+      totals.hardViolationCount > 0 ? Number((totals.hardViolationSum / totals.hardViolationCount).toFixed(3)) : null,
+    byRolloutMode,
+  };
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "nicu-scheduler-api" });
 });
@@ -333,8 +395,7 @@ app.post("/api/ai/rollback", async (req, res) => {
 });
 
 app.get("/api/ai/apply-history", async (req, res) => {
-  const limitRaw = Number.parseInt(String(req.query?.limit || "20"), 10);
-  const limit = Number.isFinite(limitRaw) ? Math.min(200, Math.max(1, limitRaw)) : 20;
+  const limit = Math.min(200, toPositiveInt(req.query?.limit, 20));
   const includeStates = String(req.query?.includeStates || "false").toLowerCase() === "true";
 
   const history = await readApplyHistory();
@@ -349,6 +410,25 @@ app.get("/api/ai/apply-history", async (req, res) => {
     total: history.length,
     limit,
     includeStates,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.get("/api/ai/apply-history/summary", async (req, res) => {
+  const days = Math.min(365, toPositiveInt(req.query?.days, 30));
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+  const history = await readApplyHistory();
+  const filtered = history.filter((entry) => {
+    const ts = Date.parse(entry?.timestamp || "");
+    return Number.isFinite(ts) && ts >= since;
+  });
+
+  return res.json({
+    rangeDays: days,
+    since: new Date(since).toISOString(),
+    totalInRange: filtered.length,
+    totalAllTime: history.length,
+    summary: buildApplyHistorySummary(filtered),
     updatedAt: new Date().toISOString(),
   });
 });
