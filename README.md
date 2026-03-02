@@ -125,7 +125,7 @@ Phase 7 additions in the deterministic path:
 Phase 8 additions in the deterministic path:
 
 - New reviewer-friendly apply history APIs provide compact records by default to avoid returning heavy state snapshots.
-- `GET /api/ai/apply-history` supports `limit` and `includeStates=true` query parameters for listing recent apply events.
+- `GET /api/ai/apply-history` supports `limit`, `includeStates=true`, `rolloutMode=<mode>`, and `rolledBack=true|false` query parameters for focused reviewer filtering.
 - `GET /api/ai/apply-history/:applyId` returns a single record and can include full pre/post snapshots when explicitly requested.
 
 Phase 9 additions in the deterministic path:

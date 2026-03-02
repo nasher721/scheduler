@@ -115,6 +115,16 @@ function toPositiveInt(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseOptionalBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return null;
+}
+
 function buildApplyHistorySummary(history) {
   const totals = {
     applyCount: history.length,
@@ -397,9 +407,31 @@ app.post("/api/ai/rollback", async (req, res) => {
 app.get("/api/ai/apply-history", async (req, res) => {
   const limit = Math.min(200, toPositiveInt(req.query?.limit, 20));
   const includeStates = String(req.query?.includeStates || "false").toLowerCase() === "true";
+  const rolloutModeFilter = typeof req.query?.rolloutMode === "string" ? req.query.rolloutMode.trim().toLowerCase() : "";
+  const rolledBackFilter = parseOptionalBoolean(req.query?.rolledBack);
+
+  if (req.query?.rolledBack !== undefined && rolledBackFilter === null) {
+    return res.status(400).json({ error: 'Query parameter "rolledBack" must be either true or false when provided.' });
+  }
 
   const history = await readApplyHistory();
-  const records = [...history]
+  const filteredHistory = history.filter((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+
+    if (rolloutModeFilter) {
+      const entryMode = String(entry.rolloutMode || "").toLowerCase();
+      if (entryMode !== rolloutModeFilter) return false;
+    }
+
+    if (rolledBackFilter !== null) {
+      const isRolledBack = Boolean(entry.rolledBackAt);
+      if (isRolledBack !== rolledBackFilter) return false;
+    }
+
+    return true;
+  });
+
+  const records = [...filteredHistory]
     .reverse()
     .slice(0, limit)
     .map((entry) => sanitizeApplyHistoryEntry(entry, { includeStates }))
@@ -407,9 +439,14 @@ app.get("/api/ai/apply-history", async (req, res) => {
 
   return res.json({
     records,
-    total: history.length,
+    total: filteredHistory.length,
+    totalAllTime: history.length,
     limit,
     includeStates,
+    filters: {
+      rolloutMode: rolloutModeFilter || null,
+      rolledBack: rolledBackFilter,
+    },
     updatedAt: new Date().toISOString(),
   });
 });
