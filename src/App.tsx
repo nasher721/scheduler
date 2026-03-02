@@ -45,6 +45,8 @@ export default function App() {
     customRules,
     auditLog,
     showToast,
+    isDirty,
+    markClean,
   } = useScheduleStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
@@ -110,6 +112,7 @@ export default function App() {
         customRules,
         auditLog,
       });
+      markClean();
       showToast({ type: "success", title: "Saved to Server", message: "Current schedule state is now persisted on the backend." });
     } catch {
       showToast({ type: "error", title: "Save Failed", message: "Unable to reach API server." });
@@ -178,7 +181,14 @@ export default function App() {
                     <Sparkles className="w-3.5 h-3.5" />
                     Auto-Fill
                   </motion.button>
-                  <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync API"><Save className="w-4 h-4" /></button>
+                  <button
+                    onClick={handleServerSave}
+                    className={`relative p-2 transition-colors ${isDirty ? "text-amber-500 hover:text-amber-600" : "text-slate-400 hover:text-primary"}`}
+                    title={isDirty ? "Unsaved changes — click to save" : "Sync API"}
+                  >
+                    <Save className="w-4 h-4" />
+                    {isDirty && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500" />}
+                  </button>
                 </div>
               </div>
             </div>

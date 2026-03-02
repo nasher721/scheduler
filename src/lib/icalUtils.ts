@@ -55,5 +55,5 @@ export const generateProviderICal = (provider: Provider, slots: ShiftSlot[]) => 
     }
 
     const blob = new Blob([value], { type: "text/calendar;charset=utf-8" });
-    saveAs(blob, `${provider.name.replace(/\w+/g, "")}_schedule.ics`);
+    saveAs(blob, `${provider.name.replace(/\s+/g, "_")}_schedule.ics`);
 };

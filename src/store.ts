@@ -125,6 +125,8 @@ interface ScheduleState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  isDirty: boolean;
+  markClean: () => void;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -306,6 +308,30 @@ const computeDeficitScore = (slot: ShiftSlot, provider: Provider, count: Provide
 const initialStart = getWeekStart();
 const MAX_HISTORY = 50;
 
+function validateProviderFields(fields: Partial<Omit<Provider, "id">>): string | null {
+  if ("name" in fields) {
+    if (typeof fields.name !== "string" || fields.name.trim() === "") {
+      return "Provider name must be a non-empty string.";
+    }
+  }
+  const nonNegativeInts: Array<keyof Provider> = [
+    "targetWeekDays", "targetWeekendDays", "targetWeekNights", "targetWeekendNights",
+    "maxConsecutiveNights", "minDaysOffAfterNight",
+  ];
+  for (const key of nonNegativeInts) {
+    if (key in fields) {
+      const val = fields[key as keyof typeof fields];
+      if (typeof val !== "number" || !Number.isInteger(val) || (val as number) < 0) {
+        return `Field "${key}" must be a non-negative integer.`;
+      }
+    }
+  }
+  if ("maxConsecutiveNights" in fields && (fields.maxConsecutiveNights as number) < 1) {
+    return "maxConsecutiveNights must be at least 1.";
+  }
+  return null;
+}
+
 export const useScheduleStore = create<ScheduleState>()(
   persist(
     (set, get) => ({
@@ -320,8 +346,16 @@ export const useScheduleStore = create<ScheduleState>()(
       history: [],
       historyIndex: -1,
       auditLog: [],
+      isDirty: false,
+
+      markClean: () => set({ isDirty: false }),
 
       addProvider: (provider) => {
+        const validationError = validateProviderFields(provider);
+        if (validationError) {
+          get().showToast({ type: "error", title: "Invalid Provider", message: validationError });
+          return;
+        }
         const state = get();
         const historyState: HistoryState = {
           providers: state.providers,
@@ -338,14 +372,21 @@ export const useScheduleStore = create<ScheduleState>()(
           history: newHistory,
           historyIndex: newHistory.length - 1,
           lastActionMessage: `Added ${provider.name} to roster.`,
+          isDirty: true,
         });
 
         get().showToast({ type: "success", title: "Provider Added", message: `${provider.name} has been added to the roster.` });
       },
 
       updateProvider: (id, updates) => {
+        const validationError = validateProviderFields(updates);
+        if (validationError) {
+          get().showToast({ type: "error", title: "Invalid Update", message: validationError });
+          return;
+        }
         set((state) => ({
           providers: state.providers.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+          isDirty: true,
         }));
       },
 
@@ -368,6 +409,7 @@ export const useScheduleStore = create<ScheduleState>()(
           history: newHistory,
           historyIndex: newHistory.length - 1,
           lastActionMessage: "Provider removed and related assignments cleared.",
+          isDirty: true,
         });
 
         get().showToast({ type: "info", title: "Provider Removed", message: provider ? `${provider.name} has been removed.` : undefined });
@@ -379,6 +421,7 @@ export const useScheduleStore = create<ScheduleState>()(
           numWeeks,
           slots: generateInitialSlots(startDate, numWeeks),
           lastActionMessage: "Schedule window updated.",
+          isDirty: true,
         }));
 
         get().showToast({ type: "info", title: "Schedule Updated", message: `Now viewing ${numWeeks} week${numWeeks > 1 ? 's' : ''} starting ${startDate}.` });
@@ -389,6 +432,7 @@ export const useScheduleStore = create<ScheduleState>()(
         set({
           customRules: [...state.customRules, { ...rule, id: crypto.randomUUID() }],
           lastActionMessage: `Added custom rule: ${rule.type}`,
+          isDirty: true,
         });
         get().showToast({ type: "success", title: "Rule Added", message: `Custom rule created.` });
       },
@@ -399,6 +443,7 @@ export const useScheduleStore = create<ScheduleState>()(
         set({
           customRules: state.customRules.filter(r => r.id !== id),
           lastActionMessage: `Removed custom rule.`,
+          isDirty: true,
           auditLog: [
             {
               id: crypto.randomUUID(),
@@ -469,7 +514,8 @@ export const useScheduleStore = create<ScheduleState>()(
             auditLog: nextAuditLog,
             history: newHistory,
             historyIndex: newHistory.length - 1,
-            lastActionMessage: details
+            lastActionMessage: details,
+            isDirty: true,
           };
         }),
 
@@ -490,6 +536,7 @@ export const useScheduleStore = create<ScheduleState>()(
           history: newHistory,
           historyIndex: newHistory.length - 1,
           lastActionMessage: "All assignments cleared.",
+          isDirty: true,
           auditLog: [
             {
               id: crypto.randomUUID(),
@@ -590,6 +637,7 @@ export const useScheduleStore = create<ScheduleState>()(
             assignmentLogs: logs,
             auditLog: [...newAuditEntries, ...state.auditLog],
             lastActionMessage: `Auto-assigned ${assignedCount} shifts using constraints: skills, fatigue, fairness, and preferences.`,
+            isDirty: true,
           };
         });
 
@@ -639,6 +687,7 @@ export const useScheduleStore = create<ScheduleState>()(
           history: newHistory,
           historyIndex: newHistory.length - 1,
           lastActionMessage: `Loaded scenario: ${found.name}`,
+          isDirty: true,
         });
 
         get().showToast({ type: "info", title: "Scenario Loaded", message: `"${found.name}" has been restored.` });
