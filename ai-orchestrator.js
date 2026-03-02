@@ -4,6 +4,30 @@ const DEFAULT_PROVIDERS = [
   { id: "google", label: "Google Gemini", models: ["gemini-2.0-flash"], envKey: "GEMINI_API_KEY" },
 ];
 
+const POLICY_PROFILES = {
+  balanced: {
+    coverageCompletion: 0.35,
+    fatigueRiskMinimization: 0.2,
+    fairnessEquityDistribution: 0.2,
+    preferenceSatisfaction: 0.15,
+    continuityOfCare: 0.1,
+  },
+  safety_first: {
+    coverageCompletion: 0.45,
+    fatigueRiskMinimization: 0.25,
+    fairnessEquityDistribution: 0.15,
+    preferenceSatisfaction: 0.05,
+    continuityOfCare: 0.1,
+  },
+  fairness_first: {
+    coverageCompletion: 0.3,
+    fatigueRiskMinimization: 0.15,
+    fairnessEquityDistribution: 0.35,
+    preferenceSatisfaction: 0.1,
+    continuityOfCare: 0.1,
+  },
+};
+
 const isArray = (value) => Array.isArray(value);
 const isNightShift = (slot) => slot?.type === "NIGHT";
 
@@ -27,6 +51,19 @@ function listProviders() {
     configured: provider.id === configuredProvider,
     enabled: Boolean(process.env[provider.envKey]),
   }));
+}
+
+function normalizeObjectiveWeights(input = {}) {
+  const policy = String(input?.policyProfile || "balanced").toLowerCase();
+  const base = POLICY_PROFILES[policy] || POLICY_PROFILES.balanced;
+  const merged = { ...base, ...(input?.objectiveWeights || {}) };
+
+  const keys = Object.keys(POLICY_PROFILES.balanced);
+  const sum = keys.reduce((acc, key) => acc + (Number.isFinite(merged[key]) ? Math.max(0, merged[key]) : 0), 0);
+  if (sum <= 0) return { policyProfile: policy, objectiveWeights: { ...base } };
+
+  const normalized = Object.fromEntries(keys.map((key) => [key, Math.max(0, merged[key] || 0) / sum]));
+  return { policyProfile: policy, objectiveWeights: normalized };
 }
 
 function summarizeState(state) {
@@ -115,6 +152,80 @@ function buildProviderStats(state) {
   return stats;
 }
 
+function calculateAssignmentCounts(state) {
+  const counts = new Map();
+  const slots = isArray(state?.slots) ? state.slots : [];
+  for (const slot of slots) {
+    if (!slot?.providerId) continue;
+    counts.set(slot.providerId, (counts.get(slot.providerId) || 0) + 1);
+  }
+  return counts;
+}
+
+function calculateStdDev(values) {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((acc, value) => acc + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+function computeObjectiveBreakdown(state, input = {}) {
+  const summary = summarizeState(state);
+  const { policyProfile, objectiveWeights } = normalizeObjectiveWeights(input);
+  const assignmentCounts = calculateAssignmentCounts(state);
+  const providerList = isArray(state?.providers) ? state.providers : [];
+  const assignmentVector = providerList.map((provider) => assignmentCounts.get(provider.id) || 0);
+  const fairnessPenalty = calculateStdDev(assignmentVector) * 10;
+  const fairnessScore = Math.max(0, 100 - fairnessPenalty);
+
+  let nightSlots = 0;
+  let nightWithRecoveryLimit = 0;
+  for (const slot of isArray(state?.slots) ? state.slots : []) {
+    if (!isNightShift(slot) || !slot?.providerId) continue;
+    nightSlots += 1;
+    const provider = providerList.find((entry) => entry.id === slot.providerId);
+    if (Number.isFinite(provider?.maxConsecutiveNights)) nightWithRecoveryLimit += 1;
+  }
+
+  const fatigueScore = nightSlots === 0 ? 100 : Math.round((nightWithRecoveryLimit / nightSlots) * 100);
+  const preferencePenalty = deterministicConflicts(state, "local").conflicts.filter((entry) => entry.type === "time_off_violation").length * 25;
+  const preferenceScore = Math.max(0, 100 - preferencePenalty);
+  const continuityScore = Math.max(0, 100 - Math.round(summary.unassignedSlots * 5));
+  const coverageScore = summary.coveragePct;
+
+  const weightedScore =
+    coverageScore * objectiveWeights.coverageCompletion +
+    fatigueScore * objectiveWeights.fatigueRiskMinimization +
+    fairnessScore * objectiveWeights.fairnessEquityDistribution +
+    preferenceScore * objectiveWeights.preferenceSatisfaction +
+    continuityScore * objectiveWeights.continuityOfCare;
+
+  return {
+    policyProfile,
+    objectiveWeights,
+    objectiveBreakdown: {
+      coverageCompletion: coverageScore,
+      fatigueRiskMinimization: fatigueScore,
+      fairnessEquityDistribution: Math.round(fairnessScore),
+      preferenceSatisfaction: preferenceScore,
+      continuityOfCare: continuityScore,
+    },
+    objectiveScore: Math.round(weightedScore),
+  };
+}
+
+function evaluateGuardrails(state) {
+  const analysis = deterministicConflicts(state, "local");
+  const hardConstraintTypes = ["missing_provider", "skill_mismatch", "time_off_violation", "double_booked"];
+  const hardViolations = analysis.conflicts.filter((entry) => hardConstraintTypes.includes(entry.type));
+
+  return {
+    passed: hardViolations.length === 0,
+    hardViolationCount: hardViolations.length,
+    hardViolations,
+  };
+}
+
 function chooseBestProvider(state, slot, providerStats) {
   const providers = isArray(state?.providers) ? state.providers : [];
   const candidates = [];
@@ -146,8 +257,10 @@ function chooseBestProvider(state, slot, providerStats) {
   return candidates[0].provider;
 }
 
-function deterministicRecommendations(state, provider) {
+function deterministicRecommendations(input, provider) {
+  const state = input?.state || input;
   const { providers, slots, unassignedSlots, coveragePct } = summarizeState(state);
+  const objectives = computeObjectiveBreakdown(state, input);
 
   return {
     provider,
@@ -175,6 +288,7 @@ function deterministicRecommendations(state, provider) {
         rationale: "Spread weekly assignments evenly to improve fairness and reduce fatigue risk.",
       },
     ],
+    ...objectives,
   };
 }
 
@@ -227,11 +341,16 @@ function deterministicOptimize(input, provider) {
   }
 
   const optimizedState = { ...state, slots };
-  const summary = summarizeState(optimizedState);
+  const objectives = computeObjectiveBreakdown(optimizedState, input);
+  const guardrails = evaluateGuardrails(optimizedState);
   return {
     provider,
     source: "deterministic-fallback",
-    objectiveScore: Math.max(0, summary.coveragePct - changes.filter((entry) => entry.action !== "assign_provider").length),
+    objectiveScore: objectives.objectiveScore,
+    objectiveBreakdown: objectives.objectiveBreakdown,
+    objectiveWeights: objectives.objectiveWeights,
+    policyProfile: objectives.policyProfile,
+    guardrails,
     changes,
     optimizedState,
   };
@@ -248,12 +367,18 @@ function deterministicSimulate(input, provider) {
   const projectedCoverage = Math.max(0, coveragePct - absences * 3 - Math.floor(surge / 10));
   const projectedUnassigned = Math.max(0, unassignedSlots + absences + Math.floor(surge / 15));
 
+  const objectives = computeObjectiveBreakdown(state, input);
+
   return {
     provider,
     source: "deterministic-fallback",
     scenario,
     baseline: { coveragePct, unassignedSlots },
     projected: { coveragePct: projectedCoverage, unassignedSlots: projectedUnassigned },
+    objectiveScore: objectives.objectiveScore,
+    objectiveBreakdown: objectives.objectiveBreakdown,
+    objectiveWeights: objectives.objectiveWeights,
+    policyProfile: objectives.policyProfile,
   };
 }
 
@@ -320,7 +445,7 @@ function deterministicConflicts(state, provider) {
 
 function deterministicExplain(input, provider) {
   const decision = input?.decision || input?.change || input || {};
-  const objectiveWeights = input?.objectiveWeights || {};
+  const { objectiveWeights, policyProfile } = normalizeObjectiveWeights(input);
 
   return {
     provider,
@@ -329,6 +454,7 @@ function deterministicExplain(input, provider) {
       "This recommendation prioritizes critical coverage first, then least-loaded eligible providers, and finally fairness under hard constraints.",
     decision,
     objectiveWeights,
+    policyProfile,
   };
 }
 
@@ -435,8 +561,7 @@ async function executeTask(task, payload, fallbackBuilder) {
 }
 
 export async function buildRecommendations(input) {
-  const state = input?.state || input;
-  return executeTask("recommendations", state, deterministicRecommendations);
+  return executeTask("recommendations", input, deterministicRecommendations);
 }
 
 export async function optimizeSchedule(input) {
