@@ -3,6 +3,14 @@ import cors from "cors";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  listProviders,
+  buildRecommendations,
+  optimizeSchedule,
+  simulateScenario,
+  detectConflicts,
+  explainDecision,
+} from "./ai-orchestrator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +76,62 @@ app.put("/api/state", async (req, res) => {
 
   await writeState(req.body);
   return res.json({ ok: true, updatedAt: new Date().toISOString() });
+});
+
+function getPayloadState(body) {
+  if (body && typeof body === "object" && body.state && typeof body.state === "object") {
+    return body.state;
+  }
+
+  return body;
+}
+
+app.get("/api/ai/providers", (_req, res) => {
+  return res.json({ providers: listProviders() });
+});
+
+app.post("/api/ai/recommendations", async (req, res) => {
+  const state = getPayloadState(req.body);
+  const validationError = validateStatePayload(state);
+  if (validationError) {
+    return res.status(400).json({ error: `Invalid state payload. ${validationError}` });
+  }
+
+  return res.json({ result: await buildRecommendations(req.body), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/optimize", async (req, res) => {
+  const state = getPayloadState(req.body);
+  const validationError = validateStatePayload(state);
+  if (validationError) {
+    return res.status(400).json({ error: `Invalid state payload. ${validationError}` });
+  }
+
+  return res.json({ result: await optimizeSchedule(req.body), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/simulate", async (req, res) => {
+  const state = getPayloadState(req.body);
+  const validationError = validateStatePayload(state);
+  if (validationError) {
+    return res.status(400).json({ error: `Invalid state payload. ${validationError}` });
+  }
+
+  return res.json({ result: await simulateScenario(req.body), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/conflicts", async (req, res) => {
+  const state = getPayloadState(req.body);
+  const validationError = validateStatePayload(state);
+  if (validationError) {
+    return res.status(400).json({ error: `Invalid state payload. ${validationError}` });
+  }
+
+  return res.json({ result: await detectConflicts(req.body), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/explain", async (req, res) => {
+  return res.json({ result: await explainDecision(req.body), updatedAt: new Date().toISOString() });
 });
 
 app.listen(port, () => {
