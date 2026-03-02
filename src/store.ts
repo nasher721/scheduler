@@ -115,6 +115,8 @@ interface ScheduleState {
   assignShift: (slotId: string, providerId: string | null) => void;
   autoAssign: () => void;
   clearAssignments: () => void;
+  clearStaff: () => void;
+  clearSchedule: () => void;
   createScenario: (name: string) => void;
   loadScenario: (id: string) => void;
   deleteScenario: (id: string) => void;
@@ -503,6 +505,73 @@ export const useScheduleStore = create<ScheduleState>()(
         });
 
         get().showToast({ type: "warning", title: "Assignments Cleared", message: "All shift assignments have been removed." });
+      },
+
+      clearStaff: () => {
+        const state = get();
+        const historyState: HistoryState = {
+          providers: state.providers,
+          slots: state.slots,
+          startDate: state.startDate,
+          numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
+        };
+        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+
+        set({
+          providers: [],
+          slots: state.slots.map((s) => ({ ...s, providerId: null })),
+          customRules: [],
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+          lastActionMessage: "All staff profiles cleared.",
+          auditLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: "CLEAR" as const,
+              details: "Cleared all staff profiles and related assignments",
+              user: "Current User"
+            },
+            ...state.auditLog
+          ]
+        });
+
+        get().showToast({ type: "warning", title: "Staff Cleared", message: "All providers and related rules were removed." });
+      },
+
+      clearSchedule: () => {
+        const state = get();
+        const historyState: HistoryState = {
+          providers: state.providers,
+          slots: state.slots,
+          startDate: state.startDate,
+          numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
+        };
+        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+
+        set({
+          slots: generateInitialSlots(state.startDate, state.numWeeks),
+          scenarios: [],
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+          lastActionMessage: "Schedule reset to an empty planning window.",
+          auditLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: "CLEAR" as const,
+              details: "Cleared schedule assignments and saved scenarios",
+              user: "Current User"
+            },
+            ...state.auditLog
+          ]
+        });
+
+        get().showToast({ type: "warning", title: "Schedule Cleared", message: "All assignments and scenarios were reset." });
       },
 
       autoAssign: () => {

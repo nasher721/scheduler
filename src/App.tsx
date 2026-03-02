@@ -43,6 +43,8 @@ export default function App() {
     redo,
     canUndo,
     canRedo,
+    clearStaff,
+    clearSchedule,
     customRules,
     auditLog,
     showToast,
@@ -149,6 +151,28 @@ export default function App() {
     }
   };
 
+  const handleClearStaff = () => {
+    if (providers.length === 0) {
+      showToast({ type: "info", title: "No Staff to Clear", message: "There are no provider profiles to remove." });
+      return;
+    }
+
+    if (window.confirm("Remove all staff profiles, clear assignments, and delete staffing rules?")) {
+      clearStaff();
+    }
+  };
+
+  const handleClearSchedule = () => {
+    if (slots.every((slot) => !slot.providerId) && scenarios.length === 0) {
+      showToast({ type: "info", title: "Schedule Already Clear", message: "There are no assignments or scenarios to reset." });
+      return;
+    }
+
+    if (window.confirm("Clear all assignments and reset saved scenarios for this planning window?")) {
+      clearSchedule();
+    }
+  };
+
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -213,6 +237,8 @@ export default function App() {
                     Auto-Fill
                   </motion.button>
                   <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync API"><Save className="w-4 h-4" /></button>
+                  <button onClick={handleClearSchedule} className="p-2 text-slate-400 hover:text-amber-600 transition-colors" title="Clear Schedule"><Trash className="w-4 h-4" /></button>
+                  <button onClick={handleClearStaff} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Clear Staff"><AlertTriangle className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
