@@ -79,7 +79,7 @@ If backend storage is empty, `Load API` will report that no server snapshot exis
 
 ## AI API (Implemented Scaffold)
 
-**Current implementation phase: Phase 3 (objective scoring, policy profiles, and hard-constraint guardrails).**
+**Current implementation phase: Phase 4 (rollout readiness scoring and automation gates).**
 
 The backend now includes a provider-agnostic AI scaffold with deterministic fallback logic.
 These endpoints are available today and can be progressively wired to real provider SDK calls.
@@ -91,11 +91,11 @@ These endpoints are available today and can be progressively wired to real provi
 - `POST /api/ai/conflicts`
 - `POST /api/ai/explain`
 
-Phase 3 additions in the deterministic path:
+Phase 4 additions in the deterministic path:
 
-- Objective scoring now returns weighted `objectiveScore` + `objectiveBreakdown`.
-- Policy profiles (`balanced`, `safety_first`, `fairness_first`) can be selected per request.
-- Optimizer output now includes `guardrails` with hard-constraint pass/fail metadata.
+- Objective scoring and policy profiles continue to drive optimization outcomes.
+- Optimizer output now includes `rollout` metadata for shadow vs human-review vs auto-apply decisions.
+- Rollout confidence applies penalties for hard-constraint violations and unresolved manual assignments.
 
 ### AI Environment Variables
 

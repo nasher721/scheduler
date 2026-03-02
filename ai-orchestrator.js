@@ -28,6 +28,18 @@ const POLICY_PROFILES = {
   },
 };
 
+const ROLLOUT_MODES = {
+  SHADOW: "shadow",
+  HUMAN_REVIEW: "human_review",
+  AUTO_APPLY: "auto_apply",
+};
+
+const POLICY_AUTO_APPLY_THRESHOLD = {
+  balanced: 88,
+  safety_first: 92,
+  fairness_first: 90,
+};
+
 const isArray = (value) => Array.isArray(value);
 const isNightShift = (slot) => slot?.type === "NIGHT";
 
@@ -226,6 +238,42 @@ function evaluateGuardrails(state) {
   };
 }
 
+function evaluateRolloutReadiness({ objectives, guardrails, changes }) {
+  const policyKey = objectives.policyProfile in POLICY_AUTO_APPLY_THRESHOLD ? objectives.policyProfile : "balanced";
+  const autoApplyThreshold = POLICY_AUTO_APPLY_THRESHOLD[policyKey];
+  const manualAssignments = (isArray(changes) ? changes : []).filter((change) => change?.action === "mark_for_manual_assignment").length;
+  const hardViolationPenalty = guardrails.hardViolationCount * 40;
+  const manualPenalty = manualAssignments * 12;
+  const confidenceScore = Math.max(0, Math.min(100, objectives.objectiveScore - hardViolationPenalty - manualPenalty));
+  const reasons = [];
+
+  if (!guardrails.passed) reasons.push("Hard constraint violations detected.");
+  if (manualAssignments > 0) reasons.push(`${manualAssignments} slot(s) still require manual assignment.`);
+  if (confidenceScore < autoApplyThreshold) {
+    reasons.push(`Confidence ${confidenceScore} is below auto-apply threshold ${autoApplyThreshold} for ${policyKey}.`);
+  }
+
+  const mode =
+    guardrails.passed && manualAssignments === 0 && confidenceScore >= autoApplyThreshold
+      ? ROLLOUT_MODES.AUTO_APPLY
+      : confidenceScore >= Math.max(60, autoApplyThreshold - 20)
+        ? ROLLOUT_MODES.HUMAN_REVIEW
+        : ROLLOUT_MODES.SHADOW;
+
+  return {
+    mode,
+    autoApplyEligible: mode === ROLLOUT_MODES.AUTO_APPLY,
+    confidenceScore,
+    autoApplyThreshold,
+    reasons,
+    metrics: {
+      hardViolationCount: guardrails.hardViolationCount,
+      manualAssignmentCount: manualAssignments,
+      objectiveScore: objectives.objectiveScore,
+    },
+  };
+}
+
 function chooseBestProvider(state, slot, providerStats) {
   const providers = isArray(state?.providers) ? state.providers : [];
   const candidates = [];
@@ -343,6 +391,7 @@ function deterministicOptimize(input, provider) {
   const optimizedState = { ...state, slots };
   const objectives = computeObjectiveBreakdown(optimizedState, input);
   const guardrails = evaluateGuardrails(optimizedState);
+  const rollout = evaluateRolloutReadiness({ objectives, guardrails, changes });
   return {
     provider,
     source: "deterministic-fallback",
@@ -351,6 +400,7 @@ function deterministicOptimize(input, provider) {
     objectiveWeights: objectives.objectiveWeights,
     policyProfile: objectives.policyProfile,
     guardrails,
+    rollout,
     changes,
     optimizedState,
   };

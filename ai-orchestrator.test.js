@@ -61,6 +61,22 @@ test("optimize assigns eligible providers and returns optimized state", async ()
   assert.ok(result.optimizedState.slots.some((slot) => slot.id === "s2" && slot.providerId === "p1"));
   assert.ok(result.guardrails.passed);
   assert.ok(Number.isFinite(result.objectiveScore));
+  assert.equal(result.rollout.mode, "human_review");
+  assert.equal(result.rollout.autoApplyEligible, false);
+});
+
+test("optimize returns human-review rollout mode when manual assignments remain", async () => {
+  const result = await optimizeSchedule({
+    ...sampleState,
+    slots: [
+      { id: "u1", date: "2026-01-01", type: "DAY", providerId: null, requiredSkill: "TRANSPLANT", priority: "CRITICAL" },
+      { id: "u2", date: "2026-01-02", type: "DAY", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "STANDARD" },
+    ],
+  });
+
+  assert.equal(result.rollout.mode, "human_review");
+  assert.equal(result.rollout.autoApplyEligible, false);
+  assert.ok(result.rollout.reasons.some((entry) => entry.includes("manual assignment")));
 });
 
 test("optimize respects max consecutive nights when assigning", async () => {
