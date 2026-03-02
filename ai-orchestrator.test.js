@@ -7,6 +7,8 @@ import {
   simulateScenario,
   detectConflicts,
   explainDecision,
+  listProviderMetrics,
+  recordAutomationOutcome,
 } from "./ai-orchestrator.js";
 
 const sampleState = {
@@ -145,4 +147,30 @@ test("explain returns deterministic text", async () => {
   assert.equal(result.source, "deterministic-fallback");
   assert.ok(result.explanation.includes("critical coverage"));
   assert.equal(result.policyProfile, "safety_first");
+});
+
+
+test("metrics track fallback optimization calls", async () => {
+  await optimizeSchedule(sampleState);
+  const metrics = listProviderMetrics();
+  assert.ok(metrics.some((entry) => entry.provider === "openai"));
+  assert.ok(metrics.some((entry) => entry.requestCount >= 1));
+});
+
+test("feedback records acceptance, rollback, and violations", () => {
+  const before = listProviderMetrics();
+  const target = before.find((entry) => entry.provider === "openai") || { provider: "openai", model: "deterministic-openai" };
+
+  const recorded = recordAutomationOutcome({
+    result: { provider: target.provider, model: target.model, guardrails: { hardViolationCount: 2 } },
+    accepted: true,
+    rolledBack: true,
+  });
+
+  assert.equal(recorded.provider, target.provider);
+  const after = listProviderMetrics().find((entry) => entry.provider === target.provider && entry.model === target.model);
+  assert.ok(after);
+  assert.ok(after.acceptedCount >= 1);
+  assert.ok(after.rollbackCount >= 1);
+  assert.ok(after.violationCount >= 2);
 });

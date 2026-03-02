@@ -40,6 +40,14 @@ const POLICY_AUTO_APPLY_THRESHOLD = {
   fairness_first: 90,
 };
 
+const PROVIDER_PRICING_USD_PER_1K_TOKENS = {
+  openai: 0.01,
+  anthropic: 0.012,
+  google: 0.005,
+};
+
+const providerMetrics = new Map();
+
 const isArray = (value) => Array.isArray(value);
 const isNightShift = (slot) => slot?.type === "NIGHT";
 
@@ -590,6 +598,79 @@ function parseStructuredText(text) {
   }
 }
 
+function getMetricsKey(provider, model) {
+  return `${provider || "unknown"}:${model || "unknown"}`;
+}
+
+function estimateTokens(text) {
+  if (!text || typeof text !== "string") return 0;
+  return Math.max(1, Math.round(text.length / 4));
+}
+
+function estimateCostUsd(provider, tokens) {
+  const pricePer1k = PROVIDER_PRICING_USD_PER_1K_TOKENS[provider] || 0;
+  return Number(((tokens / 1000) * pricePer1k).toFixed(6));
+}
+
+function ensureMetricsEntry(provider, model) {
+  const key = getMetricsKey(provider, model);
+  if (!providerMetrics.has(key)) {
+    providerMetrics.set(key, {
+      provider: provider || "unknown",
+      model: model || "unknown",
+      requestCount: 0,
+      llmSuccessCount: 0,
+      fallbackCount: 0,
+      failureCount: 0,
+      totalLatencyMs: 0,
+      avgLatencyMs: 0,
+      totalEstimatedCostUsd: 0,
+      acceptedCount: 0,
+      rollbackCount: 0,
+      violationCount: 0,
+      acceptedRate: 0,
+      rollbackRate: 0,
+      violationRate: 0,
+      lastUpdatedAt: null,
+    });
+  }
+
+  return providerMetrics.get(key);
+}
+
+function refreshDerivedRates(entry) {
+  entry.avgLatencyMs = entry.requestCount > 0 ? Number((entry.totalLatencyMs / entry.requestCount).toFixed(2)) : 0;
+  entry.acceptedRate = entry.requestCount > 0 ? Number((entry.acceptedCount / entry.requestCount).toFixed(3)) : 0;
+  entry.rollbackRate = entry.requestCount > 0 ? Number((entry.rollbackCount / entry.requestCount).toFixed(3)) : 0;
+  entry.violationRate = entry.requestCount > 0 ? Number((entry.violationCount / entry.requestCount).toFixed(3)) : 0;
+  entry.lastUpdatedAt = new Date().toISOString();
+}
+
+function recordRequestMetrics({ provider, model, latencyMs, usedLlm, usedFallback, failed, text }) {
+  const entry = ensureMetricsEntry(provider, model);
+  entry.requestCount += 1;
+  entry.totalLatencyMs += Math.max(0, Math.round(latencyMs || 0));
+  if (usedLlm) entry.llmSuccessCount += 1;
+  if (usedFallback) entry.fallbackCount += 1;
+  if (failed) entry.failureCount += 1;
+
+  const estimatedTokens = estimateTokens(text);
+  entry.totalEstimatedCostUsd = Number((entry.totalEstimatedCostUsd + estimateCostUsd(provider, estimatedTokens)).toFixed(6));
+  refreshDerivedRates(entry);
+}
+
+function resolveProviderModelFromResult(result) {
+  if (result?.llm?.provider || result?.llm?.model) {
+    return {
+      provider: result?.llm?.provider || getConfiguredProvider(),
+      model: result?.llm?.model || getPreferredModel(result?.llm?.provider || getConfiguredProvider()),
+    };
+  }
+
+  const provider = result?.provider || getConfiguredProvider();
+  return { provider, model: `deterministic-${provider}` };
+}
+
 function withMetadata(result, llmResponse) {
   return { ...result, llm: { provider: llmResponse.provider, model: llmResponse.model, source: llmResponse.source } };
 }
@@ -597,17 +678,79 @@ function withMetadata(result, llmResponse) {
 async function executeTask(task, payload, fallbackBuilder) {
   const provider = getConfiguredProvider();
   const fallbackResult = fallbackBuilder(payload, provider);
+  const startedAt = Date.now();
 
   try {
     const llmResponse = await callConfiguredProvider(task, payload);
-    if (!llmResponse) return fallbackResult;
+    if (!llmResponse) {
+      recordRequestMetrics({
+        provider,
+        model: `deterministic-${provider}`,
+        latencyMs: Date.now() - startedAt,
+        usedLlm: false,
+        usedFallback: true,
+        failed: false,
+      });
+      return fallbackResult;
+    }
 
     const parsed = parseStructuredText(llmResponse.text);
-    if (!parsed || typeof parsed !== "object") return withMetadata({ ...fallbackResult, llmText: llmResponse.text }, llmResponse);
-    return withMetadata({ ...fallbackResult, ...parsed, source: "llm+fallback-shape" }, llmResponse);
+    const result =
+      !parsed || typeof parsed !== "object"
+        ? withMetadata({ ...fallbackResult, llmText: llmResponse.text }, llmResponse)
+        : withMetadata({ ...fallbackResult, ...parsed, source: "llm+fallback-shape" }, llmResponse);
+
+    recordRequestMetrics({
+      provider: llmResponse.provider,
+      model: llmResponse.model,
+      latencyMs: Date.now() - startedAt,
+      usedLlm: true,
+      usedFallback: false,
+      failed: false,
+      text: llmResponse.text,
+    });
+
+    return result;
   } catch (error) {
+    recordRequestMetrics({
+      provider,
+      model: `deterministic-${provider}`,
+      latencyMs: Date.now() - startedAt,
+      usedLlm: false,
+      usedFallback: true,
+      failed: true,
+    });
     return { ...fallbackResult, warning: error instanceof Error ? error.message : "Unknown provider error" };
   }
+}
+
+function listProviderMetrics() {
+  return [...providerMetrics.values()]
+    .map((entry) => ({ ...entry }))
+    .sort((a, b) => String(a.provider).localeCompare(String(b.provider)) || String(a.model).localeCompare(String(b.model)));
+}
+
+function recordAutomationOutcome(input = {}) {
+  const { provider, model } = resolveProviderModelFromResult(input?.result || input);
+  const entry = ensureMetricsEntry(provider, model);
+  if (input?.accepted === true) entry.acceptedCount += 1;
+  if (input?.rolledBack === true) entry.rollbackCount += 1;
+
+  const violationCount = Number.isFinite(input?.violationCount)
+    ? Math.max(0, Number(input.violationCount))
+    : Number.isFinite(input?.result?.guardrails?.hardViolationCount)
+      ? Math.max(0, Number(input.result.guardrails.hardViolationCount))
+      : 0;
+  entry.violationCount += violationCount;
+  refreshDerivedRates(entry);
+
+  return {
+    provider,
+    model,
+    acceptedCount: entry.acceptedCount,
+    rollbackCount: entry.rollbackCount,
+    violationCount: entry.violationCount,
+  };
 }
 
 export async function buildRecommendations(input) {
@@ -631,4 +774,4 @@ export async function explainDecision(input) {
   return executeTask("explain", input, deterministicExplain);
 }
 
-export { listProviders };
+export { listProviders, listProviderMetrics, recordAutomationOutcome };
