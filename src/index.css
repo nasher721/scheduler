@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 220 10% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 10% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 10% 15%;
+    --primary: 215 80% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 15% 92%;
+    --secondary-foreground: 215 80% 30%;
+    --muted: 215 10% 95%;
+    --muted-foreground: 215 10% 40%;
+    --accent: 270 50% 96%;
+    --accent-foreground: 270 70% 30%;
+    --destructive: 0 80% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 15% 90%;
+    --input: 215 15% 90%;
+    --ring: 215 80% 40%;
+    --radius: 0.75rem;
+
+    --shift-day: 150 40% 90%;
+    --shift-night: 240 40% 90%;
+    --shift-nmet: 30 70% 90%;
+    --shift-jeopardy: 0 50% 90%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50 via-gray-50 to-white min-h-screen font-sans antialiased;
+    font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-sm transition-all duration-300;
+}
