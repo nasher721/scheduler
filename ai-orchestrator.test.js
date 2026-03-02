@@ -59,6 +59,37 @@ test("optimize assigns eligible providers and returns optimized state", async ()
   assert.ok(result.optimizedState.slots.some((slot) => slot.id === "s2" && slot.providerId === "p1"));
 });
 
+test("optimize respects max consecutive nights when assigning", async () => {
+  const state = {
+    ...sampleState,
+    providers: [
+      {
+        id: "p1",
+        name: "Dr. A",
+        skills: ["NIGHT_FLOAT"],
+        timeOffRequests: [],
+        maxConsecutiveNights: 1,
+      },
+      {
+        id: "p2",
+        name: "Dr. B",
+        skills: ["NIGHT_FLOAT"],
+        timeOffRequests: [],
+        maxConsecutiveNights: 2,
+      },
+    ],
+    customRules: [],
+    slots: [
+      { id: "n1", date: "2026-01-01", type: "NIGHT", providerId: "p1", requiredSkill: "NIGHT_FLOAT", priority: "CRITICAL" },
+      { id: "n2", date: "2026-01-02", type: "NIGHT", providerId: null, requiredSkill: "NIGHT_FLOAT", priority: "CRITICAL" },
+    ],
+  };
+
+  const result = await optimizeSchedule(state);
+  assert.equal(result.source, "deterministic-fallback");
+  assert.ok(result.optimizedState.slots.some((slot) => slot.id === "n2" && slot.providerId === "p2"));
+});
+
 test("simulate returns projected metrics", async () => {
   const result = await simulateScenario({
     state: sampleState,
@@ -72,6 +103,20 @@ test("simulate returns projected metrics", async () => {
 test("conflicts finds unassigned slot", async () => {
   const result = await detectConflicts(sampleState);
   assert.ok(result.conflictCount >= 1);
+});
+
+test("conflicts detect time-off and max weekly shift rule violations", async () => {
+  const result = await detectConflicts({
+    ...sampleState,
+    slots: [
+      { id: "x1", date: "2026-01-02", type: "DAY", providerId: "p2", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+      { id: "x2", date: "2026-01-03", type: "DAY", providerId: "p2", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+    ],
+    customRules: [{ id: "r2", type: "MAX_SHIFTS_PER_WEEK", providerId: "p2", maxShifts: 1 }],
+  });
+
+  assert.ok(result.conflicts.some((entry) => entry.type === "time_off_violation"));
+  assert.ok(result.conflicts.some((entry) => entry.type === "max_shifts_per_week_exceeded"));
 });
 
 test("explain returns deterministic text", async () => {

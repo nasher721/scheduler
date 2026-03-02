@@ -52,6 +52,12 @@ function getWeekStart(dateString) {
   return monday.toISOString().slice(0, 10);
 }
 
+function getDayDiff(fromDate, toDate) {
+  const from = new Date(fromDate);
+  const to = new Date(toDate);
+  return Math.round((to - from) / (1000 * 60 * 60 * 24));
+}
+
 function getMaxShiftsForProvider(state, providerId) {
   const rules = isArray(state?.customRules) ? state.customRules : [];
   const rule = rules.find((entry) => entry?.type === "MAX_SHIFTS_PER_WEEK" && entry?.providerId === providerId);
@@ -127,7 +133,9 @@ function chooseBestProvider(state, slot, providerStats) {
 
     if (isNightShift(slot)) {
       const maxConsecutive = Number.isFinite(provider?.maxConsecutiveNights) ? provider.maxConsecutiveNights : 99;
-      if (stats.consecutiveNights >= maxConsecutive && stats.lastNightDate === slot.date) continue;
+      const nextIsConsecutiveNight = stats.lastNightDate ? getDayDiff(stats.lastNightDate, slot.date) === 1 : false;
+      const projectedConsecutiveNights = nextIsConsecutiveNight ? stats.consecutiveNights + 1 : 1;
+      if (projectedConsecutiveNights > maxConsecutive) continue;
     }
 
     candidates.push({ provider, score: stats.totalAssigned * 100 + assignedThisWeek * 10 });
@@ -204,6 +212,11 @@ function deterministicOptimize(input, provider) {
     stats.totalAssigned += 1;
     stats.byDate.add(slot.date);
     stats.weekly.set(weekStart, (stats.weekly.get(weekStart) || 0) + 1);
+    if (isNightShift(slot)) {
+      const diff = stats.lastNightDate ? getDayDiff(stats.lastNightDate, slot.date) : null;
+      stats.consecutiveNights = diff === 1 ? stats.consecutiveNights + 1 : 1;
+      stats.lastNightDate = slot.date;
+    }
 
     changes.push({
       slotId: slot.id || null,
@@ -247,8 +260,14 @@ function deterministicSimulate(input, provider) {
 function deterministicConflicts(state, provider) {
   const slots = isArray(state?.slots) ? state.slots : [];
   const providers = new Map((isArray(state?.providers) ? state.providers : []).map((entry) => [entry.id, entry]));
+  const maxShiftRules = new Map(
+    (isArray(state?.customRules) ? state.customRules : [])
+      .filter((rule) => rule?.type === "MAX_SHIFTS_PER_WEEK" && rule?.providerId)
+      .map((rule) => [rule.providerId, rule.maxShifts]),
+  );
   const conflicts = [];
   const seenProviderDate = new Set();
+  const weeklyAssignments = new Map();
 
   for (const slot of slots) {
     if (!slot?.providerId) {
@@ -266,11 +285,33 @@ function deterministicConflicts(state, provider) {
       conflicts.push({ type: "skill_mismatch", severity: "high", slotId: slot?.id || null, message: "Provider missing required skill for slot." });
     }
 
+    if (isProviderUnavailable(providerProfile, slot.date)) {
+      conflicts.push({
+        type: "time_off_violation",
+        severity: "high",
+        slotId: slot?.id || null,
+        message: "Provider is assigned on an approved time-off date.",
+      });
+    }
+
     const key = `${slot.providerId}:${slot.date}`;
     if (seenProviderDate.has(key)) {
       conflicts.push({ type: "double_booked", severity: "medium", slotId: slot?.id || null, message: "Provider is assigned more than once on this date." });
     } else {
       seenProviderDate.add(key);
+    }
+
+    const weekKey = `${slot.providerId}:${getWeekStart(slot.date)}`;
+    weeklyAssignments.set(weekKey, (weeklyAssignments.get(weekKey) || 0) + 1);
+
+    const maxShifts = maxShiftRules.get(slot.providerId);
+    if (Number.isFinite(maxShifts) && weeklyAssignments.get(weekKey) > maxShifts) {
+      conflicts.push({
+        type: "max_shifts_per_week_exceeded",
+        severity: "medium",
+        slotId: slot?.id || null,
+        message: "Provider exceeds configured maximum shifts for this week.",
+      });
     }
   }
 
