@@ -5,6 +5,7 @@ import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RuleBuilder } from "./components/RuleBuilder";
 import { SchedulingStrategyWorkbench } from "./components/SchedulingStrategyWorkbench";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
+import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
 import {
@@ -377,9 +378,10 @@ export default function App() {
           </div>
 
           <div className="flex-1 w-full flex flex-col min-w-0">
-            <div className="flex justify-between items-center mb-6">
-              <div className="h-[1px] flex-1 bg-slate-200/60 mr-8" />
+            <div className="flex justify-between items-center mb-6 gap-4">
+              <div className="h-[1px] flex-1 bg-slate-200/60" />
               <ViewToggle view={viewMode} onChange={setViewMode} />
+              <ExportMenu />
             </div>
 
             <div className="w-full pb-20">
