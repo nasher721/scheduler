@@ -4,6 +4,13 @@ import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from
 
 export type ShiftType = "DAY" | "NIGHT" | "NMET" | "JEOPARDY";
 
+export type TimeOffType = "PTO" | "CME" | "SICK" | "UNAVAILABLE";
+
+export interface TimeOffRequest {
+  date: string;
+  type: TimeOffType;
+}
+
 export interface Provider {
   id: string;
   name: string;
@@ -11,11 +18,22 @@ export interface Provider {
   targetWeekendDays: number;
   targetWeekNights: number;
   targetWeekendNights: number;
-  unavailableDates: string[];
+  timeOffRequests: TimeOffRequest[];
   preferredDates: string[];
   skills: string[];
   maxConsecutiveNights: number;
   minDaysOffAfterNight: number;
+}
+
+export type CustomRuleType = 'AVOID_PAIRING' | 'MAX_SHIFTS_PER_WEEK';
+
+export interface CustomRule {
+  id: string;
+  type: CustomRuleType;
+  providerA?: string;
+  providerB?: string;
+  providerId?: string;
+  maxShifts?: number;
 }
 
 export interface ShiftSlot {
@@ -26,6 +44,8 @@ export interface ShiftSlot {
   isWeekendLayout: boolean;
   requiredSkill: string;
   priority: "CRITICAL" | "STANDARD";
+  isBackup?: boolean;
+  location: string;
 }
 
 export interface ProviderCounts {
@@ -45,6 +65,16 @@ export interface ScenarioSnapshot {
   numWeeks: number;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  action: 'ASSIGN' | 'UNASSIGN' | 'AUTO_ASSIGN' | 'CLEAR' | 'RULE_CHANGE';
+  details: string;
+  slotId?: string;
+  providerId?: string;
+  user?: string;
+}
+
 export interface Toast {
   id: string;
   type: "success" | "error" | "warning" | "info";
@@ -58,6 +88,9 @@ interface HistoryState {
   slots: ShiftSlot[];
   startDate: string;
   numWeeks: number;
+  assignmentLogs?: string[];
+  customRules: CustomRule[];
+  auditLog: AuditLogEntry[];
 }
 
 interface ScheduleState {
@@ -66,6 +99,9 @@ interface ScheduleState {
   numWeeks: number;
   slots: ShiftSlot[];
   scenarios: ScenarioSnapshot[];
+  assignmentLogs?: string[];
+  customRules: CustomRule[];
+  auditLog: AuditLogEntry[];
   lastActionMessage: string | null;
   toasts: Toast[];
   history: HistoryState[];
@@ -73,6 +109,8 @@ interface ScheduleState {
   addProvider: (provider: Omit<Provider, "id">) => void;
   updateProvider: (id: string, provider: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
+  addCustomRule: (rule: Omit<CustomRule, "id">) => void;
+  removeCustomRule: (id: string) => void;
   setScheduleRange: (startDate: string, numWeeks: number) => void;
   assignShift: (slotId: string, providerId: string | null) => void;
   autoAssign: () => void;
@@ -91,9 +129,9 @@ interface ScheduleState {
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 const baseProviders: Provider[] = [
-  { id: "1", name: "Dr. Adams", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, unavailableDates: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1 },
-  { id: "2", name: "Dr. Baker", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, unavailableDates: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1 },
-  { id: "3", name: "Dr. Clark", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, unavailableDates: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2 },
+  { id: "1", name: "Dr. Adams", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1 },
+  { id: "2", name: "Dr. Baker", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1 },
+  { id: "3", name: "Dr. Clark", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2 },
 ];
 
 const shiftRequirements: Record<ShiftType, { skill: string; priority: "CRITICAL" | "STANDARD" }> = {
@@ -125,12 +163,14 @@ const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot
         isWeekendLayout: isWeekendDay,
         requiredSkill: shiftRequirements.DAY.skill,
         priority: shiftRequirements.DAY.priority,
+        isBackup: false,
+        location: i % 2 === 0 ? "Main Campus" : "South Campus",
       });
     }
 
-    slots.push({ id: `${dateStr}-NIGHT-0`, date: dateStr, type: "NIGHT", providerId: null, isWeekendLayout: isWeekendNight, requiredSkill: shiftRequirements.NIGHT.skill, priority: shiftRequirements.NIGHT.priority });
-    slots.push({ id: `${dateStr}-NMET-0`, date: dateStr, type: "NMET", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.NMET.skill, priority: shiftRequirements.NMET.priority });
-    slots.push({ id: `${dateStr}-JEOPARDY-0`, date: dateStr, type: "JEOPARDY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.JEOPARDY.skill, priority: shiftRequirements.JEOPARDY.priority });
+    slots.push({ id: `${dateStr}-NIGHT-0`, date: dateStr, type: "NIGHT", providerId: null, isWeekendLayout: isWeekendNight, requiredSkill: shiftRequirements.NIGHT.skill, priority: shiftRequirements.NIGHT.priority, isBackup: false, location: "Main Campus" });
+    slots.push({ id: `${dateStr}-NMET-0`, date: dateStr, type: "NMET", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.NMET.skill, priority: shiftRequirements.NMET.priority, isBackup: false, location: "Main Campus" });
+    slots.push({ id: `${dateStr}-JEOPARDY-0`, date: dateStr, type: "JEOPARDY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.JEOPARDY.skill, priority: shiftRequirements.JEOPARDY.priority, isBackup: true, location: "Main Campus" });
   }
 
   return slots;
@@ -184,23 +224,63 @@ const violatesPostNightRecovery = (slots: ShiftSlot[], providerId: string, slot:
   });
 };
 
-const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, slot: ShiftSlot, currentSlotId?: string) => {
-  if (!provider) return false;
-  if (provider.unavailableDates.includes(slot.date)) return false;
-  if (!provider.skills.includes(slot.requiredSkill)) return false;
+const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, slot: ShiftSlot, customRules: CustomRule[], currentSlotId?: string) => {
+  if (!provider) return { canAssign: false, reason: "No provider" };
 
-  const alreadyWorkingDate = slots.some(
+  if (provider.timeOffRequests.some(r => r.date === slot.date)) return { canAssign: false, reason: "Time off" };
+  if (!provider.skills.includes(slot.requiredSkill)) return { canAssign: false, reason: "Missing skill" };
+
+  const sameDayShifts = slots.filter(
     (s) => s.id !== currentSlotId && s.date === slot.date && s.providerId === provider.id,
   );
-  if (alreadyWorkingDate) return false;
+  if (sameDayShifts.length > 0) {
+    if (sameDayShifts.some(s => s.location !== slot.location)) return { canAssign: false, reason: "Cross-campus same day" };
+    if (slot.type === "NIGHT" && sameDayShifts.some(s => s.type === "DAY")) return { canAssign: false, reason: "Day & Night same day" };
+    if (slot.type === "DAY" && sameDayShifts.some(s => s.type === "NIGHT")) return { canAssign: false, reason: "Day & Night same day" };
+    if (sameDayShifts.some(s => s.type === slot.type)) return { canAssign: false, reason: "Multiple same shift types" };
+  }
 
   if (slot.type === "NIGHT") {
     const projectedNights = getConsecutiveNights(slots, provider.id, slot.date) + 1;
-    if (projectedNights > provider.maxConsecutiveNights) return false;
+    if (projectedNights > provider.maxConsecutiveNights) return { canAssign: false, reason: "Max consecutive nights" };
   }
 
-  if (violatesPostNightRecovery(slots, provider.id, slot, provider)) return false;
-  return true;
+  if (violatesPostNightRecovery(slots, provider.id, slot, provider)) return { canAssign: false, reason: "Post-night recovery" };
+
+  // Evaluate Custom Rules
+  for (const rule of customRules) {
+    if (rule.type === 'AVOID_PAIRING') {
+      const isA = rule.providerA === provider.id;
+      const isB = rule.providerB === provider.id;
+      if (isA || isB) {
+        const otherProviderId = isA ? rule.providerB : rule.providerA;
+        const otherWorking = slots.some(s => s.date === slot.date && s.providerId === otherProviderId);
+        if (otherWorking) return { canAssign: false, reason: "Custom Rule: Avoid Pairing" };
+      }
+    } else if (rule.type === 'MAX_SHIFTS_PER_WEEK' && rule.maxShifts) {
+      if (rule.providerId === provider.id) {
+        // Check all 7-day windows that contain this date
+        for (let i = 0; i < 7; i++) {
+          const windowStartObj = addDays(parseISO(slot.date), -i);
+          const windowStart = format(windowStartObj, "yyyy-MM-dd");
+          const windowEnd = format(addDays(windowStartObj, 6), "yyyy-MM-dd");
+
+          const shiftsInWindow = slots.filter(s =>
+            s.providerId === provider.id &&
+            s.date >= windowStart &&
+            s.date <= windowEnd &&
+            s.id !== currentSlotId
+          );
+
+          if (shiftsInWindow.length + 1 > rule.maxShifts) {
+            return { canAssign: false, reason: `Custom Rule: Rolling Max ${rule.maxShifts} shifts/week` };
+          }
+        }
+      }
+    }
+  }
+
+  return { canAssign: true };
 };
 
 const computeDeficitScore = (slot: ShiftSlot, provider: Provider, count: ProviderCounts) => {
@@ -235,10 +315,12 @@ export const useScheduleStore = create<ScheduleState>()(
       numWeeks: 4,
       slots: generateInitialSlots(initialStart, 4),
       scenarios: [],
+      customRules: [],
       lastActionMessage: null,
       toasts: [],
       history: [],
       historyIndex: -1,
+      auditLog: [],
 
       addProvider: (provider) => {
         const state = get();
@@ -247,16 +329,18 @@ export const useScheduleStore = create<ScheduleState>()(
           slots: state.slots,
           startDate: state.startDate,
           numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-        
+
         set({
           providers: [...state.providers, { ...provider, id: crypto.randomUUID() }],
           history: newHistory,
           historyIndex: newHistory.length - 1,
           lastActionMessage: `Added ${provider.name} to roster.`,
         });
-        
+
         get().showToast({ type: "success", title: "Provider Added", message: `${provider.name} has been added to the roster.` });
       },
 
@@ -274,9 +358,11 @@ export const useScheduleStore = create<ScheduleState>()(
           slots: state.slots,
           startDate: state.startDate,
           numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-        
+
         set({
           providers: state.providers.filter((p) => p.id !== id),
           slots: state.slots.map((s) => (s.providerId === id ? { ...s, providerId: null } : s)),
@@ -284,7 +370,7 @@ export const useScheduleStore = create<ScheduleState>()(
           historyIndex: newHistory.length - 1,
           lastActionMessage: "Provider removed and related assignments cleared.",
         });
-        
+
         get().showToast({ type: "info", title: "Provider Removed", message: provider ? `${provider.name} has been removed.` : undefined });
       },
 
@@ -295,56 +381,98 @@ export const useScheduleStore = create<ScheduleState>()(
           slots: generateInitialSlots(startDate, numWeeks),
           lastActionMessage: "Schedule window updated.",
         }));
-        
+
         get().showToast({ type: "info", title: "Schedule Updated", message: `Now viewing ${numWeeks} week${numWeeks > 1 ? 's' : ''} starting ${startDate}.` });
       },
 
-      assignShift: (slotId, providerId) => {
+      addCustomRule: (rule) => {
         const state = get();
-        const slot = state.slots.find((s) => s.id === slotId);
-        if (!slot) return;
+        set({
+          customRules: [...state.customRules, { ...rule, id: crypto.randomUUID() }],
+          lastActionMessage: `Added custom rule: ${rule.type}`,
+        });
+        get().showToast({ type: "success", title: "Rule Added", message: `Custom rule created.` });
+      },
 
-        if (providerId === null) {
+      removeCustomRule: (id) => {
+        const state = get();
+        const ruleToRemove = state.customRules.find(r => r.id === id);
+        set({
+          customRules: state.customRules.filter(r => r.id !== id),
+          lastActionMessage: `Removed custom rule.`,
+          auditLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: "RULE_CHANGE" as const,
+              details: `Removed custom rule: ${ruleToRemove?.type || id}`,
+              user: "Current User"
+            },
+            ...state.auditLog
+          ]
+        });
+        get().showToast({ type: "info", title: "Rule Removed" });
+      },
+
+      assignShift: (slotId, providerId) =>
+        set((state) => {
+          const slot = state.slots.find((s) => s.id === slotId);
+          const provider = state.providers.find((p) => p.id === providerId);
+          const action = providerId ? "ASSIGN" : "UNASSIGN";
+          const details = providerId
+            ? `Assigned ${provider?.name} to ${slot?.type} shift on ${slot?.date}`
+            : `Removed assignment from ${slot?.type} shift on ${slot?.date}`;
+
+          // Check if assignment is valid before proceeding with state change and history
+          if (providerId !== null) { // Only check for assignment, unassignment is always allowed
+            if (!slot) {
+              get().showToast({ type: "error", title: "Assignment Failed", message: "Slot not found." });
+              return state;
+            }
+            if (!provider) {
+              get().showToast({ type: "error", title: "Assignment Failed", message: "Provider not found." });
+              return state;
+            }
+            const canAssignResult = canAssignProvider(state.slots, provider, slot, state.customRules, slot.id);
+            if (!canAssignResult.canAssign) {
+              get().showToast({ type: "error", title: "Assignment Failed", message: canAssignResult.reason });
+              return state;
+            }
+          }
+
+          const newAuditEntry: AuditLogEntry = {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            action,
+            details,
+            slotId,
+            providerId: providerId || undefined,
+            user: "Current User"
+          };
+
+          const nextSlots = state.slots.map((s) =>
+            s.id === slotId ? { ...s, providerId } : s
+          );
+          const nextAuditLog = [newAuditEntry, ...state.auditLog];
+
           const historyState: HistoryState = {
             providers: state.providers,
-            slots: state.slots,
+            slots: nextSlots, // Use nextSlots for history
             startDate: state.startDate,
             numWeeks: state.numWeeks,
+            customRules: state.customRules,
+            auditLog: nextAuditLog, // Use nextAuditLog for history
           };
           const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-          
-          set({
-            slots: state.slots.map((s) => (s.id === slotId ? { ...s, providerId: null } : s)),
+
+          return {
+            slots: nextSlots,
+            auditLog: nextAuditLog,
             history: newHistory,
             historyIndex: newHistory.length - 1,
-          });
-          return;
-        }
-
-        const provider = state.providers.find((p) => p.id === providerId);
-        if (!canAssignProvider(state.slots, provider, slot, slot.id)) {
-          set({
-            lastActionMessage: "Cannot assign provider due to conflicts, skills, or fatigue guardrails.",
-          });
-          get().showToast({ type: "error", title: "Assignment Failed", message: "Cannot assign due to conflicts, skills, or fatigue guardrails." });
-          return;
-        }
-
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-
-        set({
-          slots: state.slots.map((s) => (s.id === slotId ? { ...s, providerId } : s)),
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
-          lastActionMessage: null,
-        });
-      },
+            lastActionMessage: details
+          };
+        }),
 
       clearAssignments: () => {
         const state = get();
@@ -353,16 +481,28 @@ export const useScheduleStore = create<ScheduleState>()(
           slots: state.slots,
           startDate: state.startDate,
           numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-        
+
         set({
           slots: state.slots.map((s) => ({ ...s, providerId: null })),
           history: newHistory,
           historyIndex: newHistory.length - 1,
           lastActionMessage: "All assignments cleared.",
+          auditLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: "UNASSIGN" as const,
+              details: "Cleared all assignments",
+              user: "Current User"
+            },
+            ...state.auditLog
+          ]
         });
-        
+
         get().showToast({ type: "warning", title: "Assignments Cleared", message: "All shift assignments have been removed." });
       },
 
@@ -373,26 +513,53 @@ export const useScheduleStore = create<ScheduleState>()(
             slots: state.slots,
             startDate: state.startDate,
             numWeeks: state.numWeeks,
+            assignmentLogs: state.assignmentLogs || [],
+            customRules: state.customRules,
+            auditLog: state.auditLog, // Add auditLog to historyState
           };
           const prevHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-          
+
           const newSlots = [...state.slots];
           const counts = getProviderCounts(newSlots, state.providers);
+          const logs: string[] = [];
+          const newAuditEntries: AuditLogEntry[] = [];
 
           let assignedCount = 0;
           newSlots.forEach((slot, index) => {
             if (slot.providerId) return;
 
             const candidates = state.providers
-              .filter((provider) => canAssignProvider(newSlots, provider, slot, slot.id))
+              .filter((provider) => {
+                const result = canAssignProvider(newSlots, provider, slot, state.customRules, slot.id);
+                if (!result.canAssign) {
+                  // If we need strict logs here we could extract the reason from canAssignProvider
+                }
+                return result.canAssign;
+              })
               .map((provider) => ({ provider, score: computeDeficitScore(slot, provider, counts[provider.id]) }))
               .sort((a, b) => b.score - a.score || a.provider.name.localeCompare(b.provider.name));
 
             const chosen = candidates[0]?.provider;
-            if (!chosen) return;
+            if (!chosen) {
+              logs.push(`Slot ${slot.date} (${slot.type}): Failed to find an eligible provider.`);
+              return;
+            }
 
             newSlots[index] = { ...slot, providerId: chosen.id };
             assignedCount += 1;
+            const logMsg = `Slot ${slot.date} (${slot.type}): Assigned ${chosen.name} (Score: ${candidates[0].score.toFixed(2)}). Next best was ${candidates[1]?.provider?.name || 'none'}.`;
+            logs.push(logMsg);
+
+            newAuditEntries.push({
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: "ASSIGN",
+              details: `Auto-assigned: ${chosen.name} to ${slot.type} on ${slot.date}`,
+              slotId: slot.id,
+              providerId: chosen.id,
+              user: "Auto Engine"
+            });
+
             const cc = counts[chosen.id];
             if (slot.type === "DAY") {
               if (slot.isWeekendLayout) cc.weekendDays += 1;
@@ -407,10 +574,12 @@ export const useScheduleStore = create<ScheduleState>()(
             slots: newSlots,
             history: prevHistory,
             historyIndex: prevHistory.length - 1,
+            assignmentLogs: logs,
+            auditLog: [...newAuditEntries, ...state.auditLog],
             lastActionMessage: `Auto-assigned ${assignedCount} shifts using constraints: skills, fatigue, fairness, and preferences.`,
           };
         });
-        
+
         get().showToast({ type: "success", title: "Auto-Assignment Complete", message: "Shifts have been assigned based on skills, fatigue, and preferences." });
       },
 
@@ -430,7 +599,7 @@ export const useScheduleStore = create<ScheduleState>()(
           scenarios: [snapshot, ...state.scenarios].slice(0, 12),
           lastActionMessage: `Saved scenario: ${trimmed}`,
         });
-        
+
         get().showToast({ type: "success", title: "Scenario Saved", message: `"${trimmed}" has been saved.` });
       },
 
@@ -438,15 +607,17 @@ export const useScheduleStore = create<ScheduleState>()(
         const state = get();
         const found = state.scenarios.find((scenario) => scenario.id === id);
         if (!found) return;
-        
+
         const historyState: HistoryState = {
           providers: state.providers,
           slots: state.slots,
           startDate: state.startDate,
           numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-        
+
         set({
           providers: structuredClone(found.providers),
           slots: structuredClone(found.slots),
@@ -456,7 +627,7 @@ export const useScheduleStore = create<ScheduleState>()(
           historyIndex: newHistory.length - 1,
           lastActionMessage: `Loaded scenario: ${found.name}`,
         });
-        
+
         get().showToast({ type: "info", title: "Scenario Loaded", message: `"${found.name}" has been restored.` });
       },
 
@@ -464,7 +635,7 @@ export const useScheduleStore = create<ScheduleState>()(
         set((state) => ({
           scenarios: state.scenarios.filter((scenario) => scenario.id !== id),
         }));
-        
+
         get().showToast({ type: "info", title: "Scenario Deleted" });
       },
 
@@ -473,7 +644,7 @@ export const useScheduleStore = create<ScheduleState>()(
       showToast: (toast) => {
         const id = crypto.randomUUID();
         const duration = toast.duration ?? 4000;
-        
+
         set((state) => ({
           toasts: [...state.toasts, { ...toast, id }],
         }));
@@ -494,13 +665,13 @@ export const useScheduleStore = create<ScheduleState>()(
       undo: () => {
         const state = get();
         if (state.historyIndex < 0) return;
-        
+
         const historyState = state.history[state.historyIndex];
         if (!historyState) return;
-        
+
         const previousIndex = state.historyIndex - 1;
         const previousState = previousIndex >= 0 ? state.history[previousIndex] : null;
-        
+
         set({
           providers: previousState?.providers ?? historyState.providers,
           slots: previousState?.slots ?? historyState.slots,
@@ -509,18 +680,18 @@ export const useScheduleStore = create<ScheduleState>()(
           historyIndex: previousIndex,
           lastActionMessage: "Undo applied.",
         });
-        
+
         get().showToast({ type: "info", title: "Undo", message: "Previous action has been undone." });
       },
 
       redo: () => {
         const state = get();
         if (state.historyIndex >= state.history.length - 1) return;
-        
+
         const nextIndex = state.historyIndex + 1;
         const nextState = state.history[nextIndex];
         if (!nextState) return;
-        
+
         set({
           providers: nextState.providers,
           slots: nextState.slots,
@@ -529,7 +700,7 @@ export const useScheduleStore = create<ScheduleState>()(
           historyIndex: nextIndex,
           lastActionMessage: "Redo applied.",
         });
-        
+
         get().showToast({ type: "info", title: "Redo", message: "Action has been restored." });
       },
 

@@ -1,8 +1,8 @@
-import { useScheduleStore, type ShiftType, type Provider } from "../store";
+import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from "../store";
 import { useDroppable } from "@dnd-kit/core";
 import { parseISO, format, startOfMonth } from "date-fns";
 import { motion } from "framer-motion";
-import { Sun, Moon, AlertTriangle, Sparkles } from "lucide-react";
+import { Sun, Moon, AlertTriangle, Sparkles, MapPin } from "lucide-react";
 import React, { useState } from "react";
 import Calendar from "react-lightweight-calendar";
 import "react-lightweight-calendar/dist/styles/styles.css";
@@ -35,20 +35,18 @@ const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; col
 };
 
 function CalendarSlot({
-  id,
-  type,
+  slot,
   provider,
 }: {
-  id: string;
-  type: ShiftType;
+  slot: ShiftSlot;
   provider?: Provider;
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id,
-    data: { slotId: id },
+    id: slot.id,
+    data: { slotId: slot.id },
   });
 
-  const config = shiftConfig[type];
+  const config = shiftConfig[slot.type];
 
   return (
     <motion.div
@@ -61,15 +59,21 @@ function CalendarSlot({
         : provider
           ? 'bg-white/90 border-slate-200/60 shadow-sm hover:shadow'
           : 'bg-slate-50/50 border-dashed border-slate-200/60 hover:bg-slate-100/50'
-        }`}
+        } ${slot.isBackup || slot.type === 'JEOPARDY' ? 'ring-1 ring-rose-300 bg-rose-50/50' : ''}`}
     >
       <div className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider shrink-0 ${config.colorClass}`}>
         {config.icon}
-        <span>{config.label}</span>
+        <span>{slot.isBackup ? 'BACKUP' : config.label}</span>
+        {slot.location && (
+          <div className="flex items-center gap-0.5 ml-1 px-1 rounded bg-slate-100/50 text-slate-500 font-medium text-[9px]" title={slot.location}>
+            <MapPin className="w-2.5 h-2.5" />
+            <span className="truncate max-w-[40px]">{slot.location.split(' ')[0]}</span>
+          </div>
+        )}
       </div>
       {provider ? (
         <motion.div
-          layoutId={`monthly-assigned-${id}`}
+          layoutId={`monthly-assigned-${slot.id}`}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className={`text-[11px] font-semibold py-0.5 px-2.5 rounded-full truncate ${config.bgClass} ${config.colorClass} border`}
@@ -108,6 +112,8 @@ export function MonthlyCalendar() {
       // Original data properties are passed down too
       type: slot.type,
       providerId: slot.providerId,
+      isBackup: slot.isBackup,
+      _slot: slot, // Pass the whole slot reference for the renderItem
     };
   });
 
@@ -155,8 +161,7 @@ export function MonthlyCalendar() {
             const provider = providers.find((p) => p.id === itemData.providerId);
             return (
               <CalendarSlot
-                id={itemData.id as string}
-                type={itemData.type as ShiftType}
+                slot={itemData._slot as ShiftSlot}
                 provider={provider}
               />
             );

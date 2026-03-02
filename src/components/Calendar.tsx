@@ -1,43 +1,46 @@
-import { useScheduleStore, type ShiftType, type Provider } from "../store";
+import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday } from "date-fns";
-import { GripVertical, Sun, Moon, AlertTriangle, Sparkles } from 'lucide-react';
+import { GripVertical, Sun, Moon, AlertTriangle, Sparkles, Info, MapPin } from 'lucide-react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 
 const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string }> = {
-  DAY: { 
-    label: 'Day Shift', 
-    icon: <Sun className="w-3.5 h-3.5" />, 
+  DAY: {
+    label: 'Day Shift',
+    icon: <Sun className="w-3.5 h-3.5" />,
     colorClass: 'text-emerald-600',
     bgClass: 'bg-emerald-50 border-emerald-200'
   },
-  NIGHT: { 
-    label: 'Night Shift', 
-    icon: <Moon className="w-3.5 h-3.5" />, 
+  NIGHT: {
+    label: 'Night Shift',
+    icon: <Moon className="w-3.5 h-3.5" />,
     colorClass: 'text-indigo-600',
     bgClass: 'bg-indigo-50 border-indigo-200'
   },
-  NMET: { 
-    label: 'NMET', 
-    icon: <Sparkles className="w-3.5 h-3.5" />, 
+  NMET: {
+    label: 'NMET',
+    icon: <Sparkles className="w-3.5 h-3.5" />,
     colorClass: 'text-amber-600',
     bgClass: 'bg-amber-50 border-amber-200'
   },
-  JEOPARDY: { 
-    label: 'Jeopardy', 
-    icon: <AlertTriangle className="w-3.5 h-3.5" />, 
+  JEOPARDY: {
+    label: 'Jeopardy',
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
     colorClass: 'text-rose-600',
     bgClass: 'bg-rose-50 border-rose-200'
   },
 };
 
-function Slot({ id, type, provider, priority }: { id: string; type: ShiftType; provider?: Provider; priority?: string }) {
+function Slot({ slot, provider, logs }: { slot: ShiftSlot; provider?: Provider; logs?: string[] }) {
   const { setNodeRef, isOver } = useDroppable({
-    id,
-    data: { slotId: id }
+    id: slot.id,
+    data: { slotId: slot.id }
   });
 
-  const config = shiftConfig[type];
+  const [showLogs, setShowLogs] = useState(false);
+
+  const config = shiftConfig[slot.type];
 
   return (
     <motion.div
@@ -45,15 +48,38 @@ function Slot({ id, type, provider, priority }: { id: string; type: ShiftType; p
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ scale: 1.02 }}
-      className={`shift-slot shift-slot-${type.toLowerCase()} ${isOver ? 'dragging-over' : ''}`}
+      className={`shift-slot shift-slot-${slot.type.toLowerCase()} ${isOver ? 'dragging-over' : ''} ${slot.isBackup || slot.type === 'JEOPARDY' ? 'ring-2 ring-rose-300 bg-rose-50/50' : ''}`}
     >
       {/* Shift Type Header */}
       <div className="flex items-center justify-between mb-2">
         <div className={`flex items-center gap-1.5 text-xs font-semibold ${config.colorClass}`}>
           {config.icon}
-          <span className="uppercase tracking-wider">{config.label}</span>
+          <span className="uppercase tracking-wider">{slot.isBackup ? 'BACKUP' : config.label}</span>
+
+          {/* Location Badge */}
+          {slot.location && (
+            <div className="flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded-md bg-slate-100/50 text-slate-500 font-medium text-[10px]">
+              <MapPin className="w-3 h-3" />
+              <span className="truncate max-w-[80px]" title={slot.location}>{slot.location}</span>
+            </div>
+          )}
+
+          {/* Info Icon for Logs */}
+          {!provider && logs && logs.length > 0 && (
+            <div className="relative" onMouseEnter={() => setShowLogs(true)} onMouseLeave={() => setShowLogs(false)}>
+              <Info className="w-3.5 h-3.5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
+              {showLogs && (
+                <div className="absolute z-50 left-0 top-full mt-1 w-64 bg-slate-800 text-slate-100 text-[10px] rounded-lg p-2.5 shadow-xl border border-slate-700 pointer-events-none whitespace-normal leading-relaxed">
+                  <div className="font-semibold text-slate-300 mb-1 border-b border-slate-700/50 pb-1">Auto-Assign Log</div>
+                  <ul className="list-disc pl-3 space-y-1">
+                    {logs.map((log, i) => <li key={i}>{log}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        {priority === 'CRITICAL' && !provider && (
+        {slot.priority === 'CRITICAL' && !provider && (
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 uppercase">
             Critical
           </span>
@@ -63,7 +89,7 @@ function Slot({ id, type, provider, priority }: { id: string; type: ShiftType; p
       {/* Provider or Empty State */}
       {provider ? (
         <motion.div
-          layoutId={`assigned-${id}`}
+          layoutId={`assigned-${slot.id}`}
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-xl border border-slate-200/60 shadow-sm"
@@ -109,7 +135,7 @@ export function DraggableProvider({ id, name }: { id: string; name: string }) {
 }
 
 export function Calendar() {
-  const { slots, providers } = useScheduleStore();
+  const { slots, providers, assignmentLogs } = useScheduleStore();
 
   // Group slots by date
   const dates = Array.from(new Set(slots.map(s => s.date))).sort();
@@ -135,13 +161,12 @@ export function Calendar() {
               >
                 {/* Date Header */}
                 <div className="flex items-center gap-3 mb-4 sticky top-0 z-10 py-2 bg-gradient-to-r from-white/90 via-white/95 to-transparent backdrop-blur-sm -mx-2 px-2">
-                  <div className={`flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg transition-all ${
-                    today 
-                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25' 
-                      : isWeekend 
-                        ? 'bg-amber-100 text-amber-700' 
-                        : 'bg-slate-100 text-slate-700'
-                  }`}>
+                  <div className={`flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg transition-all ${today
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
+                    : isWeekend
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-slate-100 text-slate-700'
+                    }`}>
                     {format(dateObj, 'd')}
                   </div>
                   <div>
@@ -156,21 +181,25 @@ export function Calendar() {
 
                 {/* Slots Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-                  {daySlots.map((slot, slotIdx) => (
-                    <motion.div
-                      key={slot.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.03 + slotIdx * 0.02 }}
-                    >
-                      <Slot
-                        id={slot.id}
-                        type={slot.type}
-                        priority={slot.priority}
-                        provider={providers.find(p => p.id === slot.providerId)}
-                      />
-                    </motion.div>
-                  ))}
+                  {daySlots.map((slot, slotIdx) => {
+                    // Find all logs that reference this specific slot date and type
+                    const slotLogs = assignmentLogs?.filter(log => log.includes(`Slot ${slot.date} (${slot.type})`)) || [];
+
+                    return (
+                      <motion.div
+                        key={slot.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.03 + slotIdx * 0.02 }}
+                      >
+                        <Slot
+                          slot={slot}
+                          provider={providers.find(p => p.id === slot.providerId)}
+                          logs={slotLogs}
+                        />
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </motion.div>
             );

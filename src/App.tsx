@@ -1,17 +1,19 @@
 import { ProviderManager } from "./components/ProviderManager";
 import { Calendar } from "./components/Calendar";
 import { MonthlyCalendar } from "./components/MonthlyCalendar";
+import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
+import { RuleBuilder } from "./components/RuleBuilder";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
-import { 
-  Calendar as CalendarIcon, 
-  XCircle, 
-  FileSpreadsheet, 
-  Upload, 
-  AlertTriangle, 
-  Save, 
-  FolderOpen, 
+import {
+  Calendar as CalendarIcon,
+  XCircle,
+  FileSpreadsheet,
+  Upload,
+  AlertTriangle,
+  Save,
+  FolderOpen,
   Trash,
   TrendingUp,
   Users,
@@ -19,8 +21,10 @@ import {
   Zap,
   Sparkles,
   Undo2,
-  Redo2
+  Redo2,
+  Printer
 } from "lucide-react";
+import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { exportScheduleToExcel, importScheduleFromExcel } from "./lib/excelUtils";
 import { useMemo, useRef, useState } from "react";
@@ -104,24 +108,28 @@ export default function App() {
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <div className="min-h-screen p-6 md:p-8 lg:p-10 flex flex-col gap-8 relative z-10">
         {/* Header Section */}
-        <motion.header 
+        <motion.header
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
           className="flex flex-col gap-6"
         >
-          {/* Title Row */}
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="print-header">
+            <h1 className="text-3xl font-bold">Neuro ICU Staffing Schedule</h1>
+            <p className="text-slate-600">Generated on {new Date().toLocaleDateString()} | Starting: {startDate} | {numWeeks} Weeks</p>
+          </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 no-print">
             <div className="flex items-start gap-4">
               {/* Logo */}
-              <motion.div 
+              <motion.div
                 whileHover={{ scale: 1.05, rotate: -2 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 className="p-3 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/25"
               >
                 <CalendarIcon className="w-8 h-8 text-white" />
               </motion.div>
-              
+
               <div>
                 <h1 className="text-3xl lg:text-4xl font-bold tracking-tight bg-gradient-to-br from-slate-900 via-slate-800 to-slate-600 bg-clip-text text-transparent">
                   Neuro ICU Schedule
@@ -134,19 +142,19 @@ export default function App() {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <input 
-                title="Import File" 
-                aria-label="Import File" 
-                type="file" 
-                accept=".xlsx" 
-                className="hidden" 
-                ref={fileInputRef} 
-                onChange={handleImport} 
+              <input
+                title="Import File"
+                aria-label="Import File"
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleImport}
               />
-              
+
               {/* Undo/Redo */}
               <div className="flex items-center gap-1">
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleUndo}
@@ -156,7 +164,7 @@ export default function App() {
                 >
                   <Undo2 className="w-4 h-4" />
                 </motion.button>
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleRedo}
@@ -167,45 +175,55 @@ export default function App() {
                   <Redo2 className="w-4 h-4" />
                 </motion.button>
               </div>
-              
+
               <div className="w-px h-6 bg-slate-200 mx-1" />
-              
-              <motion.button 
+
+              <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => fileInputRef.current?.click()} 
+                onClick={() => fileInputRef.current?.click()}
                 className="btn btn-secondary btn-sm"
               >
                 <Upload className="w-4 h-4" />
                 Import
               </motion.button>
-              
-              <motion.button 
+
+              <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={exportScheduleToExcel} 
+                onClick={exportScheduleToExcel}
                 className="btn btn-secondary btn-sm"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Export
               </motion.button>
-              
-              <div className="w-px h-6 bg-slate-200 mx-1" />
-              
-              <motion.button 
+
+              <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={clearAssignments} 
+                onClick={() => window.print()}
+                className="btn btn-secondary btn-sm"
+              >
+                <Printer className="w-4 h-4" />
+                Print/PDF
+              </motion.button>
+
+              <div className="w-px h-6 bg-slate-200 mx-1" />
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={clearAssignments}
                 className="btn btn-ghost btn-sm"
               >
                 <XCircle className="w-4 h-4" />
                 Clear
               </motion.button>
-              
-              <motion.button 
+
+              <motion.button
                 whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={autoAssign} 
+                onClick={autoAssign}
                 className="btn btn-primary btn-sm"
               >
                 <Sparkles className="w-4 h-4" />
@@ -216,7 +234,7 @@ export default function App() {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
@@ -226,8 +244,8 @@ export default function App() {
               <p className="stat-value">{coverage}%</p>
               <p className="stat-label">Coverage</p>
             </motion.div>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
@@ -237,8 +255,8 @@ export default function App() {
               <p className="stat-value">{assigned}<span className="text-base font-normal text-slate-400">/{slots.length}</span></p>
               <p className="stat-label">Assigned</p>
             </motion.div>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -248,8 +266,8 @@ export default function App() {
               <p className="stat-value text-rose-600">{criticalUnfilled}</p>
               <p className="stat-label">Critical</p>
             </motion.div>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
@@ -259,46 +277,46 @@ export default function App() {
               <p className="stat-value text-amber-600">{skillMismatchRisk}</p>
               <p className="stat-label">Skill Risk</p>
             </motion.div>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               className="stat-card"
             >
               <p className="stat-label mb-2">Start Date</p>
-              <input 
-                title="Start Date" 
-                aria-label="Start Date" 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => setScheduleRange(e.target.value, numWeeks)} 
-                className="input-base text-sm font-medium" 
+              <input
+                title="Start Date"
+                aria-label="Start Date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setScheduleRange(e.target.value, numWeeks)}
+                className="input-base text-sm font-medium"
               />
             </motion.div>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35 }}
               className="stat-card"
             >
               <p className="stat-label mb-2">Weeks</p>
-              <input 
-                title="Number of Weeks" 
-                aria-label="Number of Weeks" 
-                type="number" 
-                min={1} 
-                max={12} 
-                value={numWeeks} 
-                onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} 
-                className="input-base input-number text-sm font-medium" 
+              <input
+                title="Number of Weeks"
+                aria-label="Number of Weeks"
+                type="number"
+                min={1}
+                max={12}
+                value={numWeeks}
+                onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))}
+                className="input-base input-number text-sm font-medium"
               />
             </motion.div>
           </div>
 
           {/* Scenario Manager */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -306,46 +324,46 @@ export default function App() {
           >
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 gap-2">
-                <input 
-                  value={scenarioName} 
-                  onChange={(e) => setScenarioName(e.target.value)} 
-                  placeholder="New scenario name..." 
-                  className="input-base flex-1" 
+                <input
+                  value={scenarioName}
+                  onChange={(e) => setScenarioName(e.target.value)}
+                  placeholder="New scenario name..."
+                  className="input-base flex-1"
                 />
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => { createScenario(scenarioName); setScenarioName(""); }} 
+                  onClick={() => { createScenario(scenarioName); setScenarioName(""); }}
                   className="btn btn-primary btn-sm whitespace-nowrap"
                 >
                   <Save className="w-4 h-4" />
                   Save
                 </motion.button>
               </div>
-              
+
               <div className="flex flex-wrap gap-2 items-center">
                 {scenarios.length === 0 ? (
                   <p className="text-xs text-slate-400 px-2">No saved scenarios</p>
                 ) : (
                   <AnimatePresence>
                     {scenarios.map((scenario) => (
-                      <motion.div 
-                        key={scenario.id} 
+                      <motion.div
+                        key={scenario.id}
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-xs"
                       >
                         <span className="font-medium text-slate-700">{scenario.name}</span>
-                        <button 
-                          onClick={() => loadScenario(scenario.id)} 
+                        <button
+                          onClick={() => loadScenario(scenario.id)}
                           className="p-1 hover:bg-white rounded-full transition-colors"
                           title="Load"
                         >
                           <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
                         </button>
-                        <button 
-                          onClick={() => deleteScenario(scenario.id)} 
+                        <button
+                          onClick={() => deleteScenario(scenario.id)}
                           className="p-1 hover:bg-white rounded-full transition-colors"
                           title="Delete"
                         >
@@ -386,10 +404,10 @@ export default function App() {
                     )}
                   </div>
                   {lastActionMessage && (
-                    <motion.button 
+                    <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={clearMessage} 
+                      onClick={clearMessage}
                       className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1 rounded-lg hover:bg-amber-100 transition-colors"
                     >
                       Dismiss
@@ -402,7 +420,7 @@ export default function App() {
         </motion.header>
 
         {/* Main Content */}
-        <motion.main 
+        <motion.main
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
@@ -422,14 +440,22 @@ export default function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {viewMode === "calendar" ? <MonthlyCalendar /> : <Calendar />}
+                  {viewMode === "analytics" ? (
+                    <AnalyticsDashboard />
+                  ) : viewMode === "calendar" ? (
+                    <MonthlyCalendar />
+                  ) : viewMode === "rules" ? (
+                    <RuleBuilder />
+                  ) : (
+                    <Calendar />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>
           </div>
         </motion.main>
       </div>
-      
+
       {/* Toast Container */}
       <ToastContainer />
     </DndContext>

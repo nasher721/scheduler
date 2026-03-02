@@ -1,7 +1,7 @@
-import { LayoutGrid, CalendarDays } from "lucide-react";
+import { LayoutGrid, CalendarDays, BarChart3, ShieldAlert } from "lucide-react";
 import { motion } from "framer-motion";
 
-export type ViewMode = "grid" | "calendar";
+export type ViewMode = "grid" | "calendar" | "analytics" | "rules";
 
 interface ViewToggleProps {
   view: ViewMode;
@@ -39,6 +39,36 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
         )}
         <CalendarDays className="w-4 h-4 relative z-10" />
         <span className="relative z-10">Monthly Calendar</span>
+      </button>
+
+      <button
+        onClick={() => onChange("analytics")}
+        className={`toggle-button ${view === "analytics" ? "active" : ""}`}
+      >
+        {view === "analytics" && (
+          <motion.div
+            layoutId="view-toggle-bg"
+            className="toggle-indicator"
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          />
+        )}
+        <BarChart3 className="w-4 h-4 relative z-10" />
+        <span className="relative z-10">Analytics</span>
+      </button>
+
+      <button
+        onClick={() => onChange("rules")}
+        className={`toggle-button ${view === "rules" ? "active" : ""}`}
+      >
+        {view === "rules" && (
+          <motion.div
+            layoutId="view-toggle-bg"
+            className="toggle-indicator"
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          />
+        )}
+        <ShieldAlert className="w-4 h-4 relative z-10" />
+        <span className="relative z-10">Rules</span>
       </button>
     </div>
   );
