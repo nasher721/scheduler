@@ -79,7 +79,7 @@ If backend storage is empty, `Load API` will report that no server snapshot exis
 
 ## AI API (Implemented Scaffold)
 
-**Current implementation phase: Phase 6 (guarded apply workflow and approval gates).**
+**Current implementation phase: Phase 7 (rollback-ready apply history and reviewer-gated undo).**
 
 The backend now includes a provider-agnostic AI scaffold with deterministic fallback logic.
 These endpoints are available today and can be progressively wired to real provider SDK calls.
@@ -93,6 +93,7 @@ These endpoints are available today and can be progressively wired to real provi
 - `GET /api/ai/metrics`
 - `POST /api/ai/feedback`
 - `POST /api/ai/apply`
+- `POST /api/ai/rollback`
 
 Phase 4 additions in the deterministic path:
 
@@ -112,6 +113,12 @@ Phase 6 additions in the deterministic path:
 - New `POST /api/ai/apply` endpoint applies optimized schedules only when rollout mode permits it.
 - `shadow` results are blocked from persistence, and `human_review` mode requires an explicit `approvedBy` reviewer.
 - Successful apply operations append an AI audit event and write acceptance/violation outcomes into provider metrics.
+
+Phase 7 additions in the deterministic path:
+
+- Every successful apply now stores a durable apply-history record with `applyId`, prior state snapshot, and reviewer metadata.
+- New `POST /api/ai/rollback` endpoint restores the pre-apply snapshot when a reviewer provides `applyId` and `rolledBackBy`.
+- Rollbacks append an AI rollback audit event and automatically update provider rollback/violation metrics.
 
 ### AI Environment Variables
 
