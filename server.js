@@ -10,6 +10,8 @@ import {
   simulateScenario,
   detectConflicts,
   explainDecision,
+  listProviderMetrics,
+  recordAutomationOutcome,
 } from "./ai-orchestrator.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -88,6 +90,19 @@ function getPayloadState(body) {
 
 app.get("/api/ai/providers", (_req, res) => {
   return res.json({ providers: listProviders() });
+});
+
+app.get("/api/ai/metrics", (_req, res) => {
+  return res.json({ metrics: listProviderMetrics(), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/feedback", (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Feedback payload must be an object." });
+  }
+
+  const recorded = recordAutomationOutcome(req.body);
+  return res.json({ ok: true, recorded, updatedAt: new Date().toISOString() });
 });
 
 app.post("/api/ai/recommendations", async (req, res) => {
