@@ -1,73 +1,65 @@
-# React + TypeScript + Vite
+# Neuro ICU Scheduler
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern React + TypeScript scheduler for complex neuro ICU physician planning.
 
-Currently, two official plugins are available:
+## Five Standout Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. **Skill-aware assignment engine**
+   - Every shift carries a required competency (`NEURO_CRITICAL`, `NIGHT_FLOAT`, `AIRWAY`, `STROKE`).
+   - Providers can only be assigned to slots that match their declared skill profile.
 
-## React Compiler
+2. **Fatigue & safety guardrails**
+   - Configurable per-provider limits for maximum consecutive nights.
+   - Configurable recovery days required after a night shift before non-night assignment.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+3. **Preference-weighted smart auto-fill**
+   - Auto-fill balances target deficits and boosts candidates on preferred dates.
+   - Preserves hard constraints (availability, skills, fatigue, no same-day double-booking).
 
-## Expanding the ESLint configuration
+4. **Scenario sandboxing**
+   - Save, load, and delete named scenarios for “what-if” planning.
+   - Compare holiday plans, surge plans, or staffing-reduction plans without losing baseline schedules.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+5. **Live operational risk analytics**
+   - At-a-glance KPIs for coverage, critical unfilled shifts, skill mismatch risk, overload, and fatigue exposure.
+   - Supports rapid operational decisions in high-acuity scheduling windows.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Additional Capabilities
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Drag-and-drop assignment of providers to shift slots.
+- Monthly and classic grid schedule views.
+- Editable provider targets, skills, preferences, and availability.
+- Excel import/export for offline sharing.
+- Persistent local state in browser storage.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Tech Stack
+
+- React 19 + Vite + TypeScript
+- Zustand for global state management
+- Framer Motion for UI animation
+- dnd-kit for drag and drop
+- date-fns for calendar/date utilities
+- xlsx + file-saver for spreadsheet workflows
+- Tailwind CSS for styling
+
+## Getting Started
+
+```bash
+pnpm install
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Available Scripts
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm dev
+pnpm build
+pnpm lint
+pnpm preview
 ```
+
+## Data Persistence
+
+Schedule state is stored under local storage key:
+
+- `nicu-schedule-store-v3`
