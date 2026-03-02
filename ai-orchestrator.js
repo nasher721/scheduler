@@ -115,6 +115,24 @@ function getDayDiff(fromDate, toDate) {
   return Math.round((to - from) / (1000 * 60 * 60 * 24));
 }
 
+function updateNightShiftStats(stats, date) {
+  const diff = stats.lastNightDate ? getDayDiff(stats.lastNightDate, date) : null;
+  stats.consecutiveNights = diff === 1 ? stats.consecutiveNights + 1 : 1;
+  stats.lastNightDate = date;
+}
+
+function applyAssignmentToProviderStats(stats, slot) {
+  stats.totalAssigned += 1;
+  stats.byDate.add(slot.date);
+
+  const weekStart = getWeekStart(slot.date);
+  stats.weekly.set(weekStart, (stats.weekly.get(weekStart) || 0) + 1);
+
+  if (isNightShift(slot)) {
+    updateNightShiftStats(stats, slot.date);
+  }
+}
+
 function getMaxShiftsForProvider(state, providerId) {
   const rules = isArray(state?.customRules) ? state.customRules : [];
   const rule = rules.find((entry) => entry?.type === "MAX_SHIFTS_PER_WEEK" && entry?.providerId === providerId);
@@ -148,25 +166,8 @@ function buildProviderStats(state) {
   const sorted = [...slots].sort((a, b) => String(a?.date).localeCompare(String(b?.date)));
   for (const slot of sorted) {
     if (!slot?.providerId || !stats.has(slot.providerId)) continue;
-
     const providerStats = stats.get(slot.providerId);
-    providerStats.totalAssigned += 1;
-    providerStats.byDate.add(slot.date);
-
-    const weekStart = getWeekStart(slot.date);
-    providerStats.weekly.set(weekStart, (providerStats.weekly.get(weekStart) || 0) + 1);
-
-    if (isNightShift(slot)) {
-      if (providerStats.lastNightDate) {
-        const prev = new Date(providerStats.lastNightDate);
-        const curr = new Date(slot.date);
-        const diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
-        providerStats.consecutiveNights = diffDays === 1 ? providerStats.consecutiveNights + 1 : 1;
-      } else {
-        providerStats.consecutiveNights = 1;
-      }
-      providerStats.lastNightDate = slot.date;
-    }
+    applyAssignmentToProviderStats(providerStats, slot);
   }
 
   return stats;
@@ -378,15 +379,7 @@ function deterministicOptimize(input, provider) {
 
     slot.providerId = winner.id;
     const stats = providerStats.get(winner.id);
-    const weekStart = getWeekStart(slot.date);
-    stats.totalAssigned += 1;
-    stats.byDate.add(slot.date);
-    stats.weekly.set(weekStart, (stats.weekly.get(weekStart) || 0) + 1);
-    if (isNightShift(slot)) {
-      const diff = stats.lastNightDate ? getDayDiff(stats.lastNightDate, slot.date) : null;
-      stats.consecutiveNights = diff === 1 ? stats.consecutiveNights + 1 : 1;
-      stats.lastNightDate = slot.date;
-    }
+    applyAssignmentToProviderStats(stats, slot);
 
     changes.push({
       slotId: slot.id || null,
