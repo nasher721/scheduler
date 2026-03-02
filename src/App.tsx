@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { importScheduleFromExcel } from "./lib/excelUtils";
+import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState } from "./lib/api";
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -50,6 +50,10 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const [scenarioName, setScenarioName] = useState("");
+  const [importPreview, setImportPreview] = useState<ImportPreviewResult | null>(null);
+  const [columnMapping, setColumnMapping] = useState<Partial<Record<ImportFieldKey, string>>>({});
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
 
@@ -84,12 +88,40 @@ export default function App() {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        await importScheduleFromExcel(file);
+        const preview = await parseScheduleImportFile(file, columnMapping);
+        setImportPreview(preview);
+        setColumnMapping(preview.mapping);
+        setIsImportOpen(true);
       } catch {
-        alert("Failed to parse Excel schedule.");
+        showToast({ type: "error", title: "Import failed", message: "File could not be parsed. Confirm that the workbook has a header row and date column." });
       }
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const rerunImportPreview = async (fileName: string) => {
+    const file = fileInputRef.current?.files?.[0];
+    if (!file || file.name !== fileName) return;
+    const preview = await parseScheduleImportFile(file, columnMapping);
+    setImportPreview(preview);
+  };
+
+  const handleApplyImport = () => {
+    if (!importPreview) return;
+    const result = applyScheduleImport(importPreview);
+    showToast({
+      type: "success",
+      title: "Import applied",
+      message: `Applied ${result.appliedAssignments} assignments. Skipped ${result.skippedRows} invalid rows.`,
+    });
+    setCanRollbackImport(hasImportRollback());
+    setIsImportOpen(false);
+  };
+
+  const handleRollbackImport = () => {
+    const didRollback = rollbackLastImport();
+    if (!didRollback) return;
+    showToast({ type: "info", title: "Import rolled back", message: "Restored the schedule state before the latest import." });
+    setCanRollbackImport(false);
   };
 
   const handleUndo = () => {
@@ -165,6 +197,7 @@ export default function App() {
 
                 <div className="flex items-center gap-1">
                   <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Import</button>
+                  <button onClick={handleRollbackImport} disabled={!canRollbackImport} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 disabled:opacity-40 transition-colors">Rollback</button>
                 </div>
 
                 <div className="w-px h-6 bg-slate-200/60 mx-1" />
@@ -349,6 +382,77 @@ export default function App() {
           </div>
         </motion.main>
       </div>
+
+      <AnimatePresence>
+        {isImportOpen && importPreview && (
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-6">
+            <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-5xl p-6 max-h-[85vh] overflow-auto">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900">Import Preview (Dry Run)</h3>
+                  <p className="text-sm text-slate-500">{importPreview.validRows} valid / {importPreview.invalidRows} invalid rows across {importPreview.totalRows} parsed rows.</p>
+                </div>
+                <button onClick={() => setIsImportOpen(false)} className="text-slate-500 hover:text-slate-900">Close</button>
+              </div>
+
+              {importPreview.requiresMapping && (
+                <div className="mb-5 border rounded-xl p-4 bg-amber-50/50 border-amber-200">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 mb-3">Column Mapping Required</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(["date", "night", "dayG20", "dayH22", "dayAkron", "consults", "nmet", "jeopardy", "recovery", "vacation"] as ImportFieldKey[]).map((field) => (
+                      <label key={field} className="flex flex-col gap-1 text-xs text-slate-700">
+                        <span className="font-semibold">{field}</span>
+                        <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="border rounded-lg px-2 py-1.5">
+                          <option value="">Select column</option>
+                          {importPreview.availableHeaders.map((header) => <option key={header} value={header}>{header}</option>)}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  <button onClick={() => rerunImportPreview(importPreview.fileName)} className="mt-3 px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 text-white">Re-validate Mapping</button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="border rounded-xl p-4">
+                  <h4 className="text-sm font-semibold mb-2">Issues</h4>
+                  <ul className="space-y-1 text-xs text-slate-700 max-h-64 overflow-auto">
+                    {importPreview.issues.map((issue, idx) => (
+                      <li key={`${issue.code}-${idx}`} className="flex gap-2">
+                        <span className={issue.type === "error" ? "text-rose-600" : "text-amber-700"}>{issue.type.toUpperCase()}</span>
+                        <span>{issue.message} {issue.action ? `• ${issue.action}` : ""}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="border rounded-xl p-4">
+                  <h4 className="text-sm font-semibold mb-2">Row Preview</h4>
+                  <div className="max-h-64 overflow-auto text-xs">
+                    <table className="w-full text-left">
+                      <thead className="text-slate-500"><tr><th>Date</th><th>Assignments</th><th>Status</th></tr></thead>
+                      <tbody>
+                        {importPreview.rows.slice(0, 30).map((row, idx) => (
+                          <tr key={`${row.date}-${idx}`} className="border-t">
+                            <td className="py-1 pr-2">{row.date || "Invalid"}</td>
+                            <td className="py-1 pr-2">{Object.values(row.assignments).flat().slice(0, 3).join(", ") || "—"}</td>
+                            <td className="py-1">{row.issues.some((issue) => issue.type === "error") ? "Invalid" : row.issues.length ? "Warning" : "Valid"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button onClick={() => setIsImportOpen(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
+                <button onClick={handleApplyImport} disabled={importPreview.requiresMapping} className="px-4 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-50">Apply Import</button>
+              </div>
+            </motion.div>
+          </motion.section>
+        )}
+      </AnimatePresence>
 
       <ToastContainer />
     </DndContext>
