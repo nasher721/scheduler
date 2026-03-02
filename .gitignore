@@ -26,3 +26,4 @@ dist-ssr
 
 # Backend runtime state
 data/schedule-state.json
+data/ai-apply-history.json

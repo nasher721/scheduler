@@ -18,6 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, "data");
 const STATE_PATH = path.join(DATA_DIR, "schedule-state.json");
+const AI_APPLY_HISTORY_PATH = path.join(DATA_DIR, "ai-apply-history.json");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -48,6 +49,12 @@ async function ensureDataFile() {
   } catch {
     await fs.writeFile(STATE_PATH, JSON.stringify(null), "utf-8");
   }
+
+  try {
+    await fs.access(AI_APPLY_HISTORY_PATH);
+  } catch {
+    await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify([], null, 2), "utf-8");
+  }
 }
 
 async function readState() {
@@ -59,6 +66,18 @@ async function readState() {
 async function writeState(state) {
   await ensureDataFile();
   await fs.writeFile(STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
+}
+
+async function readApplyHistory() {
+  await ensureDataFile();
+  const raw = await fs.readFile(AI_APPLY_HISTORY_PATH, "utf-8");
+  const parsed = JSON.parse(raw || "[]");
+  return isArray(parsed) ? parsed : [];
+}
+
+async function writeApplyHistory(history) {
+  await ensureDataFile();
+  await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify(history, null, 2), "utf-8");
 }
 
 app.get("/api/health", (_req, res) => {
@@ -172,14 +191,113 @@ app.post("/api/ai/apply", async (req, res) => {
     }),
   );
 
+  const previousState = await readState();
+  const applyId = `ai-apply-${Date.now()}`;
+  const applyHistory = await readApplyHistory();
+  applyHistory.push({
+    id: applyId,
+    timestamp: new Date().toISOString(),
+    approvedBy: approvedBy || null,
+    rolloutMode,
+    result,
+    previousState,
+    appliedState: nextState,
+    rolledBackAt: null,
+    rolledBackBy: null,
+    rollbackReason: null,
+  });
+
   await writeState(nextState);
+  await writeApplyHistory(applyHistory);
   const recorded = recordAutomationOutcome({ result, accepted: true, rolledBack: false, violationCount });
   return res.json({
     ok: true,
+    applyId,
     rolloutMode,
     approvedBy: approvedBy || null,
     recorded,
     state: nextState,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.post("/api/ai/rollback", async (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Rollback payload must be an object." });
+  }
+
+  const applyId = typeof req.body?.applyId === "string" ? req.body.applyId.trim() : "";
+  const rolledBackBy = typeof req.body?.rolledBackBy === "string" ? req.body.rolledBackBy.trim() : "";
+  const rollbackReason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+
+  if (!applyId) {
+    return res.status(400).json({ error: "Rollback payload requires applyId." });
+  }
+
+  if (!rolledBackBy) {
+    return res.status(400).json({ error: "Rollback payload requires rolledBackBy reviewer." });
+  }
+
+  const history = await readApplyHistory();
+  const entryIndex = history.findIndex((entry) => entry?.id === applyId);
+  if (entryIndex < 0) {
+    return res.status(404).json({ error: `Apply record not found for applyId ${applyId}.` });
+  }
+
+  if (history[entryIndex].rolledBackAt) {
+    return res.status(409).json({ error: "Apply record has already been rolled back.", applyId });
+  }
+
+  const priorState = history[entryIndex].previousState;
+  const validationError = validateStatePayload(priorState);
+  if (validationError) {
+    return res.status(409).json({ error: `Cannot rollback: stored state is invalid. ${validationError}` });
+  }
+
+  const restoredState = {
+    ...priorState,
+    auditLog: isArray(priorState.auditLog) ? [...priorState.auditLog] : [],
+  };
+  restoredState.auditLog.push(
+    buildAiAuditEntry({
+      action: "ai_rollback",
+      mode: history[entryIndex].rolloutMode || "unknown",
+      accepted: false,
+      details: {
+        applyId,
+        rolledBackBy,
+        rollbackReason: rollbackReason || null,
+      },
+    }),
+  );
+
+  history[entryIndex] = {
+    ...history[entryIndex],
+    rolledBackAt: new Date().toISOString(),
+    rolledBackBy,
+    rollbackReason: rollbackReason || null,
+  };
+
+  await writeState(restoredState);
+  await writeApplyHistory(history);
+
+  const resultSnapshot = history[entryIndex].result;
+  const violationCount = Number.isFinite(resultSnapshot?.guardrails?.hardViolationCount)
+    ? Math.max(0, Number(resultSnapshot.guardrails.hardViolationCount))
+    : 0;
+  const recorded = recordAutomationOutcome({
+    result: resultSnapshot,
+    accepted: false,
+    rolledBack: true,
+    violationCount,
+  });
+
+  return res.json({
+    ok: true,
+    applyId,
+    rolledBackBy,
+    recorded,
+    state: restoredState,
     updatedAt: new Date().toISOString(),
   });
 });
