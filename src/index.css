@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,62 +11,57 @@
 
 @layer base {
   :root {
-    /* ========== COLOR PALETTE ========== */
+    /* ========== COLOR PALETTE (CLINICAL LUXURY) ========== */
     /* Backgrounds */
-    --background: 0 0% 98%;
-    /* Apple gray #f5f5f7 */
-    --background-secondary: 220 20% 97%;
-    --background-tertiary: 220 15% 95%;
+    --background: 210 20% 98%;
+    /* Pearl White */
+    --background-secondary: 210 16% 96%;
+    --background-tertiary: 210 14% 94%;
 
     /* Foregrounds */
-    --foreground: 0 0% 11%;
-    /* Rich black #1d1d1f */
-    --foreground-secondary: 0 0% 29%;
-    /* Secondary text */
-    --foreground-tertiary: 0 0% 45%;
-    /* Tertiary text */
-    --foreground-muted: 220 15% 53%;
-    /* Muted #86868b */
+    --foreground: 222 47% 11%;
+    /* Deep Midnight Slate #0F172A */
+    --foreground-secondary: 215 25% 27%;
+    --foreground-tertiary: 215 16% 47%;
+    --foreground-muted: 215 13% 65%;
 
     /* Surfaces */
     --surface: 0 0% 100%;
-    --surface-elevated: 0 0% 100%;
-    --surface-overlay: 0 0% 100%;
+    --surface-elevated: 210 20% 99%;
+    --surface-overlay: 210 20% 98%;
 
-    /* Accent Colors - Apple palette */
-    --primary: 211 100% 50%;
-    /* Apple blue #0071e3 */
-    --primary-hover: 211 100% 45%;
+    /* Accent Colors */
+    --primary: 221 83% 53%;
+    /* Precision Blue #3B82F6 */
+    --primary-hover: 221 83% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 94%;
-    --secondary-foreground: 0 0% 11%;
+    --secondary: 214 32% 91%;
+    /* Stone Gray */
+    --secondary-foreground: 222 47% 11%;
 
     /* Semantic Colors */
-    --success: 142 71% 45%;
-    /* Apple green #34c759 */
+    --success: 160 84% 39%;
     --success-foreground: 0 0% 100%;
-    --success-muted: 142 76% 94%;
+    --success-muted: 160 84% 96%;
 
-    --warning: 36 100% 50%;
-    /* Apple orange #ff9500 */
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --warning-muted: 36 100% 94%;
+    --warning-muted: 38 92% 96%;
 
-    --error: 4 90% 58%;
-    /* Apple red #ff3b30 */
+    --error: 0 84% 60%;
     --error-foreground: 0 0% 100%;
-    --error-muted: 4 90% 94%;
+    --error-muted: 0 84% 96%;
 
-    --info: 211 100% 50%;
+    --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
-    --info-muted: 211 100% 94%;
+    --info-muted: 199 89% 96%;
 
     /* UI Colors */
-    --border: 220 15% 91%;
-    --border-strong: 220 15% 85%;
-    --input: 220 15% 91%;
-    --ring: 211 100% 50%;
+    --border: 214 32% 91%;
+    --border-strong: 214 32% 80%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
 
     /* ========== SHIFT TYPE COLORS ========== */
     /* Refined medical schedule colors */
@@ -104,12 +101,11 @@
     /* ========== SHADOWS ========== */
     --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
     --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.05), 0 1px 3px -1px rgb(0 0 0 / 0.03);
-    --shadow-md: 0 4px 16px -4px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
-    --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.12), 0 4px 12px -4px rgb(0 0 0 / 0.06);
-    --shadow-xl: 0 24px 48px -12px rgb(0 0 0 / 0.16), 0 8px 20px -4px rgb(0 0 0 / 0.08);
-    --shadow-2xl: 0 32px 64px -16px rgb(0 0 0 / 0.20), 0 12px 28px -6px rgb(0 0 0 / 0.10);
-
-    /* Glass shadows */
+    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
     --shadow-glass: 0 8px 32px -4px rgb(0 0 0 / 0.06), inset 0 1px 0 0 rgb(255 255 255 / 0.4);
     --shadow-glass-hover: 0 12px 40px -4px rgb(0 0 0 / 0.08), inset 0 1px 0 0 rgb(255 255 255 / 0.5);
 
@@ -191,31 +187,38 @@
 
   body {
     @apply min-h-screen antialiased;
-    font-family: "SF Pro Text", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-feature-settings: "cv11", "ss01", "ss03";
+    font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03", "tnum";
     background-color: hsl(var(--background));
 
-    /* Premium gradient + grain background */
+    /* Editorial Mesh Background */
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, hsla(211, 100%, 98%, 0.8) 0%, transparent 50%),
-      radial-gradient(ellipse 60% 40% at 100% 0%, hsla(280, 80%, 98%, 0.5) 0%, transparent 50%),
-      radial-gradient(ellipse 60% 40% at 0% 100%, hsla(160, 70%, 98%, 0.5) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 30% at 100% 100%, hsla(211, 80%, 98%, 0.5) 0%, transparent 50%),
-      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+      radial-gradient(at 0% 0%, hsla(221, 83%, 53%, 0.03) 0, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(280, 80%, 50%, 0.02) 0, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(160, 70%, 50%, 0.02) 0, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(38, 92%, 50%, 0.02) 0, transparent 50%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--background-secondary)) 100%);
     background-attachment: fixed;
-    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 256px 256px;
   }
 
   /* Typography */
   h1,
   h2,
-  h3,
+  h3 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: hsl(var(--foreground));
+    font-style: italic;
+  }
+
   h4,
   h5,
   h6 {
-    font-family: "SF Pro Display", "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-weight: 600;
-    letter-spacing: -0.025em;
+    font-family: 'Public Sans', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
     color: hsl(var(--foreground));
   }
 
@@ -293,45 +296,45 @@
   }
 }
 
-/* ========== GLASS MORPHISM PANELS ========== */
 @layer components {
-  .glass-panel {
-    background: hsla(var(--surface), 0.7);
-    backdrop-filter: blur(var(--blur-xl)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--blur-xl)) saturate(180%);
-    border: 1px solid hsla(var(--foreground), 0.06);
-    box-shadow: var(--shadow-glass);
+
+  /* Frosted Satin - High blur, low transparency, sophisticated */
+  .satin-panel {
+    background: hsla(210, 20%, 98%, 0.4);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 0.5px solid hsla(222, 47%, 11%, 0.08);
+    box-shadow:
+      0 10px 30px -10px hsla(222, 47%, 11%, 0.05),
+      inset 0 1px 0 0 hsla(0, 0%, 100%, 0.5);
     border-radius: var(--radius-xl);
     transition: all var(--duration-normal) var(--ease-out);
   }
 
-  .glass-panel:hover {
-    box-shadow: var(--shadow-glass-hover);
+  .satin-panel:hover {
+    background: hsla(210, 20%, 98%, 0.5);
+    border-color: hsla(222, 47%, 11%, 0.12);
+    box-shadow: 0 20px 40px -15px hsla(222, 47%, 11%, 0.08);
   }
 
-  .glass-panel-light {
-    background: hsla(var(--surface), 0.5);
-    backdrop-filter: blur(var(--blur-lg)) saturate(150%);
-    -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(150%);
-    border: 1px solid hsla(var(--foreground), 0.04);
-    box-shadow: var(--shadow-sm);
+  /* Polished Stone - Solid-ish, structured, high precision */
+  .stone-panel {
+    background: hsl(var(--surface));
+    border: 0.5px solid hsla(222, 47%, 11%, 0.1);
+    box-shadow:
+      0 2px 4px -2px hsla(222, 47%, 11%, 0.05),
+      0 8px 16px -4px hsla(222, 47%, 11%, 0.03);
     border-radius: var(--radius-lg);
   }
 
+  .glass-panel,
   .glass-panel-heavy {
-    background: hsla(var(--surface), 0.85);
-    backdrop-filter: blur(var(--blur-2xl)) saturate(200%);
-    -webkit-backdrop-filter: blur(var(--blur-2xl)) saturate(200%);
-    border: 1px solid hsla(var(--foreground), 0.08);
-    box-shadow: var(--shadow-lg);
-    border-radius: var(--radius-xl);
+    @apply satin-panel;
   }
 
+  .glass-panel-light,
   .glass-panel-solid {
-    background: hsl(var(--surface));
-    border: 1px solid hsla(var(--foreground), 0.06);
-    box-shadow: var(--shadow-md);
-    border-radius: var(--radius-xl);
+    @apply stone-panel;
   }
 }
 
@@ -1059,7 +1062,16 @@
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
+
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    -ms-overflow-style: none;
+    /* IE and Edge */
     scrollbar-width: none;
+    /* Firefox */
   }
 
   .scrollbar-hide::-webkit-scrollbar {

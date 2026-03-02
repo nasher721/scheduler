@@ -2,53 +2,60 @@ import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from 
 import { useDroppable } from "@dnd-kit/core";
 import { parseISO, format, startOfMonth } from "date-fns";
 import { motion } from "framer-motion";
-import { Sun, Moon, AlertTriangle, Sparkles, MapPin, Activity, Stethoscope } from "lucide-react";
+import { Sun, Moon, AlertTriangle, Sparkles, Activity, Stethoscope, CalendarDays } from "lucide-react";
 import React, { useState } from "react";
 import Calendar from "react-lightweight-calendar";
 import "react-lightweight-calendar/dist/styles/styles.css";
 
-const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string }> = {
+const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string; borderClass: string }> = {
   DAY: {
-    label: 'Day',
+    label: 'Day Shift',
     icon: <Sun className="w-3 h-3" />,
-    colorClass: 'text-emerald-600',
-    bgClass: 'bg-emerald-50 border-emerald-200'
+    colorClass: 'text-success',
+    bgClass: 'bg-success-muted/30',
+    borderClass: 'border-success/20'
   },
   NIGHT: {
-    label: 'Night',
+    label: 'Night Shift',
     icon: <Moon className="w-3 h-3" />,
-    colorClass: 'text-indigo-600',
-    bgClass: 'bg-indigo-50 border-indigo-200'
+    colorClass: 'text-primary',
+    bgClass: 'bg-primary/5',
+    borderClass: 'border-primary/10'
   },
   NMET: {
     label: 'NMET',
     icon: <Sparkles className="w-3 h-3" />,
-    colorClass: 'text-amber-600',
-    bgClass: 'bg-amber-50 border-amber-200'
+    colorClass: 'text-warning',
+    bgClass: 'bg-warning-muted/30',
+    borderClass: 'border-warning/20'
   },
   JEOPARDY: {
     label: 'Jeopardy',
     icon: <AlertTriangle className="w-3 h-3" />,
-    colorClass: 'text-rose-600',
-    bgClass: 'bg-rose-50 border-rose-200'
+    colorClass: 'text-error',
+    bgClass: 'bg-error-muted/30',
+    borderClass: 'border-error/20'
   },
   RECOVERY: {
     label: 'Recovery',
     icon: <Activity className="w-3 h-3" />,
     colorClass: 'text-teal-600',
-    bgClass: 'bg-teal-50 border-teal-200'
+    bgClass: 'bg-teal-50/50',
+    borderClass: 'border-teal-200/50'
   },
   CONSULTS: {
     label: 'Consults',
     icon: <Stethoscope className="w-3 h-3" />,
     colorClass: 'text-sky-600',
-    bgClass: 'bg-sky-50 border-sky-200'
+    bgClass: 'bg-sky-50/50',
+    borderClass: 'border-sky-200/50'
   },
   VACATION: {
-    label: 'Vacation',
-    icon: <Moon className="w-3 h-3" />,
-    colorClass: 'text-slate-500',
-    bgClass: 'bg-slate-100 border-slate-200'
+    label: 'Out of Office',
+    icon: <Moon className="w-3 h-3 opacity-0" />,
+    colorClass: 'text-slate-400',
+    bgClass: 'bg-slate-100/50',
+    borderClass: 'border-slate-200/50'
   },
 };
 
@@ -69,39 +76,52 @@ function CalendarSlot({
   return (
     <motion.div
       ref={setNodeRef}
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ scale: 1.01, translateY: -1 }}
-      className={`min-h-[34px] rounded-xl p-2.5 mb-1.5 flex items-center justify-between gap-3 transition-all border ${isOver
-        ? 'border-blue-500 bg-blue-50/90 shadow-lg ring-2 ring-blue-500/20'
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.02, zIndex: 20 }}
+      className={`group relative overflow-hidden rounded-lg p-2 mb-1 transition-all duration-300 ${isOver
+        ? "ring-2 ring-primary bg-primary/5 shadow-lg border-primary/20 scale-[1.03]"
         : provider
-          ? 'bg-white/95 border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80'
-          : 'bg-slate-50/40 border-dashed border-slate-300/40 hover:bg-slate-100/60'
-        } ${slot.isBackup || slot.type === 'JEOPARDY' ? 'ring-1 ring-rose-200 bg-rose-50/30' : ''}`}
+          ? `${config.bgClass} border ${config.borderClass} shadow-xs hover:shadow-sm`
+          : "bg-slate-50/50 border border-dashed border-slate-200 hover:bg-white hover:border-slate-300"
+        } ${slot.isBackup ? "border-dashed border-rose-300 ring-1 ring-rose-100" : ""}`}
     >
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <div className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest ${config.colorClass}`}>
-          {config.icon}
-          <span>{slot.isBackup ? 'BACKUP' : config.label}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${provider ? 'bg-white/60 shadow-xs' : 'bg-slate-100/50'}`}>
+          {React.cloneElement(config.icon as React.ReactElement, {
+            className: `w-3 h-3 ${provider ? config.colorClass : 'text-slate-300'}`
+          })}
         </div>
-        {slot.location && (
-          <div className="flex items-center gap-1 text-slate-400 font-medium text-[8px]" title={slot.location}>
-            <MapPin className="w-2 h-2" />
-            <span className="truncate max-w-[60px]">{slot.location}</span>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-1">
+            <span className={`text-[8px] font-bold uppercase tracking-[0.15em] truncate ${provider ? 'text-slate-500' : 'text-slate-400'}`}>
+              {slot.isBackup ? 'Backup Priority' : config.label}
+            </span>
+            {slot.location && (
+              <span className="text-[7px] text-slate-300 font-medium px-1.5 py-0.5 rounded-full border border-slate-200/50 bg-white/30 truncate max-w-[40px]">
+                {slot.location}
+              </span>
+            )}
           </div>
-        )}
-      </div>
-      {provider ? (
-        <motion.div
-          layoutId={`monthly-assigned-${slot.id}`}
-          className={`text-[10.5px] font-bold py-1 px-3 rounded-lg truncate shadow-sm border ${config.bgClass} ${config.colorClass} border-white/40 backdrop-blur-sm`}
-        >
-          {provider.name}
-        </motion.div>
-      ) : (
-        <div className="text-[10px] text-slate-400 font-bold px-2 py-1 rounded-md bg-slate-100/30 border border-slate-200/20 italic">
-          OPEN
+
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {provider ? (
+              <span className={`text-[10px] font-bold tracking-tight truncate ${config.colorClass}`}>
+                {provider.name}
+              </span>
+            ) : (
+              <span className="text-[10px] font-medium italic text-slate-300">
+                Unassigned
+              </span>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Atmospheric Highlight for assigned slots */}
+      {provider && (
+        <div className={`absolute -right-4 -bottom-4 w-12 h-12 rounded-full blur-2xl opacity-40 transition-opacity group-hover:opacity-60 ${config.bgClass}`} />
       )}
     </motion.div>
   );
@@ -136,31 +156,37 @@ export function MonthlyCalendar() {
   });
 
   return (
-    <div className="flex-1 glass-panel-heavy overflow-hidden flex flex-col monthly-calendar-container">
+    <div className="flex-1 satin-panel overflow-hidden flex flex-col monthly-calendar-container m-6 border-slate-200/40 shadow-xl">
       {/* Calendar Header */}
-      <div className="px-6 py-5 border-b border-slate-200/50 bg-gradient-to-r from-white/60 to-white/40 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
+      <div className="px-8 py-7 border-b border-slate-200/40 bg-white/40 backdrop-blur-md flex items-center justify-between">
+        <div className="flex items-center gap-5">
+          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200/60 shadow-inner flex items-center justify-center">
+            <CalendarDays className="w-6 h-6 text-slate-400 stroke-[1.5]" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
-              {format(monthStart, "MMMM yyyy")}
+            <h2 className="text-3xl font-serif text-slate-900 tracking-tight leading-none">
+              {format(monthStart, "MMMM")} <span className="text-slate-300 font-light">{format(monthStart, "yyyy")}</span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {slots.length} shifts • {slots.filter(s => s.providerId).length} assigned
-            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Inventory Status:</span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded-full text-[9px] font-bold text-slate-500">
+                  {slots.length} Total Nodes
+                </span>
+                <span className="flex items-center gap-1.5 px-2 py-0.5 bg-primary/5 rounded-full text-[9px] font-bold text-primary">
+                  {slots.filter(s => s.providerId).length} Assigned
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="hidden lg:flex items-center gap-4">
-          {Object.entries(shiftConfig).map(([key, config]) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-full ${config.bgClass} border`}></div>
-              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{config.label}</span>
+        <div className="hidden lg:flex items-center gap-6">
+          {Object.entries(shiftConfig).slice(0, 4).map(([key, config]) => (
+            <div key={key} className="flex items-center gap-2.5">
+              <div className={`w-2 h-2 rounded-full ${config.bgClass} border ${config.borderClass}`}></div>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">{config.label}</span>
             </div>
           ))}
         </div>
