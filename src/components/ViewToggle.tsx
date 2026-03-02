@@ -1,7 +1,7 @@
-import { LayoutGrid, CalendarDays, BarChart3, ShieldAlert, Workflow } from "lucide-react";
+import { LayoutGrid, CalendarDays, BarChart3, ShieldAlert, Workflow, BrainCircuit } from "lucide-react";
 import { motion } from "framer-motion";
 
-export type ViewMode = "grid" | "calendar" | "analytics" | "rules" | "strategy";
+export type ViewMode = "grid" | "calendar" | "analytics" | "rules" | "strategy" | "ai";
 
 interface ViewToggleProps {
   view: ViewMode;
@@ -89,6 +89,22 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
         )}
         <Workflow className="w-3.5 h-3.5 relative z-10" />
         <span className="relative z-10">Strategy</span>
+      </button>
+
+      <button
+        onClick={() => onChange("ai")}
+        className={`relative px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all flex items-center gap-2.5 ${view === "ai" ? "text-primary" : "text-slate-400 hover:text-slate-600"
+          }`}
+      >
+        {view === "ai" && (
+          <motion.div
+            layoutId="view-toggle-indicator"
+            className="absolute inset-0 bg-white shadow-sm border border-slate-200/50 rounded-xl z-0"
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          />
+        )}
+        <BrainCircuit className="w-3.5 h-3.5 relative z-10" />
+        <span className="relative z-10">AI Assist</span>
       </button>
 </div>
   );

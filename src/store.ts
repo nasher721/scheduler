@@ -118,6 +118,7 @@ interface ScheduleState {
   createScenario: (name: string) => void;
   loadScenario: (id: string) => void;
   deleteScenario: (id: string) => void;
+  loadState: (state: Partial<HistoryState>) => void;
   clearMessage: () => void;
   showToast: (toast: Omit<Toast, "id">) => void;
   dismissToast: (id: string) => void;
@@ -650,6 +651,31 @@ export const useScheduleStore = create<ScheduleState>()(
         }));
 
         get().showToast({ type: "info", title: "Scenario Deleted" });
+      },
+
+      loadState: (incoming) => {
+        const state = get();
+        const historyState: HistoryState = {
+          providers: state.providers,
+          slots: state.slots,
+          startDate: state.startDate,
+          numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
+        };
+        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        set({
+          ...(incoming.providers !== undefined ? { providers: incoming.providers } : {}),
+          ...(incoming.slots !== undefined ? { slots: incoming.slots } : {}),
+          ...(incoming.startDate !== undefined ? { startDate: incoming.startDate } : {}),
+          ...(incoming.numWeeks !== undefined ? { numWeeks: incoming.numWeeks } : {}),
+          ...(incoming.customRules !== undefined ? { customRules: incoming.customRules } : {}),
+          ...(incoming.auditLog !== undefined ? { auditLog: incoming.auditLog } : {}),
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+          lastActionMessage: "Schedule loaded from server.",
+        });
+        get().showToast({ type: "success", title: "Loaded from Server", message: "Schedule state has been restored from the backend." });
       },
 
       clearMessage: () => set({ lastActionMessage: null }),

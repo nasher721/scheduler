@@ -4,12 +4,14 @@ import { MonthlyCalendar } from "./components/MonthlyCalendar";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RuleBuilder } from "./components/RuleBuilder";
 import { SchedulingStrategyWorkbench } from "./components/SchedulingStrategyWorkbench";
+import { AiAssistPanel } from "./components/AiAssistPanel";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
 import {
   AlertTriangle,
   Save,
+  Download,
   Trash,
   AlertCircle,
   Zap,
@@ -20,7 +22,7 @@ import {
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
-import { saveScheduleState } from "./lib/api";
+import { loadScheduleState, saveScheduleState } from "./lib/api";
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -46,6 +48,7 @@ export default function App() {
     customRules,
     auditLog,
     showToast,
+    loadState,
   } = useScheduleStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
@@ -149,6 +152,19 @@ export default function App() {
     }
   };
 
+  const handleServerLoad = async () => {
+    try {
+      const { state } = await loadScheduleState();
+      if (!state) {
+        showToast({ type: "warning", title: "Nothing to Load", message: "No server snapshot exists yet. Save first." });
+        return;
+      }
+      loadState(state as Parameters<typeof loadState>[0]);
+    } catch {
+      showToast({ type: "error", title: "Load Failed", message: "Unable to reach API server." });
+    }
+  };
+
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -212,7 +228,8 @@ export default function App() {
                     <Sparkles className="w-3.5 h-3.5" />
                     Auto-Fill
                   </motion.button>
-                  <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync API"><Save className="w-4 h-4" /></button>
+                  <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Save to Server"><Save className="w-4 h-4" /></button>
+                  <button onClick={handleServerLoad} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Load from Server"><Download className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
@@ -373,6 +390,8 @@ export default function App() {
                     <RuleBuilder />
                   ) : viewMode === "strategy" ? (
                     <SchedulingStrategyWorkbench />
+                  ) : viewMode === "ai" ? (
+                    <AiAssistPanel />
                   ) : (
                     <Calendar />
                   )}
