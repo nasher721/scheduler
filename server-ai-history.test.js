@@ -143,3 +143,62 @@ test("apply history summary endpoint reports range aggregates", async () => {
     await new Promise((resolve) => server.on("exit", resolve));
   }
 });
+
+test("apply history endpoint supports rolloutMode and rolledBack filters", async () => {
+  const server = spawn("node", ["server.js"], {
+    env: { ...process.env, PORT: String(PORT) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    await waitForHealth(BASE_URL);
+
+    const setRes = await fetch(`${BASE_URL}/api/state`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sampleState),
+    });
+    assert.equal(setRes.ok, true);
+
+    const optimizeRes = await fetch(`${BASE_URL}/api/ai/optimize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sampleState),
+    });
+    assert.equal(optimizeRes.ok, true);
+    const optimizePayload = await optimizeRes.json();
+
+    const applyRes = await fetch(`${BASE_URL}/api/ai/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ result: optimizePayload.result, approvedBy: "lead" }),
+    });
+    assert.equal(applyRes.ok, true);
+    const applyPayload = await applyRes.json();
+
+    const rolledBackBeforeRes = await fetch(`${BASE_URL}/api/ai/apply-history?limit=200&rolloutMode=${encodeURIComponent(applyPayload.rolloutMode)}&rolledBack=false`);
+    assert.equal(rolledBackBeforeRes.ok, true);
+    const rolledBackBeforePayload = await rolledBackBeforeRes.json();
+    const beforeRecord = rolledBackBeforePayload.records.find((record) => record.id === applyPayload.applyId);
+    assert.ok(beforeRecord);
+
+    const rollbackRes = await fetch(`${BASE_URL}/api/ai/rollback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ applyId: applyPayload.applyId, rolledBackBy: "ops" }),
+    });
+    assert.equal(rollbackRes.ok, true);
+
+    const rolledBackAfterRes = await fetch(`${BASE_URL}/api/ai/apply-history?limit=200&rolloutMode=${encodeURIComponent(applyPayload.rolloutMode)}&rolledBack=true`);
+    assert.equal(rolledBackAfterRes.ok, true);
+    const rolledBackAfterPayload = await rolledBackAfterRes.json();
+    const afterRecord = rolledBackAfterPayload.records.find((record) => record.id === applyPayload.applyId);
+    assert.ok(afterRecord);
+
+    const invalidFilterRes = await fetch(`${BASE_URL}/api/ai/apply-history?rolledBack=maybe`);
+    assert.equal(invalidFilterRes.status, 400);
+  } finally {
+    server.kill("SIGTERM");
+    await new Promise((resolve) => server.on("exit", resolve));
+  }
+});
