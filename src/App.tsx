@@ -27,6 +27,7 @@ import {
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { exportScheduleToExcel, importScheduleFromExcel } from "./lib/excelUtils";
+import { loadScheduleState, saveScheduleState } from "./lib/api";
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -50,6 +51,9 @@ export default function App() {
     redo,
     canUndo,
     canRedo,
+    customRules,
+    auditLog,
+    showToast,
   } = useScheduleStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
@@ -102,6 +106,48 @@ export default function App() {
 
   const handleRedo = () => {
     if (canRedo()) redo();
+  };
+
+  const handleServerSave = async () => {
+    try {
+      await saveScheduleState({
+        providers,
+        startDate,
+        numWeeks,
+        slots,
+        scenarios,
+        customRules,
+        auditLog,
+      });
+      showToast({ type: "success", title: "Saved to Server", message: "Current schedule state is now persisted on the backend." });
+    } catch {
+      showToast({ type: "error", title: "Save Failed", message: "Unable to reach API server." });
+    }
+  };
+
+  const handleServerLoad = async () => {
+    try {
+      const result = await loadScheduleState();
+      if (!result.state) {
+        showToast({ type: "warning", title: "No Server State", message: "No saved server-side schedule found yet." });
+        return;
+      }
+
+      useScheduleStore.setState((current) => ({
+        ...current,
+        providers: result.state!.providers as typeof current.providers,
+        startDate: result.state!.startDate,
+        numWeeks: result.state!.numWeeks,
+        slots: result.state!.slots as typeof current.slots,
+        scenarios: result.state!.scenarios as typeof current.scenarios,
+        customRules: result.state!.customRules as typeof current.customRules,
+        auditLog: result.state!.auditLog as typeof current.auditLog,
+      }));
+
+      showToast({ type: "success", title: "Loaded from Server", message: "Backend data restored into the app." });
+    } catch {
+      showToast({ type: "error", title: "Load Failed", message: "Unable to fetch persisted state from API server." });
+    }
   };
 
   return (
@@ -228,6 +274,24 @@ export default function App() {
               >
                 <Sparkles className="w-4 h-4" />
                 Auto-Fill
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleServerSave}
+                className="btn btn-secondary btn-sm"
+              >
+                Save API
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleServerLoad}
+                className="btn btn-secondary btn-sm"
+              >
+                Load API
               </motion.button>
             </div>
           </div>

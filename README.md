@@ -1,68 +1,78 @@
-# Neuro ICU Scheduler
+# Neuro ICU Scheduler (Full Stack)
 
-A modern React + TypeScript scheduler for complex neuro ICU physician planning.
+A production-style **full stack scheduling platform** for neuro ICU staffing.
 
-## Five Standout Features
+- **Frontend:** React + TypeScript + Vite
+- **Backend API:** Node.js + Express
+- **Persistence:** Server-side JSON store (`data/schedule-state.json`) plus local browser persistence for offline safety
 
-1. **Skill-aware assignment engine**
-   - Every shift carries a required competency (`NEURO_CRITICAL`, `NIGHT_FLOAT`, `AIRWAY`, `STROKE`).
-   - Providers can only be assigned to slots that match their declared skill profile.
+## What’s Included
 
-2. **Fatigue & safety guardrails**
-   - Configurable per-provider limits for maximum consecutive nights.
-   - Configurable recovery days required after a night shift before non-night assignment.
+### Frontend (operations UI)
+- Skill-aware, constraint-based scheduling engine.
+- Drag-and-drop assignment workflows.
+- Scenario save/load/delete for what-if planning.
+- Coverage and risk analytics dashboards.
+- Excel import/export, print/PDF output.
+- New backend sync controls (**Save API / Load API**) to persist and restore schedules from server storage.
 
-3. **Preference-weighted smart auto-fill**
-   - Auto-fill balances target deficits and boosts candidates on preferred dates.
-   - Preserves hard constraints (availability, skills, fatigue, no same-day double-booking).
+### Backend (API layer)
+- `GET /api/health` — service health check.
+- `GET /api/state` — fetch current persisted schedule snapshot.
+- `PUT /api/state` — validate and persist full schedule state.
+- CORS + JSON body parsing included.
 
-4. **Scenario sandboxing**
-   - Save, load, and delete named scenarios for “what-if” planning.
-   - Compare holiday plans, surge plans, or staffing-reduction plans without losing baseline schedules.
+## Architecture
 
-5. **Live operational risk analytics**
-   - At-a-glance KPIs for coverage, critical unfilled shifts, skill mismatch risk, overload, and fatigue exposure.
-   - Supports rapid operational decisions in high-acuity scheduling windows.
-
-## Additional Capabilities
-
-- Drag-and-drop assignment of providers to shift slots.
-- Monthly and classic grid schedule views.
-- Editable provider targets, skills, preferences, and availability.
-- Excel import/export for offline sharing.
-- Persistent local state in browser storage.
-
-## Tech Stack
-
-- React 19 + Vite + TypeScript
-- Zustand for global state management
-- Framer Motion for UI animation
-- dnd-kit for drag and drop
-- date-fns for calendar/date utilities
-- xlsx + file-saver for spreadsheet workflows
-- Tailwind CSS for styling
-
-## Getting Started
-```bash
-pnpm install
-pnpm dev
+```text
+React SPA (Vite)
+   └─ fetch()
+      └─ Express API (server.js)
+            └─ data/schedule-state.json
 ```
 
-Then open `http://localhost:5173`.
+The client continues to use Zustand for local interaction speed and undo/redo history, while the server acts as a canonical shared state endpoint.
 
-## Available Scripts
+## Getting Started
+
+```bash
+pnpm install
+pnpm dev:fullstack
+```
+
+This starts:
+- Frontend at `http://localhost:5173`
+- API at `http://localhost:4000`
+
+You can also run each separately:
+
 ```bash
 pnpm dev
+pnpm server
+```
+
+## Environment Variables
+
+Create a `.env` file if your API is not on localhost:4000:
+
+```bash
+VITE_API_BASE_URL=https://your-api-host
+```
+
+## Available Scripts
+
+```bash
+pnpm dev             # Frontend only
+pnpm server          # Backend API only
+pnpm dev:fullstack   # Frontend + backend concurrently
 pnpm build
 pnpm lint
 pnpm preview
 ```
 
+## Persistence Notes
 
-## Data Persistence
+- Server persistence file: `data/schedule-state.json`
+- Browser persistence key: `nicu-schedule-store-v4`
 
-Schedule state is stored under local storage key:
-
-- `nicu-schedule-store-v3`
-
-Clear browser storage to fully reset persisted plans.
+If backend storage is empty, `Load API` will report that no server snapshot exists yet.
