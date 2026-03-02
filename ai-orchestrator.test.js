@@ -46,10 +46,12 @@ test("listProviders exposes configured and enabled flags", () => {
 });
 
 test("recommendations fallback contains summary and source", async () => {
-  const result = await buildRecommendations(sampleState);
+  const result = await buildRecommendations({ state: sampleState, policyProfile: "fairness_first" });
   assert.equal(result.source, "deterministic-fallback");
   assert.equal(result.summary.unassignedSlots, 2);
   assert.ok(Array.isArray(result.recommendations));
+  assert.equal(result.policyProfile, "fairness_first");
+  assert.ok(Number.isFinite(result.objectiveScore));
 });
 
 test("optimize assigns eligible providers and returns optimized state", async () => {
@@ -57,6 +59,8 @@ test("optimize assigns eligible providers and returns optimized state", async ()
   assert.equal(result.source, "deterministic-fallback");
   assert.ok(result.changes.some((entry) => entry.action === "assign_provider"));
   assert.ok(result.optimizedState.slots.some((slot) => slot.id === "s2" && slot.providerId === "p1"));
+  assert.ok(result.guardrails.passed);
+  assert.ok(Number.isFinite(result.objectiveScore));
 });
 
 test("optimize respects max consecutive nights when assigning", async () => {
@@ -98,6 +102,7 @@ test("simulate returns projected metrics", async () => {
 
   assert.equal(result.source, "deterministic-fallback");
   assert.ok(Number.isFinite(result.projected.coveragePct));
+  assert.ok(result.objectiveWeights.coverageCompletion > 0);
 });
 
 test("conflicts finds unassigned slot", async () => {
@@ -120,7 +125,8 @@ test("conflicts detect time-off and max weekly shift rule violations", async () 
 });
 
 test("explain returns deterministic text", async () => {
-  const result = await explainDecision({ decision: { id: "d1" } });
+  const result = await explainDecision({ decision: { id: "d1" }, policyProfile: "safety_first" });
   assert.equal(result.source, "deterministic-fallback");
   assert.ok(result.explanation.includes("critical coverage"));
+  assert.equal(result.policyProfile, "safety_first");
 });
