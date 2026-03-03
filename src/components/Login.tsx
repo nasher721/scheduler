@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useScheduleStore } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, User, UserPlus } from "lucide-react";
+import { ArrowRight, Lock, Sparkles, User, UserPlus } from "lucide-react";
 import { Register } from "./Register";
 import { AdminRegister } from "./AdminRegister";
 
@@ -26,14 +26,22 @@ export function Login() {
     };
 
     const [email, setEmail] = useState("");
+    const [showHint, setShowHint] = useState(false);
     const login = useScheduleStore((state) => state.login);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (email.trim()) {
-            login(email.trim());
+        const normalizedEmail = email.trim().toLowerCase();
+        if (normalizedEmail) {
+            login(normalizedEmail);
         }
     };
+
+    const presetUsers = [
+        { label: "Admin", email: "adams@hospital.org" },
+        { label: "Scheduler", email: "clark@hospital.org" },
+        { label: "Clinician", email: "baker@hospital.org" },
+    ];
 
     return (
         <AnimatePresence mode="wait">
@@ -57,6 +65,10 @@ export function Login() {
                                 <p className="text-sm font-medium text-slate-500">
                                     Clinical orchestrator for neurovascular critical care.
                                 </p>
+                                <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    Fast secure access
+                                </div>
                             </div>
 
                             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -70,6 +82,7 @@ export function Login() {
                                             required
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
+                                            onBlur={() => setShowHint(true)}
                                             placeholder="e.g. adams@hospital.org"
                                             className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                                         />
@@ -83,8 +96,26 @@ export function Login() {
                                     className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] uppercase tracking-widest py-4 rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-2 active:scale-95"
                                 >
                                     Sign In
+                                    <ArrowRight className="h-4 w-4" />
                                 </button>
+
+                                {showHint && email.trim() && !email.includes("@") ? (
+                                    <p className="text-xs text-amber-600 font-medium px-1">Use your hospital email address.</p>
+                                ) : null}
                             </form>
+
+                            <div className="flex flex-wrap items-center justify-center gap-2">
+                                {presetUsers.map((user) => (
+                                    <button
+                                        key={user.email}
+                                        type="button"
+                                        onClick={() => setEmail(user.email)}
+                                        className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-slate-50"
+                                    >
+                                        {user.label}
+                                    </button>
+                                ))}
+                            </div>
 
                             <div className="flex flex-col gap-4 mt-2">
                                 <button
