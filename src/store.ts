@@ -141,6 +141,7 @@ interface ScheduleState {
   canRedo: () => boolean;
   currentUser: Provider | null;
   login: (email: string) => void;
+  register: (provider: Omit<Provider, "id">) => void;
   logout: () => void;
 }
 
@@ -379,6 +380,38 @@ export const useScheduleStore = create<ScheduleState>()(
       logout: () => {
         set({ currentUser: null });
         get().showToast({ type: "info", title: "Logged Out", message: "You have been logged out." });
+      },
+
+      register: (provider) => {
+        const state = get();
+        const existing = state.providers.find(p => p.email?.toLowerCase() === provider.email?.toLowerCase());
+        if (existing) {
+          get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
+          return;
+        }
+
+        const id = crypto.randomUUID();
+        const newProvider = { ...provider, id };
+
+        // Use addProvider logic to maintain history
+        const historyState: HistoryState = {
+          providers: state.providers,
+          slots: state.slots,
+          startDate: state.startDate,
+          numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
+        };
+        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+
+        set({
+          providers: [...state.providers, newProvider],
+          currentUser: newProvider,
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+          lastActionMessage: `Self-registered: ${provider.name}`,
+        });
+        get().showToast({ type: "success", title: "Registration Successful", message: `Welcome, ${provider.name}!` });
       },
 
       addProvider: (provider) => {

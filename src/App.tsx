@@ -1,4 +1,5 @@
 import { ProviderManager } from "./components/ProviderManager";
+import { SparkAnnotation } from "spark-banana";
 import { Calendar } from "./components/Calendar";
 import { MonthlyCalendar } from "./components/MonthlyCalendar";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
+import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState } from "./lib/api";
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -61,6 +62,7 @@ export default function App() {
   const [columnMapping, setColumnMapping] = useState<Partial<Record<ImportFieldKey, string>>>({});
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
+  const [isAiMapping, setIsAiMapping] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
 
@@ -110,6 +112,28 @@ export default function App() {
     if (!file || file.name !== fileName) return;
     const preview = await parseScheduleImportFile(file, columnMapping);
     setImportPreview(preview);
+  };
+
+  const handleSmartMap = async () => {
+    if (!importPreview) return;
+    setIsAiMapping(true);
+    try {
+      const { mapping, confidence } = await getAiHeaderMapping(importPreview.rows.map(r => ({ ...r.assignments, date: r.date })));
+      if (Object.keys(mapping).length > 0) {
+        setColumnMapping(prev => ({ ...prev, ...mapping }));
+        showToast({
+          type: "success",
+          title: "Smart Mapping Applied",
+          message: `AI suggested ${Object.keys(mapping).length} mappings with ${Math.round(confidence * 100)}% confidence.`,
+        });
+      } else {
+        showToast({ type: "info", title: "Smart Map", message: "AI could not find a better mapping than the current one." });
+      }
+    } catch {
+      showToast({ type: "error", title: "Smart Map Failed", message: "Unable to reach the AI engine." });
+    } finally {
+      setIsAiMapping(false);
+    }
   };
 
   const handleApplyImport = () => {
@@ -462,7 +486,17 @@ export default function App() {
                       </label>
                     ))}
                   </div>
-                  <button onClick={() => rerunImportPreview(importPreview.fileName)} className="mt-3 px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 text-white">Re-validate Mapping</button>
+                  <div className="mt-4 flex gap-3">
+                    <button onClick={() => rerunImportPreview(importPreview.fileName)} className="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors">Re-validate Mapping</button>
+                    <button
+                      onClick={handleSmartMap}
+                      disabled={isAiMapping}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${isAiMapping ? 'animate-pulse' : ''}`} />
+                      {isAiMapping ? 'AI is analyzing...' : 'AI Smart Map'}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -508,6 +542,9 @@ export default function App() {
       </AnimatePresence>
 
       <ToastContainer />
+      {import.meta.env.DEV && (
+        <SparkAnnotation projectRoot={import.meta.env.VITE_SPARK_PROJECT_ROOT as string} />
+      )}
     </DndContext>
   );
 }

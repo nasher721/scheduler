@@ -793,4 +793,19 @@ export async function explainDecision(input) {
   return executeTask("explain", input, deterministicExplain);
 }
 
+export async function parseExcelStructure(input) {
+  const task = "Analyze the provided Excel sample data and suggest a mapping to the target schedule fields. " +
+    "Target fields are: date, dayG20, dayH22, dayAkron, night, consults, nmet, jeopardy, recovery, vacation. " +
+    "Return a JSON object with 'mapping' (a Record<TargetField, SourceHeader>) and 'confidence' (0-1).";
+
+  return executeTask("parse-excel", input, (payload) => {
+    return {
+      mapping: {},
+      confidence: 0,
+      source: "deterministic-fallback",
+      message: "AI parsing not available for this task in fallback mode."
+    };
+  });
+}
+
 export { listProviders, listProviderMetrics, recordAutomationOutcome };

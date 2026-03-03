@@ -131,6 +131,8 @@ export interface ImportPreviewResult {
   requiresMapping: boolean;
   availableHeaders: string[];
   mapping: Partial<Record<ImportFieldKey, string>>;
+  aiSuggestedMapping?: Partial<Record<ImportFieldKey, string>>;
+  aiConfidence?: number;
   issues: ImportIssue[];
   rows: ImportPreviewRow[];
 }
@@ -694,6 +696,34 @@ export const parseScheduleImportFileAsync = async (
       fileName: file.name,
       fileSizeBytes: file.size,
     });
+  }
+};
+
+export const getAiHeaderMapping = async (
+  sampleRows: WorksheetRow[],
+): Promise<{ mapping: Partial<Record<ImportFieldKey, string>>; confidence: number }> => {
+  try {
+    const response = await fetch("http://localhost:4000/api/ai/parse-excel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sampleData: sampleRows.slice(0, 5),
+        targetFields: IMPORT_FIELDS,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("AI mapping request failed.");
+    }
+
+    const { result } = await response.json();
+    return {
+      mapping: result.mapping || {},
+      confidence: result.confidence || 0,
+    };
+  } catch (error) {
+    console.error("Smart mapping failed:", error);
+    return { mapping: {}, confidence: 0 };
   }
 };
 

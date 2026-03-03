@@ -10,6 +10,7 @@ import {
   simulateScenario,
   detectConflicts,
   explainDecision,
+  parseExcelStructure,
   listProviderMetrics,
   recordAutomationOutcome,
 } from "./ai-orchestrator.js";
@@ -718,6 +719,19 @@ app.get("/api/ai/providers", (_req, res) => {
 
 app.get("/api/ai/metrics", (_req, res) => {
   return res.json({ metrics: listProviderMetrics(), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/ai/parse-excel", async (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Parse payload must be an object." });
+  }
+
+  try {
+    const result = await parseExcelStructure(req.body);
+    return res.json({ result, updatedAt: new Date().toISOString() });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 app.post("/api/ai/feedback", (req, res) => {
