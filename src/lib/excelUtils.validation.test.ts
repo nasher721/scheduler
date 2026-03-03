@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDate, normalizeHeader, resolveHeaderMapping } from './excelUtils';
+import { normalizeDate, normalizeHeader, resolveHeaderMapping } from './excelUtils.ts';
 
 test('normalizes header variants', () => {
   assert.equal(normalizeHeader(' Provider Name  '), 'provider name');

@@ -9,6 +9,8 @@ import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
+import { Login } from "./components/Login";
+import { ProviderDashboard } from "./components/ProviderDashboard";
 import {
   AlertTriangle,
   Save,
@@ -50,6 +52,7 @@ export default function App() {
     customRules,
     auditLog,
     showToast,
+    currentUser,
   } = useScheduleStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
@@ -175,6 +178,24 @@ export default function App() {
     }
   };
 
+
+  if (!currentUser) {
+    return (
+      <>
+        <Login />
+        <ToastContainer />
+      </>
+    );
+  }
+
+  if (currentUser.role === "CLINICIAN") {
+    return (
+      <>
+        <ProviderDashboard />
+        <ToastContainer />
+      </>
+    );
+  }
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

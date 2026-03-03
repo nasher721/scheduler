@@ -34,6 +34,7 @@ export interface Provider {
   minDaysOffAfterNight: number;
   credentials?: ProviderCredential[];
   email?: string;
+  role?: "ADMIN" | "SCHEDULER" | "CLINICIAN";
 }
 
 export type CustomRuleType = 'AVOID_PAIRING' | 'MAX_SHIFTS_PER_WEEK';
@@ -138,13 +139,16 @@ interface ScheduleState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  currentUser: Provider | null;
+  login: (email: string) => void;
+  logout: () => void;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 const baseProviders: Provider[] = [
-  { id: "1", name: "Dr. Adams", email: "adams@hospital.org", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
-  { id: "2", name: "Dr. Baker", email: "baker@hospital.org", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
-  { id: "3", name: "Dr. Clark", email: "clark@hospital.org", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2, credentials: [{ credentialType: "NIHSS", expiresAt: "2027-03-01", status: "active" }] },
+  { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
+  { id: "2", name: "Dr. Baker", email: "baker@hospital.org", role: "CLINICIAN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
+  { id: "3", name: "Dr. Clark", email: "clark@hospital.org", role: "SCHEDULER", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2, credentials: [{ credentialType: "NIHSS", expiresAt: "2027-03-01", status: "active" }] },
 ];
 
 const CREDENTIAL_WARNING_DAYS = 30;
@@ -359,6 +363,23 @@ export const useScheduleStore = create<ScheduleState>()(
       history: [],
       historyIndex: -1,
       auditLog: [],
+      currentUser: null,
+
+      login: (email) => {
+        const state = get();
+        const user = state.providers.find(p => p.email?.toLowerCase() === email.toLowerCase());
+        if (user) {
+          set({ currentUser: user });
+          get().showToast({ type: "success", title: "Logged In", message: `Welcome back, ${user.name}` });
+        } else {
+          get().showToast({ type: "error", title: "Login Failed", message: "User not found" });
+        }
+      },
+
+      logout: () => {
+        set({ currentUser: null });
+        get().showToast({ type: "info", title: "Logged Out", message: "You have been logged out." });
+      },
 
       addProvider: (provider) => {
         const state = get();
