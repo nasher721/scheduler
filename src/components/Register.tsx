@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useScheduleStore } from "../store";
 import { motion } from "framer-motion";
-import { UserPlus, User, Mail, Shield, Target } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Sparkles, UserPlus, User, Mail, Shield, Target } from "lucide-react";
 
 interface RegisterProps {
     onBackToLogin: () => void;
@@ -31,6 +31,15 @@ export function Register({ onBackToLogin }: RegisterProps) {
         }
     };
 
+    const setNumericField = (
+        field: "targetWeekDays" | "targetWeekendDays" | "targetWeekNights" | "targetWeekendNights",
+        value: string,
+    ) => {
+        const parsed = Number.parseInt(value, 10);
+        if (Number.isNaN(parsed)) return;
+        setFormData({ ...formData, [field]: Math.max(0, parsed) });
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center p-6 relative z-10">
             <motion.div
@@ -50,6 +59,10 @@ export function Register({ onBackToLogin }: RegisterProps) {
                         <p className="text-sm font-medium text-slate-500 max-w-xs">
                             Join the Neuro ICU staffing ecosystem. All profiles are securely audited.
                         </p>
+                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Setup takes under a minute
+                        </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-8">
@@ -123,8 +136,9 @@ export function Register({ onBackToLogin }: RegisterProps) {
                                         <input
                                             id="targetWeekDays"
                                             type="number"
+                                            min={0}
                                             value={formData.targetWeekDays}
-                                            onChange={(e) => setFormData({ ...formData, targetWeekDays: parseInt(e.target.value) })}
+                                            onChange={(e) => setNumericField("targetWeekDays", e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold w-full"
                                         />
                                     </div>
@@ -133,8 +147,9 @@ export function Register({ onBackToLogin }: RegisterProps) {
                                         <input
                                             id="targetWeekendDays"
                                             type="number"
+                                            min={0}
                                             value={formData.targetWeekendDays}
-                                            onChange={(e) => setFormData({ ...formData, targetWeekendDays: parseInt(e.target.value) })}
+                                            onChange={(e) => setNumericField("targetWeekendDays", e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold w-full"
                                         />
                                     </div>
@@ -143,8 +158,9 @@ export function Register({ onBackToLogin }: RegisterProps) {
                                         <input
                                             id="targetWeekNights"
                                             type="number"
+                                            min={0}
                                             value={formData.targetWeekNights}
-                                            onChange={(e) => setFormData({ ...formData, targetWeekNights: parseInt(e.target.value) })}
+                                            onChange={(e) => setNumericField("targetWeekNights", e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold w-full"
                                         />
                                     </div>
@@ -153,12 +169,24 @@ export function Register({ onBackToLogin }: RegisterProps) {
                                         <input
                                             id="targetWeekendNights"
                                             type="number"
+                                            min={0}
                                             value={formData.targetWeekendNights}
-                                            onChange={(e) => setFormData({ ...formData, targetWeekendNights: parseInt(e.target.value) })}
+                                            onChange={(e) => setNumericField("targetWeekendNights", e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold w-full"
                                         />
                                     </div>
                                 </div>
+
+                                <ul className="space-y-2 pt-1">
+                                    <li className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        Targets can be adjusted later in provider settings.
+                                    </li>
+                                    <li className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        Scheduler/Admin roles gain planning permissions.
+                                    </li>
+                                </ul>
                             </div>
                         </div>
 
@@ -173,8 +201,9 @@ export function Register({ onBackToLogin }: RegisterProps) {
                             <button
                                 type="button"
                                 onClick={onBackToLogin}
-                                className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+                                className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors inline-flex items-center justify-center gap-2"
                             >
+                                <ArrowLeft className="w-3.5 h-3.5" />
                                 Already have an account? Sign In
                             </button>
                         </div>
