@@ -14,6 +14,11 @@ import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
 import { SwapManager } from "./components/SwapManager";
 import { HolidayTracker } from "./components/HolidayTracker";
+import { ConflictDashboard } from "./components/ConflictDashboard";
+import { NotificationCenter } from "./components/NotificationCenter";
+import { PredictiveInsights } from "./components/PredictiveInsights";
+import { ScheduleTemplates } from "./components/ScheduleTemplates";
+import { InstallPrompt, useNetworkStatus } from "./components/InstallPrompt";
 import {
   AlertTriangle,
   Save,
@@ -65,6 +70,7 @@ export default function App() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
   const [isAiMapping, setIsAiMapping] = useState(false);
+  const isOnline = useNetworkStatus();
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
 
@@ -323,6 +329,19 @@ export default function App() {
                   <div className="absolute inset-0 bg-white/30 animate-[shimmer_2s_infinite]" />
                 </motion.div>
               </div>
+
+              <div className="h-12 w-[1px] bg-slate-100" />
+
+              {/* Network Status */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Connection</span>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-rose-500'}`} />
+                  <span className={`text-xs font-bold ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isOnline ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="stone-panel p-8 flex items-center gap-16">
@@ -456,6 +475,14 @@ export default function App() {
                     <SwapManager />
                   ) : viewMode === "holidays" ? (
                     <HolidayTracker />
+                  ) : viewMode === "conflicts" ? (
+                    <ConflictDashboard />
+                  ) : viewMode === "notifications" ? (
+                    <NotificationCenter />
+                  ) : viewMode === "predictive" ? (
+                    <PredictiveInsights />
+                  ) : viewMode === "templates" ? (
+                    <ScheduleTemplates />
                   ) : (
                     <Calendar />
                   )}
@@ -548,6 +575,7 @@ export default function App() {
       </AnimatePresence>
 
       <ToastContainer />
+      <InstallPrompt />
       {import.meta.env.DEV && (
         <SparkAnnotation projectRoot={import.meta.env.VITE_SPARK_PROJECT_ROOT as string} />
       )}
