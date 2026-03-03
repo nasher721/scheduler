@@ -15,11 +15,15 @@ A production-style **full stack scheduling platform** for neuro ICU staffing.
 - Coverage and risk analytics dashboards.
 - Excel import/export, print/PDF output.
 - New backend sync controls (**Save API / Load API**) to persist and restore schedules from server storage.
+- Shift request inbox UI for submitting, triaging, and approving/denying team requests through backend APIs.
 
 ### Backend (API layer)
 - `GET /api/health` — service health check.
 - `GET /api/state` — fetch current persisted schedule snapshot.
 - `PUT /api/state` — validate and persist full schedule state.
+- `GET /api/shift-requests` — list persisted requests with optional `status` filter.
+- `POST /api/shift-requests` — submit a new team request (time off/swap/availability).
+- `PATCH /api/shift-requests/:id` — approve or deny a submitted request.
 - CORS + JSON body parsing included.
 
 ## Architecture

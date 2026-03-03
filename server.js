@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, "data");
 const STATE_PATH = path.join(DATA_DIR, "schedule-state.json");
 const AI_APPLY_HISTORY_PATH = path.join(DATA_DIR, "ai-apply-history.json");
+const SHIFT_REQUESTS_PATH = path.join(DATA_DIR, "shift-requests.json");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -88,6 +89,12 @@ async function ensureDataFile() {
   } catch {
     await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify([], null, 2), "utf-8");
   }
+
+  try {
+    await fs.access(SHIFT_REQUESTS_PATH);
+  } catch {
+    await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify([], null, 2), "utf-8");
+  }
 }
 
 async function readState() {
@@ -111,6 +118,42 @@ async function readApplyHistory() {
 async function writeApplyHistory(history) {
   await ensureDataFile();
   await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify(history, null, 2), "utf-8");
+}
+
+async function readShiftRequests() {
+  await ensureDataFile();
+  const raw = await fs.readFile(SHIFT_REQUESTS_PATH, "utf-8");
+  const parsed = JSON.parse(raw || "[]");
+  return isArray(parsed) ? parsed : [];
+}
+
+async function writeShiftRequests(requests) {
+  await ensureDataFile();
+  await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify(requests, null, 2), "utf-8");
+}
+
+const VALID_SHIFT_REQUEST_TYPES = new Set(["time_off", "swap", "availability"]);
+const VALID_SHIFT_REQUEST_STATUSES = new Set(["pending", "approved", "denied"]);
+
+function validateShiftRequestPayload(payload) {
+  if (!payload || typeof payload !== "object") return "Payload must be an object.";
+  if (typeof payload.providerName !== "string" || !payload.providerName.trim()) {
+    return 'Field "providerName" is required.';
+  }
+  if (typeof payload.date !== "string" || !payload.date.trim()) {
+    return 'Field "date" is required.';
+  }
+
+  const type = String(payload.type || "").toLowerCase();
+  if (!VALID_SHIFT_REQUEST_TYPES.has(type)) {
+    return 'Field "type" must be one of: time_off, swap, availability.';
+  }
+
+  if (payload.notes !== undefined && typeof payload.notes !== "string") {
+    return 'Field "notes" must be a string when provided.';
+  }
+
+  return null;
 }
 
 function sanitizeApplyHistoryEntry(entry, options = {}) {
@@ -232,6 +275,71 @@ app.put("/api/state", async (req, res) => {
 
   await writeState(req.body);
   return res.json({ ok: true, updatedAt: new Date().toISOString() });
+});
+
+app.get("/api/shift-requests", async (req, res) => {
+  const statusFilter = typeof req.query?.status === "string" ? req.query.status.trim().toLowerCase() : "";
+  if (statusFilter && !VALID_SHIFT_REQUEST_STATUSES.has(statusFilter)) {
+    return res.status(400).json({ error: 'Query parameter "status" must be one of: pending, approved, denied.' });
+  }
+
+  const requests = await readShiftRequests();
+  const filtered = statusFilter ? requests.filter((entry) => entry.status === statusFilter) : requests;
+  return res.json({ requests: filtered, total: filtered.length, updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/shift-requests", async (req, res) => {
+  const validationError = validateShiftRequestPayload(req.body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
+  const requests = await readShiftRequests();
+  const requestRecord = {
+    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    providerName: req.body.providerName.trim(),
+    date: req.body.date,
+    type: req.body.type.toLowerCase(),
+    notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+    reviewedBy: null,
+  };
+  requests.push(requestRecord);
+  await writeShiftRequests(requests);
+
+  return res.status(201).json({ request: requestRecord, updatedAt: new Date().toISOString() });
+});
+
+app.patch("/api/shift-requests/:id", async (req, res) => {
+  const requestId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
+  const status = typeof req.body?.status === "string" ? req.body.status.trim().toLowerCase() : "";
+  const reviewedBy = typeof req.body?.reviewedBy === "string" ? req.body.reviewedBy.trim() : "";
+
+  if (!requestId) return res.status(400).json({ error: "Request id is required." });
+  if (!VALID_SHIFT_REQUEST_STATUSES.has(status) || status === "pending") {
+    return res.status(400).json({ error: 'Field "status" must be either approved or denied.' });
+  }
+  if (!reviewedBy) {
+    return res.status(400).json({ error: 'Field "reviewedBy" is required when changing status.' });
+  }
+
+  const requests = await readShiftRequests();
+  const requestIndex = requests.findIndex((entry) => entry.id === requestId);
+  if (requestIndex < 0) {
+    return res.status(404).json({ error: `Request not found for id ${requestId}.` });
+  }
+
+  requests[requestIndex] = {
+    ...requests[requestIndex],
+    status,
+    reviewedBy,
+    reviewedAt: new Date().toISOString(),
+  };
+  await writeShiftRequests(requests);
+
+  return res.json({ request: requests[requestIndex], updatedAt: new Date().toISOString() });
 });
 
 function getPayloadState(body) {
