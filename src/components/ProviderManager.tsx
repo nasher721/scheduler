@@ -84,6 +84,7 @@ export function ProviderManager() {
   const { providers, addProvider, removeProvider, slots, updateProvider } = useScheduleStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const counts = getProviderCounts(slots, providers);
@@ -102,8 +103,10 @@ export function ProviderManager() {
       maxConsecutiveNights: 2,
       minDaysOffAfterNight: 1,
       credentials: [],
+      email: newEmail.trim() || undefined,
     });
     setNewName("");
+    setNewEmail("");
     setIsAdding(false);
   };
 
@@ -147,7 +150,7 @@ export function ProviderManager() {
             className="overflow-hidden"
           >
             <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-200/60 mb-6 group transition-all hover:bg-white hover:shadow-md">
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
                 <input
                   autoFocus
                   type="text"
@@ -157,10 +160,17 @@ export function ProviderManager() {
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                 />
+                <input
+                  type="email"
+                  className="w-full bg-white border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-300"
+                  placeholder="provider@hospital.org (optional)"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                />
               </div>
               <div className="flex justify-end gap-3 mt-4">
                 <button
-                  onClick={() => { setIsAdding(false); setNewName(""); }}
+                  onClick={() => { setIsAdding(false); setNewName(""); setNewEmail(""); }}
                   className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   Discard
@@ -222,6 +232,7 @@ export function ProviderManager() {
                     </div>
                     <div className="min-w-0 overflow-hidden">
                       <DraggableProvider id={p.id} name={p.name} />
+                      {p.email ? <p className="text-[9px] text-slate-500 mt-1">{p.email}</p> : null}
                       {(() => {
                         const credentialSummary = getProviderCredentialSummary(p);
                         if (credentialSummary.hasExpiredCredentials) {
@@ -386,6 +397,17 @@ export function ProviderManager() {
                             />
                           </label>
                         </div>
+
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Email for Schedule Updates</span>
+                          <input
+                            type="email"
+                            className="input-base text-sm"
+                            placeholder="physician@hospital.org"
+                            value={p.email || ""}
+                            onChange={(e) => updateProvider(p.id, { email: e.target.value.trim() || undefined })}
+                          />
+                        </label>
 
                         {/* Skills */}
                         <label className="flex flex-col gap-1.5">

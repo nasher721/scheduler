@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createShiftRequest,
   listShiftRequests,
+  listEmailEvents,
   reviewShiftRequest,
+  submitInboundEmail,
   type ShiftRequest,
   type ShiftRequestStatus,
   type ShiftRequestType,
@@ -32,10 +34,14 @@ export function ShiftRequestBoard() {
   const [date, setDate] = useState("");
   const [type, setType] = useState<ShiftRequestType>("time_off");
   const [notes, setNotes] = useState("");
+  const [emailFrom, setEmailFrom] = useState("");
+  const [emailSubject, setEmailSubject] = useState("Schedule change request");
+  const [emailBody, setEmailBody] = useState("date: \ntype: time_off\nnotes: ");
+  const [emailEventCount, setEmailEventCount] = useState(0);
 
   const pendingCount = useMemo(() => requests.filter((request) => request.status === "pending").length, [requests]);
 
-  const loadRequests = async (nextStatus = statusFilter) => {
+  const loadRequests = useCallback(async (nextStatus = statusFilter) => {
     try {
       setIsLoading(true);
       const response = await listShiftRequests(nextStatus === "all" ? undefined : nextStatus);
@@ -45,12 +51,21 @@ export function ShiftRequestBoard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showToast, statusFilter]);
 
   useEffect(() => {
     void loadRequests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void listEmailEvents().then((response) => setEmailEventCount(response.events.length)).catch(() => undefined);
+  }, [loadRequests]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadRequests(statusFilter);
+      void listEmailEvents().then((response) => setEmailEventCount(response.events.length)).catch(() => undefined);
+    }, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [loadRequests, statusFilter]);
 
   const submitRequest = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -60,12 +75,30 @@ export function ShiftRequestBoard() {
     }
 
     try {
-      await createShiftRequest({ providerName, date, type, notes });
+      await createShiftRequest({ providerName, date, type, notes, source: "app" });
       showToast({ type: "success", title: "Request submitted", message: "Shift request was sent for review." });
       setNotes("");
       await loadRequests();
     } catch {
       showToast({ type: "error", title: "Submit failed", message: "Could not submit shift request." });
+    }
+  };
+
+  const submitInboundRequestEmail = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!emailFrom.trim() || !emailSubject.trim()) {
+      showToast({ type: "warning", title: "Missing email metadata", message: "Sender and subject are required." });
+      return;
+    }
+
+    try {
+      await submitInboundEmail({ from: emailFrom, subject: emailSubject, body: emailBody });
+      await loadRequests();
+      const events = await listEmailEvents();
+      setEmailEventCount(events.events.length);
+      showToast({ type: "success", title: "Email triaged", message: "Inbound email was converted to a pending request." });
+    } catch {
+      showToast({ type: "error", title: "Email triage failed", message: "Could not process inbound email into triage board." });
     }
   };
 
@@ -91,7 +124,7 @@ export function ShiftRequestBoard() {
           <p className="text-xs text-slate-500">Workflow for team requests persisted in the backend API.</p>
         </div>
         <div className="text-xs text-slate-600 bg-white rounded-lg px-3 py-2 border border-slate-200">
-          Pending: <span className="font-semibold">{pendingCount}</span>
+          Pending: <span className="font-semibold">{pendingCount}</span> · Email events: <span className="font-semibold">{emailEventCount}</span>
         </div>
       </div>
 
@@ -144,6 +177,26 @@ export function ShiftRequestBoard() {
         </button>
       </form>
 
+
+      <form onSubmit={submitInboundRequestEmail} className="grid grid-cols-1 lg:grid-cols-6 gap-3 items-end border border-slate-200 rounded-xl p-3 bg-slate-50">
+        <p className="lg:col-span-6 text-xs text-slate-600">Triage inbound provider emails into pending requests (auto-refreshes every 15s).</p>
+        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
+          From
+          <input type="email" value={emailFrom} onChange={(event) => setEmailFrom(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" placeholder="physician@hospital.org" />
+        </label>
+        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
+          Subject
+          <input type="text" value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
+        </label>
+        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
+          Body
+          <input type="text" value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
+        </label>
+        <button type="submit" className="lg:col-span-6 justify-self-end px-4 py-2 rounded-lg bg-slate-800 text-white text-xs font-semibold">
+          Triage Inbound Email
+        </button>
+      </form>
+
       <div className="flex justify-end">
         <label className="text-xs text-slate-600 flex items-center gap-2">
           Filter
@@ -172,6 +225,7 @@ export function ShiftRequestBoard() {
               <th className="px-3 py-2">Provider</th>
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2">Source</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
@@ -179,13 +233,13 @@ export function ShiftRequestBoard() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
                   Loading requests...
                 </td>
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
                   No requests found for this filter.
                 </td>
               </tr>
@@ -195,6 +249,7 @@ export function ShiftRequestBoard() {
                   <td className="px-3 py-2">{request.providerName}</td>
                   <td className="px-3 py-2">{request.date}</td>
                   <td className="px-3 py-2">{REQUEST_TYPE_LABELS[request.type]}</td>
+                  <td className="px-3 py-2 uppercase text-[10px]">{request.source || "app"}</td>
                   <td className="px-3 py-2 capitalize">{request.status}</td>
                   <td className="px-3 py-2">
                     {request.status === "pending" ? (

@@ -20,6 +20,7 @@ const DATA_DIR = path.join(__dirname, "data");
 const STATE_PATH = path.join(DATA_DIR, "schedule-state.json");
 const AI_APPLY_HISTORY_PATH = path.join(DATA_DIR, "ai-apply-history.json");
 const SHIFT_REQUESTS_PATH = path.join(DATA_DIR, "shift-requests.json");
+const EMAIL_EVENTS_PATH = path.join(DATA_DIR, "email-events.json");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -63,6 +64,14 @@ function validateStatePayload(payload) {
   if (!payload || typeof payload !== "object") return "Payload must be an object.";
 
   const requiredArrays = ["providers", "slots", "scenarios", "customRules", "auditLog"];
+  if (isArray(payload.providers)) {
+    for (const provider of payload.providers) {
+      if (!provider || typeof provider !== "object") continue;
+      if (provider.email !== undefined && (typeof provider.email !== "string" || !provider.email.includes("@"))) {
+        return "Provider email must be a valid email string when provided.";
+      }
+    }
+  }
   for (const key of requiredArrays) {
     if (!isArray(payload[key])) return `Field \"${key}\" must be an array.`;
   }
@@ -94,6 +103,12 @@ async function ensureDataFile() {
     await fs.access(SHIFT_REQUESTS_PATH);
   } catch {
     await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify([], null, 2), "utf-8");
+  }
+
+  try {
+    await fs.access(EMAIL_EVENTS_PATH);
+  } catch {
+    await fs.writeFile(EMAIL_EVENTS_PATH, JSON.stringify([], null, 2), "utf-8");
   }
 }
 
@@ -132,6 +147,18 @@ async function writeShiftRequests(requests) {
   await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify(requests, null, 2), "utf-8");
 }
 
+async function readEmailEvents() {
+  await ensureDataFile();
+  const raw = await fs.readFile(EMAIL_EVENTS_PATH, "utf-8");
+  const parsed = JSON.parse(raw || "[]");
+  return isArray(parsed) ? parsed : [];
+}
+
+async function writeEmailEvents(events) {
+  await ensureDataFile();
+  await fs.writeFile(EMAIL_EVENTS_PATH, JSON.stringify(events, null, 2), "utf-8");
+}
+
 const VALID_SHIFT_REQUEST_TYPES = new Set(["time_off", "swap", "availability"]);
 const VALID_SHIFT_REQUEST_STATUSES = new Set(["pending", "approved", "denied"]);
 
@@ -154,6 +181,115 @@ function validateShiftRequestPayload(payload) {
   }
 
   return null;
+}
+
+function findProviderByIdentity(providers, payload = {}) {
+  if (!isArray(providers)) return null;
+  const providerEmail = typeof payload.providerEmail === "string" ? payload.providerEmail.trim().toLowerCase() : "";
+  const providerName = typeof payload.providerName === "string" ? payload.providerName.trim().toLowerCase() : "";
+
+  if (providerEmail) {
+    const byEmail = providers.find((provider) =>
+      typeof provider?.email === "string" && provider.email.trim().toLowerCase() === providerEmail,
+    );
+    if (byEmail) return byEmail;
+  }
+
+  if (providerName) {
+    return providers.find((provider) => typeof provider?.name === "string" && provider.name.trim().toLowerCase() === providerName) || null;
+  }
+
+  return null;
+}
+
+function buildScheduleChangeSummary(previousState, nextState) {
+  const previousSlots = isArray(previousState?.slots) ? previousState.slots : [];
+  const nextSlots = isArray(nextState?.slots) ? nextState.slots : [];
+  const previousById = new Map(previousSlots.map((slot) => [slot?.id, slot]));
+  const changes = [];
+
+  for (const slot of nextSlots) {
+    if (!slot || typeof slot !== "object") continue;
+    const prior = previousById.get(slot.id);
+    const priorProviderId = prior?.providerId ?? null;
+    const nextProviderId = slot.providerId ?? null;
+    if (priorProviderId === nextProviderId) continue;
+    changes.push({
+      slotId: slot.id,
+      date: slot.date,
+      shiftType: slot.type,
+      previousProviderId: priorProviderId,
+      nextProviderId,
+    });
+  }
+
+  return changes;
+}
+
+async function queueScheduleChangeEmails(previousState, nextState) {
+  const changes = buildScheduleChangeSummary(previousState, nextState);
+  if (changes.length === 0) return [];
+
+  const providers = [
+    ...(isArray(previousState?.providers) ? previousState.providers : []),
+    ...(isArray(nextState?.providers) ? nextState.providers : []),
+  ];
+  const providerById = new Map(providers.map((provider) => [provider?.id, provider]));
+  const notificationsByProvider = new Map();
+
+  for (const change of changes) {
+    for (const providerId of [change.previousProviderId, change.nextProviderId]) {
+      if (!providerId) continue;
+      const provider = providerById.get(providerId);
+      if (!provider || typeof provider.email !== "string" || !provider.email.trim()) continue;
+      if (!notificationsByProvider.has(providerId)) {
+        notificationsByProvider.set(providerId, { provider, changes: [] });
+      }
+      notificationsByProvider.get(providerId).changes.push(change);
+    }
+  }
+
+  if (notificationsByProvider.size === 0) return [];
+
+  const existingEvents = await readEmailEvents();
+  const now = new Date().toISOString();
+  const queued = [];
+
+  for (const [providerId, item] of notificationsByProvider.entries()) {
+    queued.push({
+      id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: "schedule_update",
+      status: "queued",
+      providerId,
+      providerName: item.provider.name,
+      to: item.provider.email,
+      subject: `Schedule updated for ${item.provider.name}`,
+      body: `Your schedule changed in ${item.changes.length} shift(s).`,
+      changes: item.changes,
+      createdAt: now,
+    });
+  }
+
+  await writeEmailEvents([...existingEvents, ...queued]);
+  return queued;
+}
+
+function parseInboundEmailBody(body) {
+  if (typeof body !== "string") return {};
+  const parsed = {};
+  for (const line of body.split("\n")) {
+    const [rawKey, ...rawValue] = line.split(":");
+    if (!rawKey || rawValue.length === 0) continue;
+    const key = rawKey.trim().toLowerCase();
+    const value = rawValue.join(":").trim();
+    if (value) parsed[key] = value;
+  }
+
+  return {
+    date: typeof parsed.date === "string" ? parsed.date : undefined,
+    type: typeof parsed.type === "string" ? parsed.type.toLowerCase() : undefined,
+    notes: typeof parsed.notes === "string" ? parsed.notes : undefined,
+  };
 }
 
 function sanitizeApplyHistoryEntry(entry, options = {}) {
@@ -273,8 +409,10 @@ app.put("/api/state", async (req, res) => {
     return res.status(400).json({ error: validationError });
   }
 
+  const previousState = await readState();
   await writeState(req.body);
-  return res.json({ ok: true, updatedAt: new Date().toISOString() });
+  const queuedEmails = await queueScheduleChangeEmails(previousState, req.body);
+  return res.json({ ok: true, queuedEmails: queuedEmails.length, updatedAt: new Date().toISOString() });
 });
 
 app.get("/api/shift-requests", async (req, res) => {
@@ -305,6 +443,7 @@ app.post("/api/shift-requests", async (req, res) => {
     createdAt: new Date().toISOString(),
     reviewedAt: null,
     reviewedBy: null,
+    source: req.body.source === "email" ? "email" : "app",
   };
   requests.push(requestRecord);
   await writeShiftRequests(requests);
@@ -340,6 +479,76 @@ app.patch("/api/shift-requests/:id", async (req, res) => {
   await writeShiftRequests(requests);
 
   return res.json({ request: requests[requestIndex], updatedAt: new Date().toISOString() });
+});
+
+app.get("/api/email-events", async (req, res) => {
+  const typeFilter = typeof req.query?.type === "string" ? req.query.type.trim().toLowerCase() : "";
+  const events = await readEmailEvents();
+  const records = typeFilter ? events.filter((entry) => entry?.type === typeFilter) : events;
+  return res.json({ events: records, total: records.length, updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/email/inbound", async (req, res) => {
+  const from = typeof req.body?.from === "string" ? req.body.from.trim().toLowerCase() : "";
+  const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
+  const body = typeof req.body?.body === "string" ? req.body.body : "";
+  if (!from || !subject) {
+    return res.status(400).json({ error: 'Fields "from" and "subject" are required.' });
+  }
+
+  const state = await readState();
+  const provider = findProviderByIdentity(state?.providers, {
+    providerEmail: from,
+    providerName: req.body?.providerName,
+  });
+
+  if (!provider) {
+    return res.status(404).json({ error: "No provider profile matches the inbound email sender." });
+  }
+
+  const parsed = parseInboundEmailBody(body);
+  const requestPayload = {
+    providerName: provider.name,
+    date: parsed.date || req.body?.date,
+    type: parsed.type || req.body?.type,
+    notes: parsed.notes || body,
+  };
+  const validationError = validateShiftRequestPayload(requestPayload);
+  if (validationError) {
+    return res.status(400).json({ error: `Could not triage inbound email. ${validationError}` });
+  }
+
+  const requests = await readShiftRequests();
+  const requestRecord = {
+    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    providerName: provider.name,
+    providerEmail: provider.email || from,
+    date: requestPayload.date,
+    type: requestPayload.type.toLowerCase(),
+    notes: requestPayload.notes,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+    reviewedBy: null,
+    source: "email",
+  };
+
+  requests.push(requestRecord);
+  await writeShiftRequests(requests);
+
+  const emailEvents = await readEmailEvents();
+  emailEvents.push({
+    id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: "inbound_request",
+    status: "processed",
+    from,
+    subject,
+    requestId: requestRecord.id,
+    createdAt: new Date().toISOString(),
+  });
+  await writeEmailEvents(emailEvents);
+
+  return res.status(201).json({ request: requestRecord, updatedAt: new Date().toISOString() });
 });
 
 function getPayloadState(body) {

@@ -16,13 +16,22 @@ export type ShiftRequestStatus = "pending" | "approved" | "denied";
 export interface ShiftRequest {
   id: string;
   providerName: string;
+  providerEmail?: string;
   date: string;
   type: ShiftRequestType;
   notes: string;
   status: ShiftRequestStatus;
+  source?: "app" | "email";
   createdAt: string;
   reviewedAt: string | null;
   reviewedBy: string | null;
+}
+
+export interface EmailEvent {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
 }
 
 export async function saveScheduleState(state: PersistedScheduleState) {
@@ -65,6 +74,7 @@ export async function createShiftRequest(payload: {
   date: string;
   type: ShiftRequestType;
   notes?: string;
+  source?: "app" | "email";
 }) {
   const response = await fetch(`${API_BASE}/api/shift-requests`, {
     method: "POST",
@@ -76,6 +86,39 @@ export async function createShiftRequest(payload: {
 
   if (!response.ok) {
     throw new Error(`Failed to create shift request (${response.status})`);
+  }
+
+  return response.json() as Promise<{ request: ShiftRequest }>;
+}
+
+export async function listEmailEvents(type?: string) {
+  const query = type ? `?type=${encodeURIComponent(type)}` : "";
+  const response = await fetch(`${API_BASE}/api/email-events${query}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load email events (${response.status})`);
+  }
+
+  return response.json() as Promise<{ events: EmailEvent[] }>;
+}
+
+export async function submitInboundEmail(payload: {
+  from: string;
+  subject: string;
+  body: string;
+  providerName?: string;
+  date?: string;
+  type?: ShiftRequestType;
+}) {
+  const response = await fetch(`${API_BASE}/api/email/inbound`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to submit inbound email (${response.status})`);
   }
 
   return response.json() as Promise<{ request: ShiftRequest }>;

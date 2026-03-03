@@ -24,6 +24,8 @@ A production-style **full stack scheduling platform** for neuro ICU staffing.
 - `GET /api/shift-requests` — list persisted requests with optional `status` filter.
 - `POST /api/shift-requests` — submit a new team request (time off/swap/availability).
 - `PATCH /api/shift-requests/:id` — approve or deny a submitted request.
+- `GET /api/email-events` — inspect inbound/schedule-update email workflow events.
+- `POST /api/email/inbound` — ingest provider email request and auto-triage into shift requests.
 - CORS + JSON body parsing included.
 
 ## Architecture
