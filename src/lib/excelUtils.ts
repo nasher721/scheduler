@@ -120,6 +120,8 @@ export type ImportIssue = BaseImportIssue | FileSizeWarning;
 export interface ImportPreviewRow {
   date: string;
   assignments: Partial<Record<ImportFieldKey, string[]>>;
+  /** Detailed assignment info with multi-provider support */
+  parsedAssignments?: Partial<Record<ImportFieldKey, ParsedAssignment>>;
   issues: ImportIssue[];
 }
 
@@ -200,7 +202,7 @@ let lastImportSnapshot: ImportSnapshot | null = null;
 
 type ProgressCallback = (percent: number) => void;
 type WorksheetRow = Record<string, unknown>;
-type ExportSheetCell = string | Date | null;
+type ExportSheetCell = string | number | Date | null;
 
 const fieldToSlotSpec: Partial<Record<ImportFieldKey, { type: ShiftSlot["type"]; locationIncludes: string }>> = {
   dayG20: { type: "DAY", locationIncludes: "G20" },
@@ -285,16 +287,93 @@ export const normalizeHeader = (header: unknown): string => {
   }
 };
 
-const parseProviderCell = (value: unknown): string[] => {
+// Common name corrections for your team
+const NAME_CORRECTIONS: Record<string, string> = {
+  'lynch': 'Lynch',
+  'hasset': 'Hassett',
+  'hassett ': 'Hassett',
+  'sabarwhal': 'Sabharwal',
+  'sabharwal ': 'Sabharwal',
+  'villamizar rosales': 'Villamizar Rosales',
+  'rosales': 'Villamizar Rosales',
+  'barron ': 'Barron',
+  'bates ': 'Bates',
+  'bolt ': 'Bolt',
+  'dani ': 'Dani',
+  'gomes ': 'Gomes',
+  'goswami ': 'Goswami',
+  'asher ': 'Asher',
+  'new': 'New', // Placeholder for new hires
+  'nn': 'NN',
+  'aa': 'AA',
+  'bb': 'BB',
+  'cc': 'CC',
+};
+
+/**
+ * Normalize provider names to handle common typos and inconsistencies
+ */
+export const normalizeProviderName = (name: string): string => {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  
+  // Check for exact match in corrections (case-insensitive)
+  const lowerName = trimmed.toLowerCase();
+  if (NAME_CORRECTIONS[lowerName]) {
+    return NAME_CORRECTIONS[lowerName];
+  }
+  
+  // Check for partial matches (e.g., "Rosales" -> "Villamizar Rosales")
+  for (const [key, value] of Object.entries(NAME_CORRECTIONS)) {
+    if (lowerName.includes(key) && key.length > 3) {
+      return value;
+    }
+  }
+  
+  // Capitalize first letter of each word
+  return trimmed
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
+export interface ParsedAssignment {
+  /** All providers assigned to this shift */
+  providers: string[];
+  /** The primary/responsible provider (first in list) */
+  primaryProvider: string;
+  /** Whether this is a shared/multi-provider assignment */
+  isShared: boolean;
+  /** Original raw value from cell */
+  rawValue: string;
+}
+
+const parseProviderCell = (value: unknown): ParsedAssignment | null => {
   if (typeof value !== "string") {
-    return [];
+    return null;
   }
 
-  return value
-    .split(/[,&/]/)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((name) => name.replace(/\s+/g, " "));
+  const rawValue = value.trim();
+  if (!rawValue) {
+    return null;
+  }
+
+  // Split on common separators: &, and, /, +
+  const providers = rawValue
+    .split(/(?:\s*&\s*|\s+and\s+|\s*\/\s*|\s*\+\s*)/i)
+    .map((entry) => normalizeProviderName(entry.trim()))
+    .filter(Boolean);
+
+  if (providers.length === 0) {
+    return null;
+  }
+
+  return {
+    providers,
+    primaryProvider: providers[0],
+    isShared: providers.length > 1,
+    rawValue,
+  };
 };
 
 const formatDateParts = (year: number, month: number, day: number): string => {
@@ -501,6 +580,7 @@ const buildImportPreviewFromRows = (
     }
 
     const assignments: Partial<Record<ImportFieldKey, string[]>> = {};
+    const parsedAssignments: Partial<Record<ImportFieldKey, ParsedAssignment>> = {};
 
     ASSIGNMENT_IMPORT_FIELDS.forEach((field) => {
       const sourceColumn = mapping[field];
@@ -508,29 +588,44 @@ const buildImportPreviewFromRows = (
         return;
       }
 
-      const providers = parseProviderCell(row[sourceColumn]);
-      assignments[field] = providers;
+      const parsed = parseProviderCell(row[sourceColumn]);
+      if (parsed) {
+        assignments[field] = parsed.providers;
+        parsedAssignments[field] = parsed;
 
-      const namesSeen = new Set<string>();
-      const hasDuplicateName = providers.some((providerName) => {
-        const normalizedProviderName = providerName.toLowerCase();
-        if (namesSeen.has(normalizedProviderName)) {
-          return true;
+        // Warn about shared assignments (multi-provider cells)
+        if (parsed.isShared) {
+          issues.push({
+            type: "warning",
+            code: "SHARED_ASSIGNMENT",
+            rowIndex: idx + 2,
+            column: sourceColumn,
+            message: `Row ${idx + 2}: Shared assignment detected - ${parsed.providers.join(', ')}. Primary: ${parsed.primaryProvider}`,
+            action: "Review shared assignment. Both providers will be tracked.",
+          });
         }
 
-        namesSeen.add(normalizedProviderName);
-        return false;
-      });
-
-      if (hasDuplicateName) {
-        issues.push({
-          type: "warning",
-          code: "DUPLICATE_PROVIDER_IN_CELL",
-          rowIndex: idx + 2,
-          column: sourceColumn,
-          message: `Row ${idx + 2}: Duplicate provider in ${sourceColumn}.`,
-          action: "Remove duplicate names to avoid ambiguous assignments.",
+        // Check for duplicates within the cell
+        const namesSeen = new Set<string>();
+        const hasDuplicateName = parsed.providers.some((providerName) => {
+          const normalizedProviderName = providerName.toLowerCase();
+          if (namesSeen.has(normalizedProviderName)) {
+            return true;
+          }
+          namesSeen.add(normalizedProviderName);
+          return false;
         });
+
+        if (hasDuplicateName) {
+          issues.push({
+            type: "warning",
+            code: "DUPLICATE_PROVIDER_IN_CELL",
+            rowIndex: idx + 2,
+            column: sourceColumn,
+            message: `Row ${idx + 2}: Duplicate provider in ${sourceColumn}.`,
+            action: "Remove duplicate names to avoid ambiguous assignments.",
+          });
+        }
       }
     });
 
@@ -542,6 +637,7 @@ const buildImportPreviewFromRows = (
     previewRows[idx] = {
       date: date ?? "",
       assignments,
+      parsedAssignments,
       issues,
     };
 
@@ -895,13 +991,14 @@ const countMonthRows = (dates: string[]): number => {
 
 export const exportScheduleToExcel = (): ExcelOperationResult => {
   try {
-    const { slots, startDate, providers } = useScheduleStore.getState();
+    const { slots, startDate, providers, swapRequests, holidayAssignments } = useScheduleStore.getState();
 
     const providerNamesById = new Map<string, string>();
     providers.forEach((provider) => {
       providerNamesById.set(provider.id, provider.name);
     });
 
+    // ============== SHEET 1: SCHEDULE ==============
     const slotsByDate = new Map<string, ShiftSlot[]>();
     slots.forEach((slot) => {
       const dateSlots = slotsByDate.get(slot.date);
@@ -941,7 +1038,17 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
           const columnIndex = slotToColumnMap[specificKey] ?? slotToColumnMap[fallbackKey];
 
           if (columnIndex !== undefined && slot.providerId) {
-            row[columnIndex] = providerNamesById.get(slot.providerId) ?? "";
+            const providerName = providerNamesById.get(slot.providerId) ?? "";
+            // Handle shared assignments
+            if (slot.isSharedAssignment && slot.secondaryProviderIds && slot.secondaryProviderIds.length > 0) {
+              const secondaryNames = slot.secondaryProviderIds
+                .map(id => providerNamesById.get(id))
+                .filter(Boolean)
+                .join(" & ");
+              row[columnIndex] = secondaryNames ? `${providerName} & ${secondaryNames}` : providerName;
+            } else {
+              row[columnIndex] = providerName;
+            }
           }
         });
       }
@@ -952,9 +1059,93 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
 
     wsData.length = rowIndex;
 
-    const worksheet = XLSX.utils.aoa_to_sheet(wsData);
+    const scheduleSheet = XLSX.utils.aoa_to_sheet(wsData);
+
+    // ============== SHEET 2: STAFF FTE TRACKING ==============
+    const fteHeaders = [
+      "Staff", "G20", "H22", "WeekDAY Nights", "Main Wknds", "WeekEND Nights",
+      "Akron", "Akron Wknds", "Consults", "Total Weeks", "Total Weekends",
+      "Jeopardy", "FTE Week Target", "FTE Weekend Target", 
+      "Week Assigned", "Weekend Assigned", "Week Deficit", "Weekend Deficit", "Notes"
+    ];
+    
+    const fteData: ExportSheetCell[][] = [fteHeaders];
+    
+    providers.forEach((provider, idx) => {
+      const row = idx + 2; // Excel row number (1-indexed, with header)
+      const pName = provider.name;
+      
+      fteData.push([
+        pName,
+        `=COUNTIF('Schedule'!B:B,A${row})`, // G20
+        `=COUNTIF('Schedule'!C:C,A${row})`, // H22
+        `=COUNTIF('Schedule'!E:E,A${row})`, // WeekDAY Nights
+        `=COUNTIFS('Schedule'!B:B,A${row},'Schedule'!A:A,">="&DATE(${new Date(startDate).getFullYear()},1,1),WEEKDAY('Schedule'!A:A,2)>5)`, // Main Wknds
+        `=COUNTIFS('Schedule'!E:E,A${row},'Schedule'!A:A,">="&DATE(${new Date(startDate).getFullYear()},1,1),WEEKDAY('Schedule'!A:A,2)>5)`, // WeekEND Nights
+        `=COUNTIF('Schedule'!D:D,A${row})`, // Akron
+        `=COUNTIFS('Schedule'!D:D,A${row},'Schedule'!A:A,">="&DATE(${new Date(startDate).getFullYear()},1,1),WEEKDAY('Schedule'!A:A,2)>5)`, // Akron Wknds
+        `=COUNTIF('Schedule'!F:F,A${row})`, // Consults
+        `=SUM(B${row}:E${row},G${row}:I${row})`, // Total Weeks
+        `=F${row}+H${row}`, // Total Weekends
+        `=COUNTIF('Schedule'!H:H,A${row})`, // Jeopardy
+        provider.targetWeekDays + provider.targetWeekendDays, // FTE Week Target
+        provider.targetWeekendNights + provider.targetWeekNights, // FTE Weekend Target (using nights as proxy for weekend target)
+        `=J${row}`, // Week Assigned
+        `=K${row}`, // Weekend Assigned
+        `=M${row}-O${row}`, // Week Deficit
+        `=N${row}-P${row}`, // Weekend Deficit
+        provider.notes || "", // Notes
+      ]);
+    });
+    
+    const fteSheet = XLSX.utils.aoa_to_sheet(fteData);
+
+    // ============== SHEET 3: SWAP TRACKER ==============
+    const swapHeaders = ["ID", "Date Requested", "Staff Involved", "Dates Exchanged", "Services", "Status", "Approved By", "Notes", "Validation"];
+    const swapData: ExportSheetCell[][] = [swapHeaders];
+    
+    swapRequests.forEach((swap) => {
+      const requestorName = providerNamesById.get(swap.requestorId) || "Unknown";
+      const targetName = swap.targetProviderId ? (providerNamesById.get(swap.targetProviderId) || "Unknown") : "Any";
+      const resolverName = swap.resolvedBy ? (providerNamesById.get(swap.resolvedBy) || "Unknown") : "";
+      
+      swapData.push([
+        swap.id.slice(0, 8),
+        swap.requestedAt,
+        `${requestorName} ↔ ${targetName}`,
+        `${swap.fromDate} (${swap.fromShiftType}) ↔ ${swap.toDate} (${swap.toShiftType})`,
+        `${swap.fromShiftType} ↔ ${swap.toShiftType}`,
+        swap.status,
+        resolverName,
+        swap.notes || "",
+        swap.validationErrors ? swap.validationErrors.join("; ") : "",
+      ]);
+    });
+    
+    const swapSheet = XLSX.utils.aoa_to_sheet(swapData);
+
+    // ============== SHEET 4: HOLIDAY SUMMARY ==============
+    const holidayHeaders = ["Holiday", "Date", "Provider", "Shift Type", "Previous Year Provider"];
+    const holidayData: ExportSheetCell[][] = [holidayHeaders];
+    
+    holidayAssignments.forEach((holiday) => {
+      holidayData.push([
+        holiday.holidayName,
+        holiday.date,
+        providerNamesById.get(holiday.providerId) || "Unknown",
+        holiday.shiftType,
+        holiday.previousYearProviderId ? (providerNamesById.get(holiday.previousYearProviderId) || "") : "",
+      ]);
+    });
+    
+    const holidaySheet = XLSX.utils.aoa_to_sheet(holidayData);
+
+    // ============== CREATE WORKBOOK ==============
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "NICU Institutional Schedule");
+    XLSX.utils.book_append_sheet(workbook, scheduleSheet, "Schedule");
+    XLSX.utils.book_append_sheet(workbook, fteSheet, "Staff FTE Tracking");
+    XLSX.utils.book_append_sheet(workbook, swapSheet, "Swap Tracker");
+    XLSX.utils.book_append_sheet(workbook, holidaySheet, "Holiday Summary");
 
     const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     saveBlobToFile(new Blob([excelBuffer], { type: "application/octet-stream" }), `NICU_Schedule_${startDate}.xlsx`);

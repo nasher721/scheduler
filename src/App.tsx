@@ -12,6 +12,8 @@ import { ToastContainer } from "./components/Toast";
 import { getProviderCounts, useScheduleStore } from "./store";
 import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
+import { SwapManager } from "./components/SwapManager";
+import { HolidayTracker } from "./components/HolidayTracker";
 import {
   AlertTriangle,
   Save,
@@ -450,6 +452,10 @@ export default function App() {
                     <RuleBuilder />
                   ) : viewMode === "strategy" ? (
                     <SchedulingStrategyWorkbench />
+                  ) : viewMode === "swaps" ? (
+                    <SwapManager />
+                  ) : viewMode === "holidays" ? (
+                    <HolidayTracker />
                   ) : (
                     <Calendar />
                   )}

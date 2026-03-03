@@ -21,6 +21,19 @@ export interface ProviderCredential {
   status: CredentialStatus;
 }
 
+export interface SchedulingRestrictions {
+  /** Provider cannot be assigned night shifts */
+  noNights?: boolean;
+  /** Provider cannot be assigned weekend shifts */
+  noWeekends?: boolean;
+  /** Provider cannot be assigned holiday shifts */
+  noHolidays?: boolean;
+  /** Maximum shifts allowed per week (rolling 7-day window) */
+  maxShiftsPerWeek?: number;
+  /** Specific date range restrictions (e.g., maternity leave) */
+  restrictedDateRanges?: { start: string; end: string; reason?: string }[];
+}
+
 export interface Provider {
   id: string;
   name: string;
@@ -36,6 +49,10 @@ export interface Provider {
   credentials?: ProviderCredential[];
   email?: string;
   role?: "ADMIN" | "SCHEDULER" | "CLINICIAN";
+  /** Scheduling restrictions for this provider */
+  schedulingRestrictions?: SchedulingRestrictions;
+  /** Notes about provider (e.g., "FTE with no nights", "Maternity leave") */
+  notes?: string;
 }
 
 export type CustomRuleType = 'AVOID_PAIRING' | 'MAX_SHIFTS_PER_WEEK';
@@ -59,6 +76,10 @@ export interface ShiftSlot {
   priority: "CRITICAL" | "STANDARD";
   isBackup?: boolean;
   location: string;
+  /** Secondary providers for shared assignments (e.g., "Bates & Hassett") */
+  secondaryProviderIds?: string[];
+  /** Whether this is a shared/multi-provider assignment */
+  isSharedAssignment?: boolean;
 }
 
 export interface ProviderCounts {
@@ -96,6 +117,49 @@ export interface Toast {
   duration?: number;
 }
 
+export type SwapRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface SwapRequest {
+  id: string;
+  /** Provider requesting the swap */
+  requestorId: string;
+  /** Provider being asked to swap with (null if open request) */
+  targetProviderId?: string;
+  /** Date of the shift being offered */
+  fromDate: string;
+  /** Type of shift being offered */
+  fromShiftType: ShiftType;
+  /** Date of the shift being requested */
+  toDate: string;
+  /** Type of shift being requested */
+  toShiftType: ShiftType;
+  /** Current status of the request */
+  status: SwapRequestStatus;
+  /** When the request was created */
+  requestedAt: string;
+  /** When the request was approved/rejected */
+  resolvedAt?: string;
+  /** Who approved/rejected the request (scheduler) */
+  resolvedBy?: string;
+  /** Notes about the swap */
+  notes?: string;
+  /** Validation errors if any */
+  validationErrors?: string[];
+}
+
+export interface HolidayAssignment {
+  /** Holiday name (e.g., "Thanksgiving 2026") */
+  holidayName: string;
+  /** Date of the holiday */
+  date: string;
+  /** Provider assigned */
+  providerId: string;
+  /** Type of shift assigned */
+  shiftType: ShiftType;
+  /** Previous year's provider for fairness tracking */
+  previousYearProviderId?: string;
+}
+
 interface HistoryState {
   providers: Provider[];
   slots: ShiftSlot[];
@@ -119,13 +183,17 @@ interface ScheduleState {
   toasts: Toast[];
   history: HistoryState[];
   historyIndex: number;
+  /** Swap requests for shift exchanges */
+  swapRequests: SwapRequest[];
+  /** Holiday assignments for fairness tracking */
+  holidayAssignments: HolidayAssignment[];
   addProvider: (provider: Omit<Provider, "id">) => void;
   updateProvider: (id: string, provider: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
   addCustomRule: (rule: Omit<CustomRule, "id">) => void;
   removeCustomRule: (id: string) => void;
   setScheduleRange: (startDate: string, numWeeks: number) => void;
-  assignShift: (slotId: string, providerId: string | null) => void;
+  assignShift: (slotId: string, providerId: string | null, secondaryProviderIds?: string[]) => void;
   autoAssign: () => void;
   clearAssignments: () => void;
   clearStaff: () => void;
@@ -144,6 +212,15 @@ interface ScheduleState {
   login: (email: string) => void;
   register: (provider: Omit<Provider, "id">) => void;
   logout: () => void;
+  // Swap management
+  createSwapRequest: (request: Omit<SwapRequest, 'id' | 'requestedAt' | 'status'>) => void;
+  approveSwapRequest: (id: string, approverId: string) => void;
+  rejectSwapRequest: (id: string, approverId: string, reason?: string) => void;
+  cancelSwapRequest: (id: string) => void;
+  // Holiday management
+  addHolidayAssignment: (assignment: Omit<HolidayAssignment, 'id'>) => void;
+  removeHolidayAssignment: (holidayName: string, date: string) => void;
+  getProviderHolidayCount: (providerId: string, year: number) => number;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -274,6 +351,49 @@ const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, s
   if (credentialSummary.hasExpiredCredentials) return { canAssign: false, reason: "Expired credential" };
   if (!provider.skills.includes(slot.requiredSkill)) return { canAssign: false, reason: "Missing skill" };
 
+  // Check scheduling restrictions
+  const restrictions = provider.schedulingRestrictions;
+  if (restrictions) {
+    // Check noNights restriction
+    if (restrictions.noNights && slot.type === "NIGHT") {
+      return { canAssign: false, reason: "Provider restricted from nights" };
+    }
+    
+    // Check noWeekends restriction
+    if (restrictions.noWeekends && slot.isWeekendLayout) {
+      return { canAssign: false, reason: "Provider restricted from weekends" };
+    }
+    
+    // Check maxShiftsPerWeek restriction
+    if (restrictions.maxShiftsPerWeek) {
+      for (let i = 0; i < 7; i++) {
+        const windowStartObj = addDays(parseISO(slot.date), -i);
+        const windowStart = format(windowStartObj, "yyyy-MM-dd");
+        const windowEnd = format(addDays(windowStartObj, 6), "yyyy-MM-dd");
+        
+        const shiftsInWindow = slots.filter(s =>
+          s.providerId === provider.id &&
+          s.date >= windowStart &&
+          s.date <= windowEnd &&
+          s.id !== currentSlotId
+        );
+        
+        if (shiftsInWindow.length + 1 > restrictions.maxShiftsPerWeek) {
+          return { canAssign: false, reason: `Max ${restrictions.maxShiftsPerWeek} shifts per week` };
+        }
+      }
+    }
+    
+    // Check restricted date ranges
+    if (restrictions.restrictedDateRanges) {
+      for (const range of restrictions.restrictedDateRanges) {
+        if (slot.date >= range.start && slot.date <= range.end) {
+          return { canAssign: false, reason: `Restricted: ${range.reason || 'Date range'}` };
+        }
+      }
+    }
+  }
+
   const sameDayShifts = slots.filter(
     (s) => s.id !== currentSlotId && s.date === slot.date && s.providerId === provider.id,
   );
@@ -366,6 +486,8 @@ export const useScheduleStore = create<ScheduleState>()(
       historyIndex: -1,
       auditLog: [],
       currentUser: null,
+      swapRequests: [],
+      holidayAssignments: [],
 
       login: (email) => {
         const state = get();
@@ -885,6 +1007,116 @@ export const useScheduleStore = create<ScheduleState>()(
         const state = get();
         return state.historyIndex < state.history.length - 1;
       },
+
+      // Swap Management
+      createSwapRequest: (request) => {
+        const state = get();
+        const newRequest: SwapRequest = {
+          ...request,
+          id: crypto.randomUUID(),
+          status: 'pending',
+          requestedAt: new Date().toISOString(),
+        };
+        set({
+          swapRequests: [newRequest, ...state.swapRequests],
+          lastActionMessage: `Swap request created by ${state.providers.find(p => p.id === request.requestorId)?.name}`,
+        });
+        get().showToast({ type: "info", title: "Swap Requested", message: "Request submitted for approval." });
+      },
+
+      approveSwapRequest: (id, approverId) => {
+        const state = get();
+        const request = state.swapRequests.find(r => r.id === id);
+        if (!request || request.status !== 'pending') return;
+
+        // Perform the swap in slots
+        const newSlots = state.slots.map(slot => {
+          // Swap the providers
+          if (slot.date === request.fromDate && slot.providerId === request.requestorId) {
+            return { ...slot, providerId: request.targetProviderId || null };
+          }
+          if (slot.date === request.toDate && slot.providerId === request.targetProviderId) {
+            return { ...slot, providerId: request.requestorId };
+          }
+          return slot;
+        });
+
+        set({
+          slots: newSlots,
+          swapRequests: state.swapRequests.map(r =>
+            r.id === id
+              ? { ...r, status: 'approved', resolvedAt: new Date().toISOString(), resolvedBy: approverId }
+              : r
+          ),
+          auditLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: 'ASSIGN',
+              details: `Swap approved: ${state.providers.find(p => p.id === request.requestorId)?.name} ↔ ${state.providers.find(p => p.id === request.targetProviderId)?.name}`,
+              user: state.providers.find(p => p.id === approverId)?.name || 'Scheduler'
+            },
+            ...state.auditLog
+          ],
+          lastActionMessage: "Swap request approved and applied",
+        });
+
+        get().showToast({ type: "success", title: "Swap Approved", message: "Schedule has been updated." });
+      },
+
+      rejectSwapRequest: (id, approverId, reason) => {
+        const state = get();
+        set({
+          swapRequests: state.swapRequests.map(r =>
+            r.id === id
+              ? { ...r, status: 'rejected', resolvedAt: new Date().toISOString(), resolvedBy: approverId, notes: reason || r.notes }
+              : r
+          ),
+          lastActionMessage: "Swap request rejected",
+        });
+        get().showToast({ type: "info", title: "Swap Rejected", message: reason || "Request declined." });
+      },
+
+      cancelSwapRequest: (id) => {
+        const state = get();
+        set({
+          swapRequests: state.swapRequests.map(r =>
+            r.id === id ? { ...r, status: 'cancelled' } : r
+          ),
+          lastActionMessage: "Swap request cancelled",
+        });
+        get().showToast({ type: "info", title: "Swap Cancelled" });
+      },
+
+      // Holiday Management
+      addHolidayAssignment: (assignment) => {
+        const state = get();
+        // Remove any existing assignment for this holiday
+        const filtered = state.holidayAssignments.filter(
+          h => !(h.holidayName === assignment.holidayName && h.date === assignment.date)
+        );
+        set({
+          holidayAssignments: [...filtered, assignment],
+          lastActionMessage: `Holiday assigned: ${assignment.holidayName}`,
+        });
+      },
+
+      removeHolidayAssignment: (holidayName, date) => {
+        const state = get();
+        set({
+          holidayAssignments: state.holidayAssignments.filter(
+            h => !(h.holidayName === holidayName && h.date === date)
+          ),
+          lastActionMessage: `Holiday assignment removed: ${holidayName}`,
+        });
+      },
+
+      getProviderHolidayCount: (providerId, year) => {
+        const state = get();
+        return state.holidayAssignments.filter(
+          h => h.providerId === providerId && h.date.startsWith(String(year))
+        ).length;
+      },
     }),
     {
       name: "nicu-schedule-store-v4",
@@ -896,6 +1128,8 @@ export const useScheduleStore = create<ScheduleState>()(
         scenarios: state.scenarios,
         history: state.history,
         historyIndex: state.historyIndex,
+        swapRequests: state.swapRequests,
+        holidayAssignments: state.holidayAssignments,
       }),
     },
   ),
