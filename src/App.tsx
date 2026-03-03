@@ -4,6 +4,7 @@ import { MonthlyCalendar } from "./components/MonthlyCalendar";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RuleBuilder } from "./components/RuleBuilder";
 import { SchedulingStrategyWorkbench } from "./components/SchedulingStrategyWorkbench";
+import { ShiftRequestBoard } from "./components/ShiftRequestBoard";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
@@ -315,6 +316,9 @@ export default function App() {
               </div>
             </div>
           </div>
+
+
+          <ShiftRequestBoard />
 
           {/* Scenario Ledger */}
           <div className="flex items-center gap-4 no-print overflow-x-auto pb-2 scrollbar-hide">
