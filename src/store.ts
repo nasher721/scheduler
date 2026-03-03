@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
+import { registerProvider } from "./lib/api";
 
 export type ShiftType = "DAY" | "NIGHT" | "NMET" | "JEOPARDY" | "RECOVERY" | "CONSULTS" | "VACATION";
 
@@ -382,36 +383,34 @@ export const useScheduleStore = create<ScheduleState>()(
         get().showToast({ type: "info", title: "Logged Out", message: "You have been logged out." });
       },
 
-      register: (provider) => {
+      register: async (provider) => {
         const state = get();
-        const existing = state.providers.find(p => p.email?.toLowerCase() === provider.email?.toLowerCase());
-        if (existing) {
-          get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
-          return;
+        try {
+          const { provider: newProvider } = await registerProvider(provider);
+
+          // Still update local state for immediate feedback
+          const historyState: HistoryState = {
+            providers: state.providers,
+            slots: state.slots,
+            startDate: state.startDate,
+            numWeeks: state.numWeeks,
+            customRules: state.customRules,
+            auditLog: state.auditLog,
+          };
+          const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+
+          set({
+            providers: [...state.providers, newProvider],
+            currentUser: newProvider,
+            history: newHistory,
+            historyIndex: newHistory.length - 1,
+            lastActionMessage: `Self-registered: ${newProvider.name}`,
+          });
+          get().showToast({ type: "success", title: "Registration Successful", message: `Welcome, ${newProvider.name}!` });
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Email already in use.";
+          get().showToast({ type: "error", title: "Registration Failed", message });
         }
-
-        const id = crypto.randomUUID();
-        const newProvider = { ...provider, id };
-
-        // Use addProvider logic to maintain history
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
-
-        set({
-          providers: [...state.providers, newProvider],
-          currentUser: newProvider,
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
-          lastActionMessage: `Self-registered: ${provider.name}`,
-        });
-        get().showToast({ type: "success", title: "Registration Successful", message: `Welcome, ${provider.name}!` });
       },
 
       addProvider: (provider) => {

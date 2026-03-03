@@ -1041,6 +1041,46 @@ app.post("/api/ai/conflicts", async (req, res) => {
   return res.json({ result: await detectConflicts(req.body), updatedAt: new Date().toISOString() });
 });
 
+app.post("/api/register", async (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Registration payload must be an object." });
+  }
+
+  const { name, email, role } = req.body;
+  if (!name || !email || !role) {
+    return res.status(400).json({ error: "Name, email, and role are required for registration." });
+  }
+
+  const state = await readState();
+  if (!state) {
+    return res.status(500).json({ error: "Failed to read application state." });
+  }
+
+  const providers = isArray(state.providers) ? state.providers : [];
+  const existing = providers.find(p => p.email?.toLowerCase() === email.toLowerCase());
+  if (existing) {
+    return res.status(409).json({ error: "Email already in use." });
+  }
+
+  const newProvider = {
+    ...req.body,
+    id: `provider-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timeOffRequests: isArray(req.body.timeOffRequests) ? req.body.timeOffRequests : [],
+    preferredDates: isArray(req.body.preferredDates) ? req.body.preferredDates : [],
+    skills: isArray(req.body.skills) ? req.body.skills : ["NEURO_CRITICAL"],
+    credentials: isArray(req.body.credentials) ? req.body.credentials : [],
+  };
+
+  state.providers = [...providers, newProvider];
+  await writeState(state);
+
+  return res.status(201).json({
+    ok: true,
+    provider: newProvider,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
 app.post("/api/ai/explain", async (req, res) => {
   return res.json({ result: await explainDecision(req.body), updatedAt: new Date().toISOString() });
 });

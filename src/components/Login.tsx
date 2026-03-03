@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useScheduleStore } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, User, UserPlus } from "lucide-react";
@@ -6,7 +6,25 @@ import { Register } from "./Register";
 import { AdminRegister } from "./AdminRegister";
 
 export function Login() {
-    const [view, setView] = useState<"login" | "register" | "admin_register">("login");
+    const [view, setView] = useState<"login" | "register" | "admin_register">(() => {
+        if (typeof window === "undefined") return "login";
+        const hash = window.location.hash;
+        if (hash === "#register") return "register";
+        if (hash === "#admin") return "admin_register";
+        return "login";
+    });
+
+    useEffect(() => {
+        // Initial view handled by useState lazy initializer
+    }, []);
+
+    const updateView = (newView: "login" | "register" | "admin_register") => {
+        setView(newView);
+        if (newView === "register") window.location.hash = "register";
+        else if (newView === "admin_register") window.location.hash = "admin";
+        else window.location.hash = "";
+    };
+
     const [email, setEmail] = useState("");
     const login = useScheduleStore((state) => state.login);
 
@@ -71,7 +89,7 @@ export function Login() {
                             <div className="flex flex-col gap-4 mt-2">
                                 <button
                                     type="button"
-                                    onClick={() => setView("register")}
+                                    onClick={() => updateView("register")}
                                     className="w-full bg-white border border-slate-200 text-slate-700 font-bold text-[10px] uppercase tracking-widest py-4 rounded-xl transition-all hover:bg-slate-50 flex items-center justify-center gap-2"
                                     aria-label="Join the Provider Roster"
                                 >
@@ -81,7 +99,7 @@ export function Login() {
 
                                 <button
                                     type="button"
-                                    onClick={() => setView("admin_register")}
+                                    onClick={() => updateView("admin_register")}
                                     className="text-[10px] font-bold text-slate-300 hover:text-slate-500 uppercase tracking-widest transition-colors flex items-center justify-center gap-2 mt-4"
                                 >
                                     <Lock className="w-3.5 h-3.5" />
@@ -104,7 +122,7 @@ export function Login() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                 >
-                    <Register onBackToLogin={() => setView("login")} />
+                    <Register onBackToLogin={() => updateView("login")} />
                 </motion.div>
             ) : (
                 <motion.div
@@ -113,7 +131,7 @@ export function Login() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                 >
-                    <AdminRegister onBackToLogin={() => setView("login")} />
+                    <AdminRegister onBackToLogin={() => updateView("login")} />
                 </motion.div>
             )}
         </AnimatePresence>

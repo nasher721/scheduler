@@ -1,5 +1,7 @@
+import { type Provider } from "../store";
+
 export interface PersistedScheduleState {
-  providers: unknown[];
+  providers: Provider[];
   startDate: string;
   numWeeks: number;
   slots: unknown[];
@@ -200,4 +202,20 @@ export async function optimizeWithSolver(payload: PersistedScheduleState | { sta
   }
 
   return response.json() as Promise<{ result: unknown }>;
+}
+export async function registerProvider(provider: Omit<Provider, "id">) {
+  const response = await fetch(`${API_BASE}/api/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(provider),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Registration failed (${response.status})`);
+  }
+
+  return response.json() as Promise<{ ok: boolean; provider: Provider }>;
 }
