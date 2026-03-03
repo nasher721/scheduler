@@ -13,6 +13,12 @@ import {
   listProviderMetrics,
   recordAutomationOutcome,
 } from "./ai-orchestrator.js";
+import {
+  dispatchNotification,
+  listNotificationChannels,
+  buildPendingApprovalAlerts,
+} from "./notification-service.js";
+import { listSolverProfiles, optimizeWithSolver } from "./solver-service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +26,7 @@ const DATA_DIR = path.join(__dirname, "data");
 const STATE_PATH = path.join(DATA_DIR, "schedule-state.json");
 const AI_APPLY_HISTORY_PATH = path.join(DATA_DIR, "ai-apply-history.json");
 const SHIFT_REQUESTS_PATH = path.join(DATA_DIR, "shift-requests.json");
+const NOTIFICATIONS_PATH = path.join(DATA_DIR, "notification-history.json");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -95,6 +102,12 @@ async function ensureDataFile() {
   } catch {
     await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify([], null, 2), "utf-8");
   }
+
+  try {
+    await fs.access(NOTIFICATIONS_PATH);
+  } catch {
+    await fs.writeFile(NOTIFICATIONS_PATH, JSON.stringify([], null, 2), "utf-8");
+  }
 }
 
 async function readState() {
@@ -132,6 +145,25 @@ async function writeShiftRequests(requests) {
   await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify(requests, null, 2), "utf-8");
 }
 
+async function readNotifications() {
+  await ensureDataFile();
+  const raw = await fs.readFile(NOTIFICATIONS_PATH, "utf-8");
+  const parsed = JSON.parse(raw || "[]");
+  return isArray(parsed) ? parsed : [];
+}
+
+async function writeNotifications(records) {
+  await ensureDataFile();
+  await fs.writeFile(NOTIFICATIONS_PATH, JSON.stringify(records, null, 2), "utf-8");
+}
+
+async function persistNotification(notification) {
+  const records = await readNotifications();
+  records.push(notification);
+  await writeNotifications(records);
+  return notification;
+}
+
 const VALID_SHIFT_REQUEST_TYPES = new Set(["time_off", "swap", "availability"]);
 const VALID_SHIFT_REQUEST_STATUSES = new Set(["pending", "approved", "denied"]);
 
@@ -151,6 +183,10 @@ function validateShiftRequestPayload(payload) {
 
   if (payload.notes !== undefined && typeof payload.notes !== "string") {
     return 'Field "notes" must be a string when provided.';
+  }
+
+  if (payload.deadlineAt !== undefined && typeof payload.deadlineAt !== "string") {
+    return 'Field "deadlineAt" must be a string when provided.';
   }
 
   return null;
@@ -301,6 +337,7 @@ app.post("/api/shift-requests", async (req, res) => {
     date: req.body.date,
     type: req.body.type.toLowerCase(),
     notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
+    deadlineAt: typeof req.body.deadlineAt === "string" ? req.body.deadlineAt : null,
     status: "pending",
     createdAt: new Date().toISOString(),
     reviewedAt: null,
@@ -309,7 +346,21 @@ app.post("/api/shift-requests", async (req, res) => {
   requests.push(requestRecord);
   await writeShiftRequests(requests);
 
-  return res.status(201).json({ request: requestRecord, updatedAt: new Date().toISOString() });
+  const notification = await dispatchNotification({
+    eventType: "shift_request_submitted",
+    title: "New shift request submitted",
+    body: `${requestRecord.providerName} submitted a ${requestRecord.type} request for ${requestRecord.date}.`,
+    severity: "info",
+    channels: ["log"],
+    metadata: {
+      requestId: requestRecord.id,
+      requestType: requestRecord.type,
+      status: requestRecord.status,
+    },
+  });
+  await persistNotification(notification);
+
+  return res.status(201).json({ request: requestRecord, notification, updatedAt: new Date().toISOString() });
 });
 
 app.patch("/api/shift-requests/:id", async (req, res) => {
@@ -339,7 +390,98 @@ app.patch("/api/shift-requests/:id", async (req, res) => {
   };
   await writeShiftRequests(requests);
 
-  return res.json({ request: requests[requestIndex], updatedAt: new Date().toISOString() });
+  const notification = await dispatchNotification({
+    eventType: "shift_request_reviewed",
+    title: "Shift request reviewed",
+    body: `${requests[requestIndex].providerName} request for ${requests[requestIndex].date} was ${status}.`,
+    severity: status === "denied" ? "warning" : "info",
+    channels: ["log"],
+    metadata: {
+      requestId,
+      reviewedBy,
+      status,
+    },
+  });
+  await persistNotification(notification);
+
+  return res.json({ request: requests[requestIndex], notification, updatedAt: new Date().toISOString() });
+});
+
+app.get("/api/notifications/channels", (_req, res) => {
+  return res.json({ channels: listNotificationChannels(), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/notifications/send", async (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Notification payload must be an object." });
+  }
+
+  const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+  const body = typeof req.body.body === "string" ? req.body.body.trim() : "";
+  const severity = typeof req.body.severity === "string" ? req.body.severity.trim().toLowerCase() : "info";
+  if (!title || !body) {
+    return res.status(400).json({ error: "Notification payload requires title and body." });
+  }
+  if (!["info", "warning", "critical"].includes(severity)) {
+    return res.status(400).json({ error: 'Field "severity" must be info, warning, or critical.' });
+  }
+
+  const notification = await dispatchNotification({
+    eventType: typeof req.body.eventType === "string" ? req.body.eventType : "manual",
+    title,
+    body,
+    severity,
+    channels: isArray(req.body.channels) ? req.body.channels : ["log"],
+    metadata: req.body.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {},
+  });
+
+  await persistNotification(notification);
+  return res.status(201).json({ notification, updatedAt: new Date().toISOString() });
+});
+
+app.get("/api/notifications/history", async (req, res) => {
+  const limit = Math.min(250, toPositiveInt(req.query?.limit, 50));
+  const records = await readNotifications();
+  return res.json({
+    records: [...records].reverse().slice(0, limit),
+    total: records.length,
+    limit,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.post("/api/notifications/dispatch-pending-approvals", async (req, res) => {
+  const alertWindowHours = Math.min(168, toPositiveInt(req.body?.alertWindowHours, 24));
+  const requests = await readShiftRequests();
+  const alerts = buildPendingApprovalAlerts(requests, Date.now(), alertWindowHours);
+  const results = [];
+
+  for (const alert of alerts) {
+    const notification = await dispatchNotification(alert);
+    await persistNotification(notification);
+    results.push(notification);
+  }
+
+  return res.json({
+    dispatched: results.length,
+    alertWindowHours,
+    notifications: results,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.get("/api/solver/profiles", (_req, res) => {
+  return res.json({ profiles: listSolverProfiles(), updatedAt: new Date().toISOString() });
+});
+
+app.post("/api/solver/optimize", async (req, res) => {
+  const state = getPayloadState(req.body);
+  const validationError = validateStatePayload(state);
+  if (validationError) {
+    return res.status(400).json({ error: `Invalid state payload. ${validationError}` });
+  }
+
+  return res.json({ result: await optimizeWithSolver(req.body), updatedAt: new Date().toISOString() });
 });
 
 function getPayloadState(body) {
@@ -646,6 +788,11 @@ app.post("/api/ai/optimize", async (req, res) => {
   const validationError = validateStatePayload(state);
   if (validationError) {
     return res.status(400).json({ error: `Invalid state payload. ${validationError}` });
+  }
+
+  const useSolver = String(req.query?.useSolver || "false").toLowerCase() === "true";
+  if (useSolver) {
+    return res.json({ result: await optimizeWithSolver(req.body), updatedAt: new Date().toISOString() });
   }
 
   return res.json({ result: await optimizeSchedule(req.body), updatedAt: new Date().toISOString() });
