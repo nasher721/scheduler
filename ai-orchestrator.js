@@ -149,6 +149,22 @@ function isProviderUnavailable(provider, date) {
   return requests.some((entry) => entry?.date === date);
 }
 
+function getCredentialStatus(credential, date) {
+  if (!credential || typeof credential !== "object") return "active";
+  if (credential.status === "pending_verification") return "pending_verification";
+  if (!credential.expiresAt || typeof credential.expiresAt !== "string") return credential.status || "active";
+
+  const target = new Date(`${date || new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const expiry = new Date(`${credential.expiresAt}T00:00:00Z`);
+  if (Number.isNaN(target.valueOf()) || Number.isNaN(expiry.valueOf())) return credential.status || "active";
+  return expiry < target ? "expired" : credential.status || "active";
+}
+
+function providerHasExpiredCredential(provider, date) {
+  const credentials = isArray(provider?.credentials) ? provider.credentials : [];
+  return credentials.some((credential) => getCredentialStatus(credential, date) === "expired");
+}
+
 function buildProviderStats(state) {
   const stats = new Map();
   const slots = isArray(state?.slots) ? state.slots : [];
@@ -237,7 +253,7 @@ function computeObjectiveBreakdown(state, input = {}) {
 
 function evaluateGuardrails(state) {
   const analysis = deterministicConflicts(state, "local");
-  const hardConstraintTypes = ["missing_provider", "skill_mismatch", "time_off_violation", "double_booked"];
+  const hardConstraintTypes = ["missing_provider", "skill_mismatch", "time_off_violation", "double_booked", "expired_credential"];
   const hardViolations = analysis.conflicts.filter((entry) => hardConstraintTypes.includes(entry.type));
 
   return {
@@ -292,6 +308,7 @@ function chooseBestProvider(state, slot, providerStats) {
     if (!stats) continue;
     if (!providerHasSkill(provider, slot?.requiredSkill)) continue;
     if (isProviderUnavailable(provider, slot?.date)) continue;
+    if (providerHasExpiredCredential(provider, slot?.date)) continue;
     if (stats.byDate.has(slot?.date)) continue;
 
     const weekStart = getWeekStart(slot.date);
@@ -467,6 +484,15 @@ function deterministicConflicts(state, provider) {
         severity: "high",
         slotId: slot?.id || null,
         message: "Provider is assigned on an approved time-off date.",
+      });
+    }
+
+    if (providerHasExpiredCredential(providerProfile, slot.date)) {
+      conflicts.push({
+        type: "expired_credential",
+        severity: "high",
+        slotId: slot?.id || null,
+        message: "Provider has an expired credential for this date.",
       });
     }
 

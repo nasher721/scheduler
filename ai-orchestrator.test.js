@@ -174,3 +174,39 @@ test("feedback records acceptance, rollback, and violations", () => {
   assert.ok(after.rollbackCount >= 1);
   assert.ok(after.violationCount >= 2);
 });
+
+
+test("optimize and conflicts enforce expired credential guardrail", async () => {
+  const state = {
+    ...sampleState,
+    providers: [
+      {
+        id: "p1",
+        name: "Dr. Expired",
+        skills: ["NIGHT_FLOAT", "NEURO_CRITICAL"],
+        timeOffRequests: [],
+        maxConsecutiveNights: 2,
+        credentials: [{ credentialType: "ACLS", expiresAt: "2025-01-01", status: "active" }],
+      },
+      {
+        id: "p2",
+        name: "Dr. Valid",
+        skills: ["NIGHT_FLOAT", "NEURO_CRITICAL"],
+        timeOffRequests: [],
+        maxConsecutiveNights: 2,
+        credentials: [{ credentialType: "ACLS", expiresAt: "2028-01-01", status: "active" }],
+      },
+    ],
+    slots: [
+      { id: "s1", date: "2026-01-01", type: "NIGHT", providerId: null, requiredSkill: "NIGHT_FLOAT", priority: "CRITICAL" },
+      { id: "s2", date: "2026-01-01", type: "DAY", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+    ],
+    customRules: [],
+  };
+
+  const optimized = await optimizeSchedule(state);
+  assert.ok(optimized.optimizedState.slots.some((slot) => slot.id === "s1" && slot.providerId === "p2"));
+
+  const conflicts = await detectConflicts(state);
+  assert.ok(conflicts.conflicts.some((entry) => entry.type === "expired_credential"));
+});

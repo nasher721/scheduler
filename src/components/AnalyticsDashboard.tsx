@@ -1,4 +1,4 @@
-import { useScheduleStore, getProviderCounts } from "../store";
+import { useScheduleStore, getProviderCounts, getProviderCredentialSummary } from "../store";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus, ShieldAlert, History, Calendar as CalendarIcon, User, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -9,6 +9,16 @@ export function AnalyticsDashboard() {
     const { slots, providers, auditLog, customRules } = useScheduleStore();
 
     const counts = useMemo(() => getProviderCounts(slots, providers), [slots, providers]);
+
+
+    const credentialRisk = useMemo(() => {
+        return providers.reduce((acc, provider) => {
+            const summary = getProviderCredentialSummary(provider);
+            if (summary.hasExpiredCredentials) acc.expired += 1;
+            if (summary.hasExpiringSoonCredentials) acc.expiringSoon += 1;
+            return acc;
+        }, { expired: 0, expiringSoon: 0 });
+    }, [providers]);
 
     const coverageGaps = useMemo(() => {
         return slots
@@ -32,6 +42,21 @@ export function AnalyticsDashboard() {
             <div className="no-print">
                 <ExportCenter />
             </div>
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="satin-panel p-5 border-slate-200/40 flex items-center justify-between gap-4"
+            >
+                <div>
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Credential Risk Watch</h3>
+                    <p className="text-xs text-slate-500 mt-1">Providers needing credential follow-up.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-error-muted text-error">Expired: {credentialRisk.expired}</span>
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-warning/10 text-warning">Expiring ≤30d: {credentialRisk.expiringSoon}</span>
+                </div>
+            </motion.div>
+
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
 
                 {/* Equity Overview */}

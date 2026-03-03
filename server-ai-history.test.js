@@ -202,3 +202,38 @@ test("apply history endpoint supports rolloutMode and rolledBack filters", async
     await new Promise((resolve) => server.on("exit", resolve));
   }
 });
+
+
+test("state API rejects invalid credential status", async () => {
+  const server = spawn("node", ["server.js"], {
+    env: { ...process.env, PORT: String(PORT) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    await waitForHealth(BASE_URL);
+
+    const invalidState = {
+      ...sampleState,
+      providers: [
+        {
+          ...sampleState.providers[0],
+          credentials: [{ credentialType: "ACLS", status: "not_valid" }],
+        },
+      ],
+    };
+
+    const setRes = await fetch(`${BASE_URL}/api/state`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invalidState),
+    });
+
+    assert.equal(setRes.status, 400);
+    const payload = await setRes.json();
+    assert.ok(payload.error.includes("invalid"));
+  } finally {
+    server.kill("SIGTERM");
+    await new Promise((resolve) => server.on("exit", resolve));
+  }
+});
