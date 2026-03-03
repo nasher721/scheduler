@@ -26,6 +26,12 @@ A production-style **full stack scheduling platform** for neuro ICU staffing.
 - `PATCH /api/shift-requests/:id` — approve or deny a submitted request.
 - `GET /api/email-events` — inspect inbound/schedule-update email workflow events.
 - `POST /api/email/inbound` — ingest provider email request and auto-triage into shift requests.
+- `GET /api/notifications/channels` — list notification adapters and configuration state.
+- `POST /api/notifications/send` — dispatch a manual alert to configured channels.
+- `GET /api/notifications/history` — query alert delivery history.
+- `POST /api/notifications/dispatch-pending-approvals` — dispatch alerts for pending requests nearing deadline.
+- `GET /api/solver/profiles` — available optimization profiles (deterministic + CP-SAT planned).
+- `POST /api/solver/optimize` — run schedule optimization through the solver service facade.
 - CORS + JSON body parsing included.
 
 ## Architecture
@@ -92,7 +98,7 @@ These endpoints are available today and can be progressively wired to real provi
 
 - `GET /api/ai/providers`
 - `POST /api/ai/recommendations`
-- `POST /api/ai/optimize`
+- `POST /api/ai/optimize` (supports `?useSolver=true` to route through solver facade)
 - `POST /api/ai/simulate`
 - `POST /api/ai/conflicts`
 - `POST /api/ai/explain`
@@ -147,6 +153,19 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 ```
+
+
+### Notification Environment Variables
+
+```bash
+NOTIFY_WEBHOOK_URL=
+NOTIFY_SLACK_WEBHOOK_URL=
+NOTIFY_TEAMS_WEBHOOK_URL=
+NOTIFY_EMAIL_WEBHOOK_URL=
+NOTIFY_SMS_WEBHOOK_URL=
+```
+
+When unset, those channels are marked as not configured and the API still supports the built-in `log` channel.
 
 All `POST /api/ai/*` endpoints accept either:
 

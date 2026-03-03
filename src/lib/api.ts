@@ -139,3 +139,65 @@ export async function reviewShiftRequest(id: string, payload: { status: "approve
 
   return response.json() as Promise<{ request: ShiftRequest }>;
 }
+
+export type NotificationSeverity = "info" | "warning" | "critical";
+
+export interface NotificationRecord {
+  id: string;
+  eventType: string;
+  title: string;
+  body: string;
+  severity: NotificationSeverity;
+  channels: string[];
+  statusByChannel: Record<string, string>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export async function sendNotification(payload: {
+  title: string;
+  body: string;
+  severity?: NotificationSeverity;
+  eventType?: string;
+  channels?: string[];
+  metadata?: Record<string, unknown>;
+}) {
+  const response = await fetch(`${API_BASE}/api/notifications/send`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to send notification (${response.status})`);
+  }
+
+  return response.json() as Promise<{ notification: NotificationRecord }>;
+}
+
+export async function listNotificationHistory(limit = 50) {
+  const response = await fetch(`${API_BASE}/api/notifications/history?limit=${Math.max(1, Math.floor(limit))}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load notification history (${response.status})`);
+  }
+
+  return response.json() as Promise<{ records: NotificationRecord[]; total: number }>;
+}
+
+export async function optimizeWithSolver(payload: PersistedScheduleState | { state: PersistedScheduleState; solverProfile?: string }) {
+  const response = await fetch(`${API_BASE}/api/solver/optimize`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to optimize with solver (${response.status})`);
+  }
+
+  return response.json() as Promise<{ result: unknown }>;
+}
