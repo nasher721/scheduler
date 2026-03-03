@@ -11,6 +11,15 @@ export interface TimeOffRequest {
   type: TimeOffType;
 }
 
+export type CredentialStatus = "active" | "expiring_soon" | "expired" | "pending_verification";
+
+export interface ProviderCredential {
+  credentialType: string;
+  issuedAt?: string;
+  expiresAt?: string;
+  status: CredentialStatus;
+}
+
 export interface Provider {
   id: string;
   name: string;
@@ -23,6 +32,7 @@ export interface Provider {
   skills: string[];
   maxConsecutiveNights: number;
   minDaysOffAfterNight: number;
+  credentials?: ProviderCredential[];
 }
 
 export type CustomRuleType = 'AVOID_PAIRING' | 'MAX_SHIFTS_PER_WEEK';
@@ -131,10 +141,34 @@ interface ScheduleState {
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 const baseProviders: Provider[] = [
-  { id: "1", name: "Dr. Adams", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1 },
-  { id: "2", name: "Dr. Baker", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1 },
-  { id: "3", name: "Dr. Clark", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2 },
+  { id: "1", name: "Dr. Adams", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
+  { id: "2", name: "Dr. Baker", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
+  { id: "3", name: "Dr. Clark", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2, credentials: [{ credentialType: "NIHSS", expiresAt: "2027-03-01", status: "active" }] },
 ];
+
+const CREDENTIAL_WARNING_DAYS = 30;
+
+const evaluateCredentialStatus = (credential: ProviderCredential, slotDate?: string): CredentialStatus => {
+  if (credential.status === "pending_verification") return "pending_verification";
+  if (!credential.expiresAt) return credential.status;
+
+  const targetDate = slotDate ? parseISO(slotDate) : new Date();
+  const daysUntilExpiry = differenceInCalendarDays(parseISO(credential.expiresAt), targetDate);
+  if (daysUntilExpiry < 0) return "expired";
+  if (daysUntilExpiry <= CREDENTIAL_WARNING_DAYS) return "expiring_soon";
+  return "active";
+};
+
+export const getProviderCredentialSummary = (provider: Provider, slotDate?: string) => {
+  const credentials = provider.credentials || [];
+  const evaluated = credentials.map((entry) => ({ ...entry, computedStatus: evaluateCredentialStatus(entry, slotDate) }));
+
+  return {
+    credentials: evaluated,
+    hasExpiredCredentials: evaluated.some((entry) => entry.computedStatus === "expired"),
+    hasExpiringSoonCredentials: evaluated.some((entry) => entry.computedStatus === "expiring_soon"),
+  };
+};
 
 const shiftRequirements: Record<ShiftType, { skill: string; priority: "CRITICAL" | "STANDARD" }> = {
   DAY: { skill: "NEURO_CRITICAL", priority: "CRITICAL" },
@@ -229,6 +263,8 @@ const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, s
   if (!provider) return { canAssign: false, reason: "No provider" };
 
   if (provider.timeOffRequests.some(r => r.date === slot.date)) return { canAssign: false, reason: "Time off" };
+  const credentialSummary = getProviderCredentialSummary(provider, slot.date);
+  if (credentialSummary.hasExpiredCredentials) return { canAssign: false, reason: "Expired credential" };
   if (!provider.skills.includes(slot.requiredSkill)) return { canAssign: false, reason: "Missing skill" };
 
   const sameDayShifts = slots.filter(

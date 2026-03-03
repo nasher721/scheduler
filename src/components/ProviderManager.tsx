@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useScheduleStore, getProviderCounts, TimeOffType } from "../store";
+import { useScheduleStore, getProviderCounts, TimeOffType, getProviderCredentialSummary } from "../store";
 import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun, X } from "lucide-react";
 import { DraggableProvider } from "./Calendar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -101,6 +101,7 @@ export function ProviderManager() {
       skills: ["NEURO_CRITICAL"],
       maxConsecutiveNights: 2,
       minDaysOffAfterNight: 1,
+      credentials: [],
     });
     setNewName("");
     setIsAdding(false);
@@ -221,6 +222,16 @@ export function ProviderManager() {
                     </div>
                     <div className="min-w-0 overflow-hidden">
                       <DraggableProvider id={p.id} name={p.name} />
+                      {(() => {
+                        const credentialSummary = getProviderCredentialSummary(p);
+                        if (credentialSummary.hasExpiredCredentials) {
+                          return <p className="text-[9px] font-bold uppercase tracking-wider text-error mt-1">Credential expired</p>;
+                        }
+                        if (credentialSummary.hasExpiringSoonCredentials) {
+                          return <p className="text-[9px] font-bold uppercase tracking-wider text-warning mt-1">Credential expiring soon</p>;
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">

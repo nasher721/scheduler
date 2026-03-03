@@ -28,6 +28,36 @@ app.use(express.json({ limit: "2mb" }));
 
 const isArray = (value) => Array.isArray(value);
 
+const VALID_CREDENTIAL_STATUSES = new Set(["active", "expiring_soon", "expired", "pending_verification"]);
+
+function validateCredentials(payload) {
+  const providers = isArray(payload?.providers) ? payload.providers : [];
+
+  for (const provider of providers) {
+    if (!provider || typeof provider !== "object") return "Each provider must be an object.";
+    if (provider.credentials === undefined) continue;
+    if (!isArray(provider.credentials)) return `Provider ${provider.id || "unknown"} field \"credentials\" must be an array.`;
+
+    for (const credential of provider.credentials) {
+      if (!credential || typeof credential !== "object") return `Provider ${provider.id || "unknown"} has an invalid credential entry.`;
+      if (typeof credential.credentialType !== "string" || credential.credentialType.trim() === "") {
+        return `Provider ${provider.id || "unknown"} credentials require \"credentialType\".`;
+      }
+      if (credential.issuedAt !== undefined && typeof credential.issuedAt !== "string") {
+        return `Provider ${provider.id || "unknown"} credential \"issuedAt\" must be a string.`;
+      }
+      if (credential.expiresAt !== undefined && typeof credential.expiresAt !== "string") {
+        return `Provider ${provider.id || "unknown"} credential \"expiresAt\" must be a string.`;
+      }
+      if (!VALID_CREDENTIAL_STATUSES.has(credential.status)) {
+        return `Provider ${provider.id || "unknown"} credential has invalid \"status\".`;
+      }
+    }
+  }
+
+  return null;
+}
+
 function validateStatePayload(payload) {
   if (!payload || typeof payload !== "object") return "Payload must be an object.";
 
@@ -38,6 +68,9 @@ function validateStatePayload(payload) {
 
   if (typeof payload.startDate !== "string") return "Field \"startDate\" must be a string.";
   if (typeof payload.numWeeks !== "number") return "Field \"numWeeks\" must be a number.";
+
+  const credentialError = validateCredentials(payload);
+  if (credentialError) return credentialError;
 
   return null;
 }
