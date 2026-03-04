@@ -126,11 +126,141 @@ async function setSupabaseSetting(key, value) {
 }
 
 async function readState() {
-  return await getSupabaseSetting('schedule_state', null);
+  const { data: configData, error: configError } = await supabase
+    .from('global_settings')
+    .select('value')
+    .eq('key', 'schedule_config')
+    .single();
+
+  const baseState = configData?.value || {
+    startDate: new Date().toISOString().split("T")[0],
+    numWeeks: 4,
+    scenarios: [],
+    customRules: [],
+    auditLog: []
+  };
+
+  const { data: providersData } = await supabase.from('providers').select('*');
+  const providers = (providersData || []).map(p => ({
+    id: p.id,
+    name: p.name,
+    email: p.email,
+    role: p.role,
+    targetWeekDays: p.target_week_days,
+    targetWeekendDays: p.target_weekend_days,
+    targetWeekNights: p.target_week_nights,
+    targetWeekendNights: p.target_weekend_nights,
+    timeOffRequests: p.time_off_requests || [],
+    preferredDates: p.preferred_dates || [],
+    skills: p.skills || [],
+    maxConsecutiveNights: p.max_consecutive_nights,
+    minDaysOffAfterNight: p.min_days_off_after_night,
+    credentials: p.credentials || [],
+    schedulingRestrictions: p.scheduling_restrictions || {},
+    notes: p.notes,
+  }));
+
+  const { data: slotsData } = await supabase.from('slots').select('*');
+  const slots = (slotsData || []).map(s => ({
+    id: s.id,
+    date: s.date,
+    type: s.type,
+    providerId: s.provider_id,
+    isWeekendLayout: s.is_weekend_layout,
+    requiredSkill: s.required_skill,
+    priority: s.priority,
+    location: s.location,
+    secondaryProviderIds: s.secondary_provider_ids || [],
+    isSharedAssignment: s.is_shared_assignment || false,
+  }));
+
+  return {
+    providers,
+    slots,
+    startDate: baseState.startDate || new Date().toISOString().split("T")[0],
+    numWeeks: baseState.numWeeks || 4,
+    scenarios: baseState.scenarios || [],
+    customRules: baseState.customRules || [],
+    auditLog: baseState.auditLog || [],
+  };
 }
 
 async function writeState(state) {
-  await setSupabaseSetting('schedule_state', state);
+  if (state.providers && state.providers.length > 0) {
+    const providersToUpsert = state.providers.map(p => ({
+      id: p.id,
+      name: p.name,
+      email: p.email || `${p.id}@placeholder.org`,
+      role: p.role || "CLINICIAN",
+      target_week_days: p.targetWeekDays,
+      target_weekend_days: p.targetWeekendDays,
+      target_week_nights: p.targetWeekNights,
+      target_weekend_nights: p.targetWeekendNights,
+      time_off_requests: p.timeOffRequests,
+      preferred_dates: p.preferredDates,
+      skills: p.skills,
+      max_consecutive_nights: p.maxConsecutiveNights,
+      min_days_off_after_night: p.minDaysOffAfterNight,
+      credentials: p.credentials || [],
+      scheduling_restrictions: p.schedulingRestrictions || {},
+      notes: p.notes || null,
+    }));
+    await supabase.from("providers").upsert(providersToUpsert);
+  }
+
+  const { data: existingProviders } = await supabase.from("providers").select("id");
+  if (existingProviders && state.providers) {
+    const incomingProviderIds = new Set(state.providers.map(p => p.id));
+    const providersToDelete = existingProviders.filter(p => !incomingProviderIds.has(p.id)).map(p => p.id);
+    if (providersToDelete.length > 0) {
+      await supabase.from("providers").delete().in("id", providersToDelete);
+    }
+  }
+
+  if (state.slots && state.slots.length > 0) {
+    const slotsToUpsert = state.slots.map(s => ({
+      id: s.id,
+      date: s.date,
+      type: s.type,
+      provider_id: s.providerId,
+      is_weekend_layout: s.isWeekendLayout,
+      required_skill: s.requiredSkill,
+      priority: s.priority,
+      location: s.location,
+      secondary_provider_ids: s.secondaryProviderIds || [],
+      is_shared_assignment: s.isSharedAssignment || false,
+    }));
+
+    for (let i = 0; i < slotsToUpsert.length; i += 500) {
+      const chunk = slotsToUpsert.slice(i, i + 500);
+      await supabase.from("slots").upsert(chunk);
+    }
+  }
+
+  const { data: existingSlots } = await supabase.from("slots").select("id");
+  if (existingSlots && state.slots) {
+    const incomingSlotIds = new Set(state.slots.map(s => s.id));
+    const slotsToDelete = existingSlots.filter(s => !incomingSlotIds.has(s.id)).map(s => s.id);
+    if (slotsToDelete.length > 0) {
+      for (let i = 0; i < slotsToDelete.length; i += 500) {
+        const chunk = slotsToDelete.slice(i, i + 500);
+        await supabase.from("slots").delete().in("id", chunk);
+      }
+    }
+  }
+
+  const configValues = {
+    startDate: state.startDate,
+    numWeeks: state.numWeeks,
+    scenarios: state.scenarios,
+    customRules: state.customRules,
+    auditLog: state.auditLog,
+  };
+
+  await supabase.from("global_settings").upsert({
+    key: "schedule_config",
+    value: configValues,
+  });
 }
 
 async function readApplyHistory() {
