@@ -6,7 +6,8 @@ import { supabase, supabaseStatus } from "./lib/supabase";
 export * from "./types";
 import {
   ShiftType, ProviderCredential, CredentialStatus,
-  Provider, CustomRule, ShiftSlot, ScenarioSnapshot, AuditLogEntry
+  Provider, CustomRule, ShiftSlot, ScenarioSnapshot, AuditLogEntry,
+  LocationGroup, ServicePriority, ServiceLocation
 } from "./types";
 
 export interface ProviderCounts {
@@ -482,14 +483,114 @@ export const getProviderCredentialSummary = (provider: Provider, slotDate?: stri
   };
 };
 
-const shiftRequirements: Record<ShiftType, { skill: string; priority: "CRITICAL" | "STANDARD" }> = {
-  DAY: { skill: "NEURO_CRITICAL", priority: "CRITICAL" },
-  NIGHT: { skill: "NIGHT_FLOAT", priority: "CRITICAL" },
-  NMET: { skill: "AIRWAY", priority: "STANDARD" },
-  JEOPARDY: { skill: "STROKE", priority: "STANDARD" },
-  RECOVERY: { skill: "NEURO_CRITICAL", priority: "STANDARD" },
-  CONSULTS: { skill: "NEURO_CRITICAL", priority: "STANDARD" },
-  VACATION: { skill: "NEURO_CRITICAL", priority: "STANDARD" },
+interface ShiftRequirement {
+  skill: string;
+  priority: "CRITICAL" | "STANDARD";
+  locationGroup: LocationGroup;
+  servicePriority: ServicePriority;
+}
+
+const shiftRequirements: Record<ShiftType, ShiftRequirement> = {
+  DAY: { skill: "NEURO_CRITICAL", priority: "CRITICAL", locationGroup: "MAIN_CAMPUS_UNIT", servicePriority: "CRITICAL" },
+  NIGHT: { skill: "NIGHT_FLOAT", priority: "CRITICAL", locationGroup: "MAIN_CAMPUS_SERVICE", servicePriority: "STANDARD" },
+  NMET: { skill: "AIRWAY", priority: "STANDARD", locationGroup: "MAIN_CAMPUS_SERVICE", servicePriority: "FLEXIBLE" },
+  JEOPARDY: { skill: "STROKE", priority: "STANDARD", locationGroup: "SUPPORT_SERVICE", servicePriority: "FLEXIBLE" },
+  RECOVERY: { skill: "NEURO_CRITICAL", priority: "STANDARD", locationGroup: "SUPPORT_SERVICE", servicePriority: "FLEXIBLE" },
+  CONSULTS: { skill: "NEURO_CRITICAL", priority: "STANDARD", locationGroup: "MAIN_CAMPUS_SERVICE", servicePriority: "STANDARD" },
+  VACATION: { skill: "NEURO_CRITICAL", priority: "STANDARD", locationGroup: "SUPPORT_SERVICE", servicePriority: "FLEXIBLE" },
+};
+
+/** Service location configuration for slot generation */
+const serviceLocationConfig: Record<string, {
+  type: ShiftType;
+  location: string;
+  locationGroup: LocationGroup;
+  servicePriority: ServicePriority;
+  serviceLocation: ServiceLocation;
+  requiredSkill: string;
+  priority: "CRITICAL" | "STANDARD";
+}> = {
+  G20: {
+    type: "DAY",
+    location: "G20 Unit",
+    locationGroup: "MAIN_CAMPUS_UNIT",
+    servicePriority: "CRITICAL",
+    serviceLocation: "G20",
+    requiredSkill: "NEURO_CRITICAL",
+    priority: "CRITICAL",
+  },
+  H22: {
+    type: "DAY",
+    location: "H22 Unit",
+    locationGroup: "MAIN_CAMPUS_UNIT",
+    servicePriority: "CRITICAL",
+    serviceLocation: "H22",
+    requiredSkill: "NEURO_CRITICAL",
+    priority: "CRITICAL",
+  },
+  Akron: {
+    type: "DAY",
+    location: "Akron",
+    locationGroup: "AKRON_UNIT",
+    servicePriority: "CRITICAL",
+    serviceLocation: "Akron",
+    requiredSkill: "NEURO_CRITICAL",
+    priority: "CRITICAL",
+  },
+  Nights: {
+    type: "NIGHT",
+    location: "Main Campus (Nights)",
+    locationGroup: "MAIN_CAMPUS_SERVICE",
+    servicePriority: "STANDARD",
+    serviceLocation: "Nights",
+    requiredSkill: "NIGHT_FLOAT",
+    priority: "CRITICAL",
+  },
+  Consults: {
+    type: "CONSULTS",
+    location: "Main Campus (Consults)",
+    locationGroup: "MAIN_CAMPUS_SERVICE",
+    servicePriority: "STANDARD",
+    serviceLocation: "Consults",
+    requiredSkill: "NEURO_CRITICAL",
+    priority: "STANDARD",
+  },
+  AMET: {
+    type: "NMET",
+    location: "Main Campus (AMET)",
+    locationGroup: "MAIN_CAMPUS_SERVICE",
+    servicePriority: "FLEXIBLE",
+    serviceLocation: "AMET",
+    requiredSkill: "AIRWAY",
+    priority: "STANDARD",
+  },
+  NMET: {
+    type: "NMET",
+    location: "Main Campus (NMET)",
+    locationGroup: "MAIN_CAMPUS_SERVICE",
+    servicePriority: "FLEXIBLE",
+    serviceLocation: "NMET",
+    requiredSkill: "AIRWAY",
+    priority: "STANDARD",
+  },
+  Jeopardy: {
+    type: "JEOPARDY",
+    location: "Jeopardy",
+    locationGroup: "SUPPORT_SERVICE",
+    servicePriority: "FLEXIBLE",
+    serviceLocation: "Jeopardy",
+    requiredSkill: "STROKE",
+    priority: "STANDARD",
+  },
+  Recovery: {
+    type: "RECOVERY",
+    location: "Recovery",
+    locationGroup: "SUPPORT_SERVICE",
+    servicePriority: "FLEXIBLE",
+    serviceLocation: "Recovery",
+    requiredSkill: "NEURO_CRITICAL",
+    priority: "STANDARD",
+  },
 };
 
 const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot[] => {
@@ -504,20 +605,81 @@ const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
     const isWeekendNight = dayOfWeek === 0 || dayOfWeek === 4 || dayOfWeek === 5 || dayOfWeek === 6;
 
-    // G20, H22, Akron are essentially our Day units
-    slots.push({ id: `${dateStr}-DAY-G20`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "G20 Unit" });
-    slots.push({ id: `${dateStr}-DAY-H22`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "H22 Unit" });
-    slots.push({ id: `${dateStr}-DAY-Akron`, date: dateStr, type: "DAY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.DAY.skill, priority: shiftRequirements.DAY.priority, isBackup: false, location: "Akron" });
+    // Priority 1: G20, H22, Akron - Critical units that must be staffed
+    const priority1Services = ["G20", "H22", "Akron"] as const;
+    priority1Services.forEach((serviceKey) => {
+      const config = serviceLocationConfig[serviceKey];
+      slots.push({
+        id: `${dateStr}-${config.type}-${serviceKey}`,
+        date: dateStr,
+        type: config.type,
+        providerId: null,
+        isWeekendLayout: isWeekendDay,
+        requiredSkill: config.requiredSkill,
+        priority: config.priority,
+        isBackup: false,
+        location: config.location,
+        locationGroup: config.locationGroup,
+        servicePriority: config.servicePriority,
+        serviceLocation: config.serviceLocation,
+      });
+    });
 
-    // Other roles mapped directly
-    slots.push({ id: `${dateStr}-NIGHT-0`, date: dateStr, type: "NIGHT", providerId: null, isWeekendLayout: isWeekendNight, requiredSkill: shiftRequirements.NIGHT.skill, priority: shiftRequirements.NIGHT.priority, isBackup: false, location: "Main Campus (Nights)" });
-    slots.push({ id: `${dateStr}-CONSULTS-0`, date: dateStr, type: "CONSULTS", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.CONSULTS.skill, priority: shiftRequirements.CONSULTS.priority, isBackup: false, location: "Main Campus (Consults)" });
-    slots.push({ id: `${dateStr}-NMET-0`, date: dateStr, type: "NMET", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.NMET.skill, priority: shiftRequirements.NMET.priority, isBackup: false, location: "Main Campus (NMET)" });
-    slots.push({ id: `${dateStr}-JEOPARDY-0`, date: dateStr, type: "JEOPARDY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.JEOPARDY.skill, priority: shiftRequirements.JEOPARDY.priority, isBackup: true, location: "Jeopardy" });
-    slots.push({ id: `${dateStr}-RECOVERY-0`, date: dateStr, type: "RECOVERY", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.RECOVERY.skill, priority: shiftRequirements.RECOVERY.priority, isBackup: false, location: "Recovery" });
-    // Vacations can just be time-off requests, but the sheet has a column. 
-    // We could store it as a slot or derive it. For now, we'll store as a slot for 1-to-1 excel parity.
-    slots.push({ id: `${dateStr}-VACATION-0`, date: dateStr, type: "VACATION", providerId: null, isWeekendLayout: isWeekendDay, requiredSkill: shiftRequirements.VACATION.skill, priority: shiftRequirements.VACATION.priority, isBackup: false, location: "Any" });
+    // Priority 2: Nights, Consults - Important but can survive without
+    const priority2Services = ["Nights", "Consults"] as const;
+    priority2Services.forEach((serviceKey) => {
+      const config = serviceLocationConfig[serviceKey];
+      slots.push({
+        id: `${dateStr}-${config.type}-${serviceKey}`,
+        date: dateStr,
+        type: config.type,
+        providerId: null,
+        isWeekendLayout: serviceKey === "Nights" ? isWeekendNight : isWeekendDay,
+        requiredSkill: config.requiredSkill,
+        priority: config.priority,
+        isBackup: false,
+        location: config.location,
+        locationGroup: config.locationGroup,
+        servicePriority: config.servicePriority,
+        serviceLocation: config.serviceLocation,
+      });
+    });
+
+    // Priority 3: AMET/NMET, Jeopardy, Recovery - Flexible/as needed
+    const priority3Services = ["AMET", "Jeopardy", "Recovery"] as const;
+    priority3Services.forEach((serviceKey) => {
+      const config = serviceLocationConfig[serviceKey];
+      slots.push({
+        id: `${dateStr}-${config.type}-${serviceKey}`,
+        date: dateStr,
+        type: config.type,
+        providerId: null,
+        isWeekendLayout: isWeekendDay,
+        requiredSkill: config.requiredSkill,
+        priority: config.priority,
+        isBackup: serviceKey === "Jeopardy",
+        location: config.location,
+        locationGroup: config.locationGroup,
+        servicePriority: config.servicePriority,
+        serviceLocation: config.serviceLocation,
+      });
+    });
+
+    // Vacation slot for tracking (not a real shift)
+    slots.push({
+      id: `${dateStr}-VACATION-Vacation`,
+      date: dateStr,
+      type: "VACATION",
+      providerId: null,
+      isWeekendLayout: isWeekendDay,
+      requiredSkill: shiftRequirements.VACATION.skill,
+      priority: shiftRequirements.VACATION.priority,
+      isBackup: false,
+      location: "Any",
+      locationGroup: "SUPPORT_SERVICE",
+      servicePriority: "FLEXIBLE",
+      serviceLocation: "Vacation",
+    });
   }
 
   return slots;
@@ -1235,17 +1397,30 @@ export const useScheduleStore = create<ScheduleState>()(
           };
           const prevHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
 
-          const getLocationPriority = (location: string) => {
-            const loc = location.toLowerCase();
-            if (loc.includes("g20") || loc.includes("h22") || loc.includes("akron")) return 0;
-            if (loc.includes("main campus") || loc.includes("consults") || loc.includes("nmet") || loc.includes("nights")) return 1;
-            if (loc.includes("jeopardy")) return 2;
+          const getServicePriority = (slot: ShiftSlot): number => {
+            // Priority 1: Critical units (G20, H22, Akron)
+            if (slot.servicePriority === "CRITICAL") return 0;
+            // Priority 2: Standard services (Nights, Consults)
+            if (slot.servicePriority === "STANDARD") return 1;
+            // Priority 3: Flexible services (Jeopardy, Recovery, NMET)
+            return 2;
+          };
+
+          const getLocationPriority = (slot: ShiftSlot) => {
+            const serviceOrder = getServicePriority(slot);
+            if (serviceOrder !== 0) return serviceOrder;
+            
+            // Within critical services, prioritize by location
+            const loc = slot.location.toLowerCase();
+            if (loc.includes("g20")) return 0;
+            if (loc.includes("h22")) return 1;
+            if (loc.includes("akron")) return 2;
             return 3;
           };
 
           const newSlots = [...state.slots].sort((a, b) => {
-            const prioA = getLocationPriority(a.location);
-            const prioB = getLocationPriority(b.location);
+            const prioA = getLocationPriority(a);
+            const prioB = getLocationPriority(b);
             if (prioA !== prioB) return prioA - prioB;
             // Secondary sort by date to keep it chronological within priority
             return a.date.localeCompare(b.date);

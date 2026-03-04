@@ -19,6 +19,26 @@ const COLUMN_HEADERS = [
   "Vacations",
 ] as const;
 
+/** Excel column mapping for MASTER_NEW_CALENDAR format */
+const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
+  "G20 ": "dayG20",
+  "G20": "dayG20",
+  "H22": "dayH22",
+  "H22 ": "dayH22",
+  "Akron ": "dayAkron",
+  "Akron": "dayAkron",
+  "Nights": "night",
+  "Consults ": "consults",
+  "Consults": "consults",
+  "AMET": "nmet",
+  "AMET ": "nmet",
+  "NMET": "nmet",
+  "Jeopardy": "jeopardy",
+  "Recovery": "recovery",
+  "Vacations ": "vacation",
+  "Vacations": "vacation",
+};
+
 const slotToColumnMap: Record<string, number> = {
   "DAY-G20": 1,
   "DAY-H22": 2,
@@ -179,16 +199,16 @@ export interface ParseImportWorkerErrorResponse {
 export type ParseImportWorkerResponse = ParseImportWorkerProgressResponse | ParseImportWorkerResultResponse | ParseImportWorkerErrorResponse;
 
 const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
-  date: ["month / date", "month", "date", "schedule date"],
-  dayG20: ["g20", "g20 unit", "day g20"],
-  dayH22: ["h22", "h22 unit", "day h22"],
-  dayAkron: ["akron", "akron unit", "day akron"],
-  night: ["nights", "night", "overnight"],
-  consults: ["consults", "consult", "consult service"],
-  nmet: ["amet / nmet", "nmet", "amet", "airway"],
+  date: ["month / date", "month", "date", "schedule date", "month "],
+  dayG20: ["g20", "g20 unit", "day g20", "g20 "],
+  dayH22: ["h22", "h22 unit", "day h22", "h22 "],
+  dayAkron: ["akron", "akron unit", "day akron", "akron "],
+  night: ["nights", "night", "overnight", "nights "],
+  consults: ["consults", "consult", "consult service", "consults "],
+  nmet: ["amet / nmet", "nmet", "amet", "airway", "amet ", "amet / nmet "],
   jeopardy: ["jeopardy", "backup", "backup jeopardy"],
   recovery: ["recovery", "post call", "post-call"],
-  vacation: ["vacations", "vacation", "time off", "pto"],
+  vacation: ["vacations", "vacation", "time off", "pto", "vacations "],
 };
 
 const REQUIRED_FIELDS: ImportFieldKey[] = ["date", "night"];
@@ -204,16 +224,20 @@ type ProgressCallback = (percent: number) => void;
 type WorksheetRow = Record<string, unknown>;
 type ExportSheetCell = string | number | Date | null;
 
-const fieldToSlotSpec: Partial<Record<ImportFieldKey, { type: ShiftSlot["type"]; locationIncludes: string }>> = {
-  dayG20: { type: "DAY", locationIncludes: "G20" },
-  dayH22: { type: "DAY", locationIncludes: "H22" },
-  dayAkron: { type: "DAY", locationIncludes: "Akron" },
-  night: { type: "NIGHT", locationIncludes: "Main Campus" },
-  consults: { type: "CONSULTS", locationIncludes: "Main Campus" },
-  nmet: { type: "NMET", locationIncludes: "Main Campus" },
-  jeopardy: { type: "JEOPARDY", locationIncludes: "Main Campus" },
-  recovery: { type: "RECOVERY", locationIncludes: "Main Campus" },
-  vacation: { type: "VACATION", locationIncludes: "Any" },
+const fieldToSlotSpec: Partial<Record<ImportFieldKey, { 
+  type: ShiftSlot["type"]; 
+  locationIncludes: string;
+  serviceLocation: string;
+}>> = {
+  dayG20: { type: "DAY", locationIncludes: "G20", serviceLocation: "G20" },
+  dayH22: { type: "DAY", locationIncludes: "H22", serviceLocation: "H22" },
+  dayAkron: { type: "DAY", locationIncludes: "Akron", serviceLocation: "Akron" },
+  night: { type: "NIGHT", locationIncludes: "Nights", serviceLocation: "Nights" },
+  consults: { type: "CONSULTS", locationIncludes: "Consults", serviceLocation: "Consults" },
+  nmet: { type: "NMET", locationIncludes: "AMET", serviceLocation: "AMET" },
+  jeopardy: { type: "JEOPARDY", locationIncludes: "Jeopardy", serviceLocation: "Jeopardy" },
+  recovery: { type: "RECOVERY", locationIncludes: "Recovery", serviceLocation: "Recovery" },
+  vacation: { type: "VACATION", locationIncludes: "Vacation", serviceLocation: "Vacation" },
 };
 
 const reportProgress = (onProgress: ProgressCallback | undefined, percent: number) => {
@@ -287,15 +311,31 @@ export const normalizeHeader = (header: unknown): string => {
   }
 };
 
-// Common name corrections for your team
+// Common name corrections for Neuro ICU team
 const NAME_CORRECTIONS: Record<string, string> = {
+  // Exact matches (lowercase keys)
   'lynch': 'Lynch',
   'hasset': 'Hassett',
-  'hassett ': 'Hassett',
+  'hassett': 'Hassett',
   'sabarwhal': 'Sabharwal',
-  'sabharwal ': 'Sabharwal',
+  'sabharwal': 'Sabharwal',
   'villamizar rosales': 'Villamizar Rosales',
   'rosales': 'Villamizar Rosales',
+  'barron': 'Barron',
+  'bates': 'Bates',
+  'bolt': 'Bolt',
+  'dani': 'Dani',
+  'gomes': 'Gomes',
+  'goswami': 'Goswami',
+  'asher': 'Asher',
+  'new': 'New', // Placeholder for new hires
+  'nn': 'NN',
+  'aa': 'AA',
+  'bb': 'BB',
+  'cc': 'CC',
+  // With trailing spaces
+  'hassett ': 'Hassett',
+  'sabharwal ': 'Sabharwal',
   'barron ': 'Barron',
   'bates ': 'Bates',
   'bolt ': 'Bolt',
@@ -303,11 +343,9 @@ const NAME_CORRECTIONS: Record<string, string> = {
   'gomes ': 'Gomes',
   'goswami ': 'Goswami',
   'asher ': 'Asher',
-  'new': 'New', // Placeholder for new hires
-  'nn': 'NN',
-  'aa': 'AA',
-  'bb': 'BB',
-  'cc': 'CC',
+  // Typos and variations
+  'lynch ': 'Lynch',
+  'rosales ': 'Villamizar Rosales',
 };
 
 /**
@@ -376,25 +414,30 @@ const parseProviderCell = (value: unknown): ParsedAssignment | null => {
   };
 };
 
-const formatDateParts = (year: number, month: number, day: number): string => {
-  const monthString = String(month).padStart(2, "0");
-  const dayString = String(day).padStart(2, "0");
-  return `${year}-${monthString}-${dayString}`;
-};
-
-const normalizeExcelDateSerial = (serialDate: number): string | null => {
-  if (!Number.isFinite(serialDate)) {
+/**
+ * Convert Excel serial date to ISO date string
+ * Excel epoch is December 30, 1899 (don't ask why not 1900)
+ */
+export const excelSerialToDate = (serial: number): string | null => {
+  if (!Number.isFinite(serial) || serial <= 0) {
     return null;
   }
-
-  const wholeDays = Math.trunc(serialDate);
-  const epoch = Date.UTC(1899, 11, 30);
-  const dateValue = new Date(epoch + wholeDays * 86_400_000);
-  if (Number.isNaN(dateValue.getTime())) {
+  
+  // Excel's epoch starts at December 30, 1899
+  const EXCEL_EPOCH = new Date(Date.UTC(1899, 11, 30));
+  const msPerDay = 24 * 60 * 60 * 1000;
+  
+  // Handle Excel's leap year bug (Excel thinks 1900 was a leap year)
+  // For dates after February 28, 1900, we need to subtract 1 day
+  const adjustedSerial = serial > 60 ? serial - 1 : serial;
+  
+  const date = new Date(EXCEL_EPOCH.getTime() + adjustedSerial * msPerDay);
+  
+  if (Number.isNaN(date.getTime())) {
     return null;
   }
-
-  return formatDateParts(dateValue.getUTCFullYear(), dateValue.getUTCMonth() + 1, dateValue.getUTCDate());
+  
+  return format(date, "yyyy-MM-dd");
 };
 
 export const normalizeDate = (value: unknown): string | null => {
@@ -412,7 +455,17 @@ export const normalizeDate = (value: unknown): string | null => {
     }
 
     if (typeof value === "number") {
-      return normalizeExcelDateSerial(value);
+      // First try as Excel serial date (most likely for MASTER file)
+      const excelDate = excelSerialToDate(value);
+      if (excelDate) {
+        return excelDate;
+      }
+      // Fall back to timestamp interpretation
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return format(date, "yyyy-MM-dd");
+      }
+      return null;
     }
 
     const asString = String(value).trim();
@@ -420,10 +473,12 @@ export const normalizeDate = (value: unknown): string | null => {
       return null;
     }
 
+    // Already in ISO format
     if (/^\d{4}-\d{2}-\d{2}$/.test(asString)) {
       return asString;
     }
 
+    // Try parsing as date string
     const parsedDate = new Date(asString);
     if (Number.isNaN(parsedDate.getTime())) {
       return null;
@@ -448,10 +503,24 @@ export const resolveHeaderMapping = (
     const mapping: Partial<Record<ImportFieldKey, string>> = {};
     const issues: ImportIssue[] = [];
 
+    // First try exact MASTER file column matching
+    headers.forEach((header) => {
+      const trimmedHeader = header.trim();
+      const masterField = EXCEL_MASTER_COLUMNS[trimmedHeader] || EXCEL_MASTER_COLUMNS[header];
+      if (masterField && !mapping[masterField]) {
+        mapping[masterField] = header;
+      }
+    });
+
     IMPORT_FIELDS.forEach((field) => {
       const manual = manualMapping?.[field];
       if (manual && headers.includes(manual)) {
         mapping[field] = manual;
+        return;
+      }
+
+      // Skip if already mapped via EXCEL_MASTER_COLUMNS
+      if (mapping[field]) {
         return;
       }
 
@@ -872,18 +941,14 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
       return newProvider.id;
     };
 
-    const slotsByDateAndType = new Map<string, ShiftSlot[]>();
+    const slotsByDateAndService = new Map<string, ShiftSlot>();
     slots.forEach((slot) => {
-      const slotKey = `${slot.date}::${slot.type}`;
-      const existing = slotsByDateAndType.get(slotKey);
-      if (existing) {
-        existing.push(slot);
-      } else {
-        slotsByDateAndType.set(slotKey, [slot]);
-      }
+      const slotKey = `${slot.date}::${slot.serviceLocation}`;
+      slotsByDateAndService.set(slotKey, slot);
     });
 
     let appliedAssignments = 0;
+    let vacationEntries = 0;
 
     preview.rows.forEach((row) => {
       if (!row.date || row.issues.some((issue) => issue.type === "error")) {
@@ -897,22 +962,46 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
           return;
         }
 
-        const slotCandidates = slotsByDateAndType.get(`${row.date}::${slotSpec.type}`);
-        if (!slotCandidates || slotCandidates.length === 0) {
+        // Handle vacation specially - mark as time off for providers
+        if (field === "vacation") {
+          names.forEach((name) => {
+            const providerId = getOrCreateProviderId(name);
+            if (providerId) {
+              const provider = providers.find(p => p.id === providerId);
+              if (provider && !provider.timeOffRequests.some(r => r.date === row.date)) {
+                provider.timeOffRequests.push({
+                  date: row.date,
+                  type: "PTO"
+                });
+                vacationEntries++;
+              }
+            }
+          });
           return;
         }
 
-        const slot = slotCandidates.find((candidate) => candidate.location.includes(slotSpec.locationIncludes));
+        // Find slot by service location
+        const slotKey = `${row.date}::${slotSpec.serviceLocation}`;
+        const slot = slotsByDateAndService.get(slotKey);
+        
         if (!slot) {
           return;
         }
 
-        const providerId = getOrCreateProviderId(names[0]);
-        if (!providerId) {
+        // Handle primary provider
+        const primaryProviderId = getOrCreateProviderId(names[0]);
+        if (!primaryProviderId) {
           return;
         }
 
-        slot.providerId = providerId;
+        slot.providerId = primaryProviderId;
+        
+        // Handle secondary providers (shared assignments)
+        if (names.length > 1) {
+          slot.secondaryProviderIds = names.slice(1).map(name => getOrCreateProviderId(name)).filter((id): id is string => Boolean(id));
+          slot.isSharedAssignment = true;
+        }
+        
         appliedAssignments += 1;
       });
     });

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type CalendarPresentationMode, type ShiftType } from "../store";
+import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type CalendarPresentationMode, type ShiftType, type ServicePriority } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday, isWeekend } from "date-fns";
 import { 
@@ -14,13 +14,42 @@ import {
   Calendar as CalendarIcon,
   Clock,
   User,
-  Bot
+  Bot,
+  Building2,
+  Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { InlineSuggestions } from './InlineSuggestions';
 import { useScheduleViewport } from './schedule/useScheduleViewport';
 
 export type CalendarViewMode = Exclude<CalendarPresentationMode, "month">;
+
+// Service priority configuration
+const servicePriorityConfig: Record<ServicePriority, {
+  label: string;
+  badgeColor: string;
+  indicatorColor: string;
+  borderColor: string;
+}> = {
+  CRITICAL: {
+    label: "Priority 1",
+    badgeColor: "bg-rose-100 text-rose-700 border-rose-200",
+    indicatorColor: "bg-rose-500",
+    borderColor: "border-rose-300"
+  },
+  STANDARD: {
+    label: "Priority 2",
+    badgeColor: "bg-amber-100 text-amber-700 border-amber-200",
+    indicatorColor: "bg-amber-500",
+    borderColor: "border-amber-300"
+  },
+  FLEXIBLE: {
+    label: "Priority 3",
+    badgeColor: "bg-slate-100 text-slate-600 border-slate-200",
+    indicatorColor: "bg-slate-400",
+    borderColor: "border-slate-300"
+  }
+};
 
 const shiftConfig: Record<ShiftType, { 
   label: string; 
@@ -88,6 +117,14 @@ const shiftConfig: Record<ShiftType, {
   },
 };
 
+// Location group icons
+const locationGroupIcons: Record<string, React.ReactNode> = {
+  MAIN_CAMPUS_UNIT: <Building2 className="w-3 h-3" />,
+  MAIN_CAMPUS_SERVICE: <Stethoscope className="w-3 h-3" />,
+  AKRON_UNIT: <MapPin className="w-3 h-3" />,
+  SUPPORT_SERVICE: <Users className="w-3 h-3" />,
+};
+
 // Provider Avatar with initials
 function ProviderAvatar({ provider, size = "md", showConflict = false }: { 
   provider?: Provider; 
@@ -114,6 +151,17 @@ function ProviderAvatar({ provider, size = "md", showConflict = false }: {
   );
 }
 
+// Priority Badge Component
+function PriorityBadge({ priority, showLabel = false }: { priority: ServicePriority; showLabel?: boolean }) {
+  const config = servicePriorityConfig[priority];
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${config.badgeColor}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${config.indicatorColor}`} />
+      {showLabel && config.label}
+    </span>
+  );
+}
+
 // Enhanced Slot Card
 function SlotCard({ 
   slot, 
@@ -134,6 +182,8 @@ function SlotCard({
   });
 
   const config = shiftConfig[slot.type];
+  const priorityConfig = servicePriorityConfig[slot.servicePriority];
+  const isCriticalUnfilled = slot.servicePriority === "CRITICAL" && !provider;
 
   if (viewMode === "grid") {
     return (
@@ -149,48 +199,65 @@ function SlotCard({
         } ${
           provider 
             ? `${config.bgClass} ${config.borderClass}` 
-            : 'bg-white border-slate-200 hover:border-slate-300'
+            : isCriticalUnfilled
+              ? 'bg-rose-50 border-rose-300'
+              : 'bg-white border-slate-200 hover:border-slate-300'
         } ${hasConflict ? 'ring-2 ring-error/50' : ''}`}
       >
-        {/* Shift Type Badge */}
-        <div className="flex items-center justify-between mb-2">
+        {/* Priority Indicator Strip */}
+        <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-full ${priorityConfig.indicatorColor}`} />
+
+        {/* Shift Type Badge & Priority */}
+        <div className="flex items-center justify-between mb-2 pl-2">
           <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${config.bgClass}`}>
             {config.icon}
             <span className={`text-[10px] font-bold uppercase tracking-wider ${config.colorClass}`}>
-              {config.label}
+              {slot.serviceLocation}
             </span>
           </div>
-          {slot.priority === 'CRITICAL' && !provider && (
-            <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full">
-              Critical
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {isCriticalUnfilled && (
+              <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full">
+                Required
+              </span>
+            )}
+            <PriorityBadge priority={slot.servicePriority} />
+          </div>
         </div>
 
         {/* Provider or Empty */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pl-2">
           {provider ? (
             <>
               <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
               <span className="text-sm font-medium text-slate-700 truncate">{provider.name}</span>
+              {slot.isSharedAssignment && slot.secondaryProviderIds && slot.secondaryProviderIds.length > 0 && (
+                <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[8px] rounded-full">
+                  +{slot.secondaryProviderIds.length}
+                </span>
+              )}
             </>
           ) : (
             <div className="flex items-center gap-2 text-slate-400">
-              <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
+              <div className={`w-6 h-6 rounded-full border-2 border-dashed flex items-center justify-center ${
+                isCriticalUnfilled ? 'border-rose-300' : 'border-slate-300'
+              }`}>
                 <User className="w-3 h-3" />
               </div>
-              <span className="text-xs italic">Unassigned</span>
+              <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-400 font-medium' : ''}`}>
+                {isCriticalUnfilled ? 'Unfilled' : 'Unassigned'}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Location */}
-        {slot.location && (
-          <div className="flex items-center gap-1 mt-2 text-[9px] text-slate-500">
-            <MapPin className="w-3 h-3" />
-            <span className="truncate">{slot.location}</span>
-          </div>
-        )}
+        {/* Location & Shift Type */}
+        <div className="flex items-center gap-2 mt-2 pl-2 text-[9px] text-slate-500">
+          <span className="flex items-center gap-1">
+            {locationGroupIcons[slot.locationGroup] || <MapPin className="w-3 h-3" />}
+            {slot.location}
+          </span>
+        </div>
       </motion.div>
     );
   }
@@ -203,29 +270,43 @@ function SlotCard({
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-        isOver ? 'border-primary bg-primary/5' : 'bg-white border-slate-200'
+        isOver ? 'border-primary bg-primary/5' : isCriticalUnfilled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200'
       } ${hasConflict ? 'ring-1 ring-error' : ''}`}
     >
+      {/* Priority Indicator */}
+      <div className={`w-1 h-10 rounded-full ${priorityConfig.indicatorColor}`} />
+
       <div className={`p-2 rounded-lg ${config.bgClass} ${config.colorClass}`}>
         {config.icon}
       </div>
       
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold ${config.colorClass}`}>{config.label}</span>
-          <span className="text-[10px] text-slate-400">{slot.location}</span>
+          <span className={`text-xs font-bold ${config.colorClass}`}>{slot.serviceLocation}</span>
+          <PriorityBadge priority={slot.servicePriority} />
+          <span className="text-[10px] text-slate-400 flex items-center gap-1">
+            {locationGroupIcons[slot.locationGroup]}
+            {slot.location}
+          </span>
         </div>
         {provider ? (
           <div className="flex items-center gap-2 mt-1">
             <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
             <span className="text-sm font-medium text-slate-700">{provider.name}</span>
+            {slot.isSharedAssignment && slot.secondaryProviderIds && slot.secondaryProviderIds.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[8px] rounded">
+                +{slot.secondaryProviderIds.length} more
+              </span>
+            )}
           </div>
         ) : (
-          <span className="text-xs text-slate-400 italic">Drop provider here</span>
+          <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
+            {isCriticalUnfilled ? '⚠ Required shift unfilled' : 'Drop provider here'}
+          </span>
         )}
       </div>
 
-      {slot.priority === 'CRITICAL' && !provider && (
+      {isCriticalUnfilled && (
         <span className="px-2 py-1 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full">
           Critical
         </span>
@@ -247,9 +328,22 @@ function TimelineView({
   const dates = Array.from(new Set(slots.map(s => s.date))).sort();
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
+  // Group slots by priority for display
+  const priorityOrder: ServicePriority[] = ["CRITICAL", "STANDARD", "FLEXIBLE"];
+
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[800px]">
+        {/* Priority Legend */}
+        <div className="flex gap-4 mb-4 px-4">
+          {priorityOrder.map(priority => (
+            <div key={priority} className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${servicePriorityConfig[priority].indicatorColor}`} />
+              <span className="text-xs text-slate-600">{servicePriorityConfig[priority].label}</span>
+            </div>
+          ))}
+        </div>
+
         {/* Header */}
         <div className="flex border-b border-slate-200">
           <div className="w-20 p-2 bg-slate-50 text-xs font-bold text-slate-500">Time</div>
@@ -277,12 +371,13 @@ function TimelineView({
               
               const provider = providers.find(p => p.id === slot.providerId);
               const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
-              const config = shiftConfig[slot.type];
+              const priorityConfig = servicePriorityConfig[slot.servicePriority];
 
               return (
-                <div key={`${date}-${hour}`} className={`flex-1 border-l border-slate-100 p-1 ${slot.providerId ? config.bgClass : ''}`}>
+                <div key={`${date}-${hour}`} className={`flex-1 border-l border-slate-100 p-1 ${slot.providerId ? shiftConfig[slot.type].bgClass : ''}`}>
                   {slot.providerId && provider && (
                     <div className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${priorityConfig.indicatorColor}`} />
                       <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
                       <span className="text-[10px] truncate">{provider.name.split(" ")[0]}</span>
                     </div>
@@ -293,6 +388,45 @@ function TimelineView({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Coverage Summary Component
+function CoverageSummary({ slots }: { slots: ShiftSlot[] }) {
+  const stats = useMemo(() => {
+    const byPriority: Record<ServicePriority, { total: number; filled: number }> = {
+      CRITICAL: { total: 0, filled: 0 },
+      STANDARD: { total: 0, filled: 0 },
+      FLEXIBLE: { total: 0, filled: 0 }
+    };
+
+    slots.forEach(slot => {
+      byPriority[slot.servicePriority].total++;
+      if (slot.providerId) {
+        byPriority[slot.servicePriority].filled++;
+      }
+    });
+
+    return byPriority;
+  }, [slots]);
+
+  return (
+    <div className="flex flex-wrap gap-3 mb-4">
+      {(Object.entries(stats) as [ServicePriority, { total: number; filled: number }][]).map(([priority, stat]) => {
+        const percentage = stat.total > 0 ? Math.round((stat.filled / stat.total) * 100) : 0;
+        const config = servicePriorityConfig[priority];
+        return (
+          <div key={priority} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${config.badgeColor}`}>
+            <span className={`w-2 h-2 rounded-full ${config.indicatorColor}`} />
+            <span className="text-xs font-bold">{config.label}</span>
+            <span className="text-sm font-bold">
+              {stat.filled}/{stat.total}
+            </span>
+            <span className="text-xs opacity-75">({percentage}%)</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -325,6 +459,7 @@ export function EnhancedCalendar() {
     });
   }, [slots, weekDates, scheduleViewport.shiftTypeFilter, scheduleViewport.showConflictsOnly, scheduleViewport.showUnfilledOnly, scheduleViewport.providerSearchTerm, conflicts, providers]);
 
+  // Group slots by date and then by priority
   const datesWithSlots = useMemo(() => {
     return weekDates.filter(date => 
       weekSlots.some(s => s.date === format(date, "yyyy-MM-dd"))
@@ -362,6 +497,11 @@ export function EnhancedCalendar() {
           </button>
         </div>
 
+        {/* Coverage Summary */}
+        <div className="mt-4">
+          <CoverageSummary slots={weekSlots} />
+        </div>
+
         <p className="text-xs text-slate-500 mt-3">Calendar filters and week controls are managed from the shared schedule toolbar above.</p>
       </div>
 
@@ -376,6 +516,13 @@ export function EnhancedCalendar() {
               const daySlots = weekSlots.filter(s => s.date === dateStr);
               const isWeekendDay = isWeekend(date);
               const isTodayDay = isToday(date);
+
+              // Group slots by priority for display
+              const slotsByPriority = {
+                CRITICAL: daySlots.filter(s => s.servicePriority === "CRITICAL"),
+                STANDARD: daySlots.filter(s => s.servicePriority === "STANDARD"),
+                FLEXIBLE: daySlots.filter(s => s.servicePriority === "FLEXIBLE"),
+              };
 
               return (
                 <motion.div
@@ -414,31 +561,54 @@ export function EnhancedCalendar() {
                     </div>
                   </div>
 
-                  {/* Slots */}
-                  <div className={scheduleViewport.calendarPresentationMode === "grid" 
-                    ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" 
-                    : "space-y-2"
-                  }>
-                    {daySlots.map((slot) => {
-                      const provider = providers.find(p => p.id === slot.providerId);
-                      const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                  {/* Slots Grouped by Priority */}
+                  <div className="space-y-4">
+                    {(Object.entries(slotsByPriority) as [ServicePriority, ShiftSlot[]][]).map(([priority, prioritySlots]) => {
+                      if (prioritySlots.length === 0) return null;
+                      const config = servicePriorityConfig[priority];
                       
                       return (
-                        <SlotCard
-                          key={slot.id}
-                          slot={slot}
-                          provider={provider}
-                          hasConflict={hasConflict}
-                          viewMode={scheduleViewport.calendarPresentationMode}
-                          onClick={(e, slot, provider) => {
-                            e.stopPropagation();
-                            setSelectedDate(slot.date);
-                            setSelectedProviderId(provider?.id || null);
-                            setSelectedSlot(slot);
-                            setSuggestionsPosition({ x: e.clientX, y: e.clientY });
-                            setShowSuggestions(true);
-                          }}
-                        />
+                        <div key={priority} className="space-y-2">
+                          {/* Priority Section Header */}
+                          <div className="flex items-center gap-2">
+                            <span className={`w-1 h-4 rounded-full ${config.indicatorColor}`} />
+                            <span className={`text-xs font-bold ${config.badgeColor.split(' ')[0].replace('bg-', 'text-').replace('100', '700')}`}>
+                              {config.label}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              ({prioritySlots.filter(s => s.providerId).length}/{prioritySlots.length} filled)
+                            </span>
+                          </div>
+                          
+                          {/* Slots Grid */}
+                          <div className={scheduleViewport.calendarPresentationMode === "grid" 
+                            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" 
+                            : "space-y-2"
+                          }>
+                            {prioritySlots.map((slot) => {
+                              const provider = providers.find(p => p.id === slot.providerId);
+                              const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                              
+                              return (
+                                <SlotCard
+                                  key={slot.id}
+                                  slot={slot}
+                                  provider={provider}
+                                  hasConflict={hasConflict}
+                                  viewMode={scheduleViewport.calendarPresentationMode}
+                                  onClick={(e, slot, provider) => {
+                                    e.stopPropagation();
+                                    setSelectedDate(slot.date);
+                                    setSelectedProviderId(provider?.id || null);
+                                    setSelectedSlot(slot);
+                                    setSuggestionsPosition({ x: e.clientX, y: e.clientY });
+                                    setShowSuggestions(true);
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>

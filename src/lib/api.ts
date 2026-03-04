@@ -178,6 +178,9 @@ export async function loadScheduleState() {
     location: s.location,
     secondaryProviderIds: s.secondary_provider_ids || [],
     isSharedAssignment: s.is_shared_assignment || false,
+    locationGroup: s.location_group || "MAIN_CAMPUS_UNIT",
+    servicePriority: s.service_priority || "STANDARD",
+    serviceLocation: s.service_location || s.location,
   }));
 
   const persistedState: PersistedScheduleState = {

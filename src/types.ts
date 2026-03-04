@@ -1,5 +1,37 @@
 export type ShiftType = "DAY" | "NIGHT" | "NMET" | "JEOPARDY" | "RECOVERY" | "CONSULTS" | "VACATION";
 
+/**
+ * Location group classification for organizing services
+ */
+export type LocationGroup = 
+  | "MAIN_CAMPUS_UNIT"      // G20, H22 - primary units
+  | "MAIN_CAMPUS_SERVICE"   // Nights, Consults, AMET/NMET
+  | "AKRON_UNIT"           // Akron - separate neuro ICU location
+  | "SUPPORT_SERVICE";     // Jeopardy, Recovery, Vacation
+
+/**
+ * Service priority for scheduling emphasis
+ * CRITICAL: Must be staffed (G20, H22, Akron)
+ * STANDARD: Important but can survive without (Nights, Consults)
+ * FLEXIBLE: As needed (Jeopardy, Recovery, NMET)
+ */
+export type ServicePriority = "CRITICAL" | "STANDARD" | "FLEXIBLE";
+
+/**
+ * Service location for identifying specific units
+ */
+export type ServiceLocation = 
+  | "G20"
+  | "H22" 
+  | "Akron"
+  | "Nights"
+  | "Consults"
+  | "AMET"
+  | "NMET"
+  | "Jeopardy"
+  | "Recovery"
+  | "Vacation";  
+
 export type TimeOffType = "PTO" | "CME" | "SICK" | "UNAVAILABLE";
 
 export interface TimeOffRequest {
@@ -66,6 +98,12 @@ export interface ShiftSlot {
     location: string;
     secondaryProviderIds?: string[];
     isSharedAssignment?: boolean;
+    /** Location group for organizing display */
+    locationGroup: LocationGroup;
+    /** Service priority for scheduling emphasis */
+    servicePriority: ServicePriority;
+    /** Specific service location identifier */
+    serviceLocation: ServiceLocation;
 }
 
 export interface ScenarioSnapshot {
