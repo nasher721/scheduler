@@ -1,7 +1,5 @@
 import { ProviderManager } from "./components/ProviderManager";
 import { SparkAnnotation } from "spark-banana";
-import { Calendar } from "./components/Calendar";
-import { MonthlyCalendar } from "./components/MonthlyCalendar";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RuleBuilder } from "./components/RuleBuilder";
 import { SchedulingStrategyWorkbench } from "./components/SchedulingStrategyWorkbench";
@@ -19,6 +17,8 @@ import { NotificationCenter } from "./components/NotificationCenter";
 import { PredictiveInsights } from "./components/PredictiveInsights";
 import { ScheduleTemplates } from "./components/ScheduleTemplates";
 import { InstallPrompt, useNetworkStatus } from "./components/InstallPrompt";
+import { EnhancedCalendar } from "./components/EnhancedCalendar";
+import { ExcelGridView } from "./components/ExcelGridView";
 import {
   AlertTriangle,
   Save,
@@ -466,7 +466,9 @@ export default function App() {
                   {viewMode === "analytics" ? (
                     <AnalyticsDashboard />
                   ) : viewMode === "calendar" ? (
-                    <MonthlyCalendar />
+                    <EnhancedCalendar />
+                  ) : viewMode === "excel" ? (
+                    <ExcelGridView />
                   ) : viewMode === "rules" ? (
                     <RuleBuilder />
                   ) : viewMode === "strategy" ? (
@@ -484,7 +486,7 @@ export default function App() {
                   ) : viewMode === "templates" ? (
                     <ScheduleTemplates />
                   ) : (
-                    <Calendar />
+                    <EnhancedCalendar />
                   )}
                 </motion.div>
               </AnimatePresence>

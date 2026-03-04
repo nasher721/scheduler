@@ -1,7 +1,7 @@
-import { LayoutGrid, CalendarDays, BarChart3, ShieldAlert, Workflow, ArrowRightLeft, Gift, AlertOctagon, Bell, Brain, FileText } from "lucide-react";
+import { LayoutGrid, CalendarDays, BarChart3, ShieldAlert, Workflow, ArrowRightLeft, Gift, AlertOctagon, Bell, Brain, FileText, Table2 } from "lucide-react";
 import { motion } from "framer-motion";
 
-export type ViewMode = "grid" | "calendar" | "analytics" | "rules" | "strategy" | "swaps" | "holidays" | "conflicts" | "notifications" | "predictive" | "templates";
+export type ViewMode = "grid" | "calendar" | "analytics" | "rules" | "strategy" | "swaps" | "holidays" | "conflicts" | "notifications" | "predictive" | "templates" | "excel";
 
 interface ViewToggleProps {
   view: ViewMode;
@@ -40,7 +40,23 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
           />
         )}
         <CalendarDays className="w-3.5 h-3.5 relative z-10" />
-        <span className="relative z-10">Monthly Log</span>
+        <span className="relative z-10">Calendar</span>
+      </button>
+
+      <button
+        onClick={() => onChange("excel")}
+        className={`relative px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all flex items-center gap-2.5 ${view === "excel" ? "text-primary" : "text-slate-400 hover:text-slate-600"
+          }`}
+      >
+        {view === "excel" && (
+          <motion.div
+            layoutId="view-toggle-indicator"
+            className="absolute inset-0 bg-white shadow-sm border border-slate-200/50 rounded-xl z-0"
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          />
+        )}
+        <Table2 className="w-3.5 h-3.5 relative z-10" />
+        <span className="relative z-10">Excel</span>
       </button>
 
       <button
