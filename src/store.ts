@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
 import { registerProvider, loadScheduleState } from "./lib/api";
 import { supabase } from "./lib/supabase";
+export * from "./types";
 import {
   ShiftType, ProviderCredential, CredentialStatus,
   Provider, CustomRule, ShiftSlot, ScenarioSnapshot, AuditLogEntry
@@ -1881,7 +1882,7 @@ export const useScheduleStore = create<ScheduleState>()(
           if (slot.id === suggestion.slotId) {
             return {
               ...slot,
-              providerId: suggestion.toProviderId
+              providerId: suggestion.toProviderId ?? null
             };
           }
           return slot;
@@ -1909,7 +1910,7 @@ export const useScheduleStore = create<ScheduleState>()(
             if (slot.id === suggestion.slotId) {
               return {
                 ...slot,
-                providerId: suggestion.toProviderId
+                providerId: suggestion.toProviderId ?? null
               };
             }
             return slot;
@@ -1971,12 +1972,12 @@ export const useScheduleStore = create<ScheduleState>()(
             timestamp: new Date().toISOString()
           }]
         };
-        
+
         set((state) => ({
           copilotConversations: [newConversation, ...state.copilotConversations].slice(0, 50), // Keep last 50
           currentConversationId: id
         }));
-        
+
         return id;
       },
 
@@ -2000,7 +2001,7 @@ export const useScheduleStore = create<ScheduleState>()(
                 messages: [...conv.messages, message],
                 updatedAt: new Date().toISOString(),
                 // Update title based on first user message
-                title: conv.messages.length === 1 && message.role === 'user' 
+                title: conv.messages.length === 1 && message.role === 'user'
                   ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
                   : conv.title
               };
@@ -2019,7 +2020,7 @@ export const useScheduleStore = create<ScheduleState>()(
           ...feedback,
           timestamp: new Date().toISOString()
         };
-        
+
         set((state) => ({
           copilotFeedback: [entry, ...state.copilotFeedback].slice(0, 1000) // Keep last 1000
         }));
@@ -2028,14 +2029,14 @@ export const useScheduleStore = create<ScheduleState>()(
       getCopilotPreferenceScore: (intent) => {
         const state = get();
         const relevantFeedback = state.copilotFeedback.filter(f => f.intent === intent);
-        
+
         if (relevantFeedback.length === 0) return 0.5; // Neutral default
-        
+
         const accepted = relevantFeedback.filter(f => f.action === 'accepted').length;
         const rejected = relevantFeedback.filter(f => f.action === 'rejected').length;
-        
+
         if (relevantFeedback.length < 3) return 0.5; // Need more data
-        
+
         return accepted / (accepted + rejected);
       },
     }),

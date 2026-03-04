@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useScheduleStore, getProviderCounts, TimeOffType, getProviderCredentialSummary } from "../store";
+import { useScheduleStore, getProviderCounts, type TimeOffType, getProviderCredentialSummary } from "../store";
 import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun, X } from "lucide-react";
 import { DraggableProvider } from "./Calendar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -438,8 +438,8 @@ export function ProviderManager() {
                           <div className="flex flex-wrap gap-2">
                             {p.timeOffRequests.map((req, i) => (
                               <div key={i} className={`flex items-center gap-2 bg-white border border-slate-200/60 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border-l-4 transition-all hover:shadow-sm ${req.type === "PTO" ? "border-l-emerald-500" :
-                                  req.type === "CME" ? "border-l-blue-500" :
-                                    req.type === "SICK" ? "border-l-rose-500" : "border-l-amber-500"
+                                req.type === "CME" ? "border-l-blue-500" :
+                                  req.type === "SICK" ? "border-l-rose-500" : "border-l-amber-500"
                                 }`}>
                                 <span className={
                                   req.type === "PTO" ? "text-emerald-500" :

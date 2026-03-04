@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useScheduleStore } from "@/store";
 import type { CopilotMessage } from "@/store";
-import { 
-  sendCopilotMessage, 
-  parseCopilotIntent, 
+import {
+  sendCopilotMessage,
+  parseCopilotIntent,
   getCopilotSuggestions,
   type CopilotContext
 } from "@/lib/api";
@@ -29,13 +29,13 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  
+
   // Get current conversation messages from store
   const currentConversation = store.copilotConversations.find(
     c => c.id === store.currentConversationId
   );
   const messages = currentConversation?.messages || [];
-  
+
   // Create conversation if none exists
   useEffect(() => {
     if (!store.currentConversationId) {
@@ -45,7 +45,7 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
 
   const sendMessage = useCallback(async (content: string) => {
     if (!store.currentConversationId) return;
-    
+
     setIsLoading(true);
     setIsTyping(true);
 
@@ -83,7 +83,7 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
       options.onMessageReceived?.(assistantMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      
+
       const assistantMessage: CopilotMessage = {
         id: `error_${Date.now()}`,
         role: "assistant",

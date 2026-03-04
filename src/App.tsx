@@ -311,12 +311,12 @@ export default function App() {
                   <button onClick={handleClearSchedule} className="p-2 text-slate-400 hover:text-amber-600 transition-colors" title="Clear Schedule"><Trash className="w-4 h-4" /></button>
                   <button onClick={handleClearStaff} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Clear Staff"><AlertTriangle className="w-4 h-4" /></button>
                   <div className="w-px h-6 bg-slate-200/60 mx-1" />
-                  <button 
-                    onClick={toggleCopilot} 
+                  <button
+                    onClick={toggleCopilot}
                     className={cn(
                       "p-2 rounded-lg transition-colors flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider",
                       isCopilotOpen ? "bg-primary text-white" : "text-slate-400 hover:text-primary"
-                    )} 
+                    )}
                     title="AI Assistant"
                   >
                     <Bot className="w-4 h-4" />
@@ -607,9 +607,9 @@ export default function App() {
       <ToastContainer />
       <InstallPrompt />
       <CopilotPanel isOpen={isCopilotOpen} onToggle={toggleCopilot} />
-      
+
       {/* AI Change Preview Modal */}
-      {showChangePreview && changePreviewData && (
+      {showChangePreview && !!changePreviewData && (
         <ScheduleChangePreview
           preview={changePreviewData as OptimizationPreview}
           isOpen={showChangePreview}
@@ -618,7 +618,7 @@ export default function App() {
           onReject={rejectAISuggestions}
         />
       )}
-      
+
       {import.meta.env.DEV && (
         <SparkAnnotation projectRoot={import.meta.env.VITE_SPARK_PROJECT_ROOT as string} />
       )}

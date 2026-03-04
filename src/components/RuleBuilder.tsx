@@ -48,8 +48,8 @@ export function RuleBuilder() {
                     <button
                         onClick={() => setIsAdding(!isAdding)}
                         className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all duration-300 ${isAdding
-                                ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                : "bg-primary text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+                            ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                            : "bg-primary text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
                             }`}
                     >
                         {isAdding ? 'Deactivate Session' : (

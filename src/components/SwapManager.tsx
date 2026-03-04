@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useScheduleStore, type ShiftSlot, type Provider } from "../store";
+import { useScheduleStore, type ShiftSlot, type Provider, type TimeOffRequest } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRightLeft, Check, X, AlertCircle, User, Calendar, RotateCcw } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -50,11 +50,11 @@ function validateSwapRequest(
   }
 
   // Check time-off conflicts
-  if (requestor.timeOffRequests.some(r => r.date === toSlot.date)) {
+  if (requestor.timeOffRequests.some((r: TimeOffRequest) => r.date === toSlot.date)) {
     errors.push(`${requestor.name} has time-off on ${toSlot.date}`);
   }
 
-  if (target?.timeOffRequests.some(r => r.date === fromSlot.date)) {
+  if (target?.timeOffRequests.some((r: TimeOffRequest) => r.date === fromSlot.date)) {
     errors.push(`${target.name} has time-off on ${fromSlot.date}`);
   }
 
@@ -68,12 +68,12 @@ function validateSwapRequest(
   }
 
   // Check for consecutive shifts after swap
-  const requestorOtherShifts = allSlots.filter(s => 
-    s.providerId === requestor.id && 
-    s.date !== fromSlot.date && 
+  const requestorOtherShifts = allSlots.filter(s =>
+    s.providerId === requestor.id &&
+    s.date !== fromSlot.date &&
     Math.abs(parseISO(s.date).getTime() - parseISO(toSlot.date).getTime()) < 2 * 24 * 60 * 60 * 1000
   );
-  
+
   if (requestorOtherShifts.length > 0) {
     warnings.push(`${requestor.name} has other shifts near this date`);
   }
@@ -82,16 +82,16 @@ function validateSwapRequest(
 }
 
 export function SwapManager() {
-  const { 
-    providers, 
-    slots, 
-    swapRequests, 
-    createSwapRequest, 
-    approveSwapRequest, 
+  const {
+    providers,
+    slots,
+    swapRequests,
+    createSwapRequest,
+    approveSwapRequest,
     rejectSwapRequest,
-    currentUser 
+    currentUser
   } = useScheduleStore();
-  
+
   const [isCreating, setIsCreating] = useState(false);
   const [selectedRequestor, setSelectedRequestor] = useState<string>("");
   const [selectedTarget, setSelectedTarget] = useState<string>("");
@@ -112,7 +112,7 @@ export function SwapManager() {
 
     const requestor = providers.find(p => p.id === selectedRequestor);
     const target = selectedTarget ? providers.find(p => p.id === selectedTarget) : undefined;
-    
+
     if (!requestor) return;
 
     // Find the slots
@@ -178,11 +178,10 @@ export function SwapManager() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-              filter === f 
-                ? "bg-primary text-white" 
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${filter === f
+              ? "bg-primary text-white"
+              : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
           >
             {f}
             {f === "pending" && swapRequests.filter(r => r.status === "pending").length > 0 && (
@@ -205,11 +204,12 @@ export function SwapManager() {
           >
             <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-200/60 space-y-4">
               <h3 className="text-sm font-bold text-slate-700">New Swap Request</h3>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Requestor</label>
                   <select
+                    title="Select Requestor"
                     value={selectedRequestor}
                     onChange={(e) => setSelectedRequestor(e.target.value)}
                     className="w-full bg-white border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -224,6 +224,7 @@ export function SwapManager() {
                 <div className="space-y-2">
                   <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Target (Optional)</label>
                   <select
+                    title="Select Target"
                     value={selectedTarget}
                     onChange={(e) => setSelectedTarget(e.target.value)}
                     className="w-full bg-white border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -239,6 +240,7 @@ export function SwapManager() {
                   <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Your Shift Date</label>
                   <input
                     type="date"
+                    title="Your Shift Date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
                     className="w-full bg-white border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -249,6 +251,7 @@ export function SwapManager() {
                   <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Desired Shift Date</label>
                   <input
                     type="date"
+                    title="Desired Shift Date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                     className="w-full bg-white border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -274,11 +277,11 @@ export function SwapManager() {
                     const target = selectedTarget ? getProvider(selectedTarget) : undefined;
                     const fromSlot = slots.find(s => s.date === fromDate && s.providerId === selectedRequestor);
                     const toSlot = slots.find(s => s.date === toDate && (selectedTarget ? s.providerId === selectedTarget : true));
-                    
+
                     if (!requestor) return null;
-                    
+
                     const validation = validateSwapRequest(requestor, target, fromSlot, toSlot, slots);
-                    
+
                     return (
                       <div className="space-y-2">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Validation Check</p>
@@ -350,30 +353,28 @@ export function SwapManager() {
           filteredRequests.map((request) => {
             const requestor = getProvider(request.requestorId);
             const target = request.targetProviderId ? getProvider(request.targetProviderId) : undefined;
-            
+
             return (
               <motion.div
                 key={request.id}
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`p-4 bg-white/40 rounded-2xl border transition-all ${
-                  request.status === "pending" ? "border-warning/30" :
+                className={`p-4 bg-white/40 rounded-2xl border transition-all ${request.status === "pending" ? "border-warning/30" :
                   request.status === "approved" ? "border-success/30" :
-                  request.status === "rejected" ? "border-error/30" :
-                  "border-slate-200/40"
-                }`}
+                    request.status === "rejected" ? "border-error/30" :
+                      "border-slate-200/40"
+                  }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     {/* Header */}
                     <div className="flex items-center gap-3 mb-3">
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
-                        request.status === "pending" ? "bg-warning/10 text-warning" :
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${request.status === "pending" ? "bg-warning/10 text-warning" :
                         request.status === "approved" ? "bg-success/10 text-success" :
-                        request.status === "rejected" ? "bg-error/10 text-error" :
-                        "bg-slate-100 text-slate-500"
-                      }`}>
+                          request.status === "rejected" ? "bg-error/10 text-error" :
+                            "bg-slate-100 text-slate-500"
+                        }`}>
                         {request.status}
                       </span>
                       <span className="text-[9px] text-slate-400">
