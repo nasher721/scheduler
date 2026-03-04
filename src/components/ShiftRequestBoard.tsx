@@ -10,6 +10,7 @@ import {
   type ShiftRequestType,
 } from "../lib/api";
 import { useScheduleStore } from "../store";
+import { supabase } from "../lib/supabase";
 
 const REQUEST_TYPE_LABELS: Record<ShiftRequestType, string> = {
   time_off: "Time Off",
@@ -65,6 +66,22 @@ export function ShiftRequestBoard() {
     }, 15000);
 
     return () => window.clearInterval(interval);
+  }, [loadRequests, statusFilter]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("shift-request-board-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "shift_requests" }, () => {
+        void loadRequests(statusFilter);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "email_events" }, () => {
+        void listEmailEvents().then((response) => setEmailEventCount(response.events.length)).catch(() => undefined);
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [loadRequests, statusFilter]);
 
   const submitRequest = async (event: React.FormEvent) => {

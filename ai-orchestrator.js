@@ -815,10 +815,16 @@ const SUPPORTED_INTENTS = [
   "request_swap",
   "optimize_schedule",
   "check_coverage",
+  "assign_shift",
+  "unassign_shift",
+  "save_scenario",
+  "load_scenario",
+  "delete_scenario",
   "explain_assignment",
   "simulate_scenario",
   "get_recommendations",
   "show_conflicts",
+  "resolve_conflicts",
   "adjust_preferences",
   "greeting",
   "unknown"
@@ -830,9 +836,15 @@ const INTENT_PATTERNS = {
   request_swap: /(swap|trade|exchange|switch).*(shift|with)/i,
   optimize_schedule: /(optimize|balance|improve|better|fix|adjust).*(schedule|shifts|fair)/i,
   check_coverage: /(who|coverage|covering|working|on call|oncall).*(weekend|night|day|shift)/i,
+  assign_shift: /(assign|schedule|put).*(day|night|nmet|jeopardy|recovery|consult|shift).*(to|for)?/i,
+  unassign_shift: /(unassign|remove|clear).*(shift|assignment|coverage)/i,
+  save_scenario: /(save|create).*(scenario|snapshot)/i,
+  load_scenario: /(load|open|restore).*(scenario|snapshot)/i,
+  delete_scenario: /(delete|remove).*(scenario|snapshot)/i,
   explain_assignment: /(why|how come|explain).*(assigned|schedule|shift)/i,
   simulate_scenario: /(what if|simulate|scenario|suppose|if).*(sick|absent|missing)/i,
   get_recommendations: /(recommend|suggest|advice|how can|what should)/i,
+  resolve_conflicts: /(resolve|fix|auto[- ]?fix).*(conflict|problem|issue|violation)/i,
   show_conflicts: /(conflict|problem|issue|violation|overlap|double)/i,
   adjust_preferences: /(prefer|want|like).*(fewer|less|more|weekend|night)/i,
 };
@@ -882,7 +894,8 @@ function extractEntitiesRuleBased(text) {
     date: null,
     dateRange: null,
     shiftType: null,
-    targetProvider: null
+    targetProvider: null,
+    scenarioName: null,
   };
 
   // Extract provider names (Dr. X or simple names)
@@ -920,6 +933,11 @@ function extractEntitiesRuleBased(text) {
     entities.shiftType = shiftMatch[1].toUpperCase();
   }
 
+  const scenarioMatch = text.match(/scenario\s+(?:named\s+)?["']?([a-z0-9 _-]{2,40})["']?/i);
+  if (scenarioMatch) {
+    entities.scenarioName = scenarioMatch[1].trim();
+  }
+
   return entities;
 }
 
@@ -955,7 +973,8 @@ Return ONLY a JSON object:
     "providerName": "extracted name or null",
     "date": "extracted date reference or null",
     "shiftType": "DAY|NIGHT|G20|H22|AKRON|CONSULT|NMET|JEOPARDY|RECOVERY or null",
-    "targetProvider": "for swaps, who to swap with or null"
+      "targetProvider": "for swaps, who to swap with or null",
+      "scenarioName": "scenario name when provided, else null"
   }
 }`;
 }
@@ -1078,7 +1097,8 @@ async function buildCopilotResponse(intentResult, context, history) {
       message: "I'll analyze the current schedule and suggest optimizations for better fairness and coverage.",
       suggestions: ['Optimize now', 'Show me conflicts first', 'Adjust optimization goals'],
       requiresConfirmation: true,
-      preview: { type: 'optimization', estimatedImpact: 'Calculating...' }
+      preview: { type: 'optimization', estimatedImpact: 'Calculating...' },
+      actions: [{ type: "auto_assign" }]
     },
     
     check_coverage: {
@@ -1115,6 +1135,58 @@ async function buildCopilotResponse(intentResult, context, history) {
       suggestions: ['Show all conflicts', 'Show critical only', 'Auto-fix where possible'],
       requiresConfirmation: false,
       actions: [{ type: 'detect_conflicts' }]
+    },
+
+    resolve_conflicts: {
+      message: "I can auto-resolve conflicts that support safe auto-fixes and leave the rest for manual review.",
+      suggestions: ['Run auto-fix now', 'Show unresolved only', 'Rescan conflicts'],
+      requiresConfirmation: false,
+      actions: [{ type: "detect_conflicts" }, { type: "resolve_conflicts" }]
+    },
+
+    assign_shift: {
+      message: entities.date
+        ? `I can assign a shift${entities.shiftType ? ` (${entities.shiftType})` : ""} on ${entities.date}.`
+        : "I can assign a shift. Tell me the date (and optional shift type).",
+      suggestions: ['Assign selected date', 'Assign night shift', 'Assign day shift'],
+      requiresConfirmation: false,
+      actions: [{ type: "assign_shift", date: entities.date, shiftType: entities.shiftType, providerName: entities.targetProvider || entities.providerName }]
+    },
+
+    unassign_shift: {
+      message: entities.date
+        ? `I can clear the assignment${entities.shiftType ? ` for ${entities.shiftType}` : ""} on ${entities.date}.`
+        : "I can remove a shift assignment. Tell me the date (and optional shift type).",
+      suggestions: ['Clear selected date', 'Clear night shift', 'Clear day shift'],
+      requiresConfirmation: false,
+      actions: [{ type: "unassign_shift", date: entities.date, shiftType: entities.shiftType }]
+    },
+
+    save_scenario: {
+      message: entities.scenarioName
+        ? `Saving scenario "${entities.scenarioName}".`
+        : "I can save the current plan as a scenario snapshot.",
+      suggestions: ['Save scenario as Weekend Plan', 'Save scenario as Backup Roster'],
+      requiresConfirmation: false,
+      actions: [{ type: "save_scenario", scenarioName: entities.scenarioName }]
+    },
+
+    load_scenario: {
+      message: entities.scenarioName
+        ? `I can load scenario "${entities.scenarioName}".`
+        : "I can load a saved scenario. Tell me which one.",
+      suggestions: ['Load latest scenario', 'Load Weekend Plan'],
+      requiresConfirmation: false,
+      actions: [{ type: "load_scenario", scenarioName: entities.scenarioName }]
+    },
+
+    delete_scenario: {
+      message: entities.scenarioName
+        ? `I can delete scenario "${entities.scenarioName}".`
+        : "I can delete a saved scenario. Tell me which one.",
+      suggestions: ['Delete latest scenario', 'Delete Weekend Plan'],
+      requiresConfirmation: false,
+      actions: [{ type: "delete_scenario", scenarioName: entities.scenarioName }]
     },
     
     adjust_preferences: {

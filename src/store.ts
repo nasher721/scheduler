@@ -398,6 +398,17 @@ interface ScheduleState {
   applyAISuggestion: (suggestionId: string) => void;
   applyAllAISuggestions: () => void;
   rejectAISuggestions: () => void;
+  queueAISuggestions: (
+    preview: unknown,
+    suggestions: Array<{
+      id: string;
+      type: 'assign' | 'remove' | 'swap';
+      slotId: string;
+      fromProviderId?: string | null;
+      toProviderId?: string | null;
+      reason: string;
+    }>
+  ) => void;
   showChangePreview: boolean;
   changePreviewData: unknown;
   openChangePreview: (preview: unknown) => void;
@@ -416,6 +427,17 @@ interface ScheduleState {
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+
+function isNetworkRegistrationError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("failed to fetch")
+    || normalized.includes("fetch failed")
+    || normalized.includes("network")
+    || normalized.includes("connection failed")
+  );
+}
+
 const baseProviders: Provider[] = [
   { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
   { id: "2", name: "Dr. Baker", email: "baker@hospital.org", role: "CLINICIAN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
@@ -832,12 +854,12 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       register: async (provider) => {
-        const state = get();
         const normalizedEmail = provider.email?.toLowerCase().trim();
         const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
         const bypassSupabase = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
 
         const addProviderLocally = (providerToAdd: Provider) => {
+          const state = get();
           const historyState: HistoryState = {
             providers: state.providers,
             slots: state.slots,
@@ -858,7 +880,7 @@ export const useScheduleStore = create<ScheduleState>()(
         };
 
         if (bypassSupabase) {
-          if (normalizedEmail && state.providers.some(p => p.email?.toLowerCase() === normalizedEmail)) {
+          if (normalizedEmail && get().providers.some(p => p.email?.toLowerCase() === normalizedEmail)) {
             get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
             return;
           }
@@ -879,11 +901,36 @@ export const useScheduleStore = create<ScheduleState>()(
         }
 
         try {
+          if (normalizedEmail && get().providers.some(p => p.email?.toLowerCase() === normalizedEmail)) {
+            get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
+            return;
+          }
           const { provider: newProvider } = await registerProvider(provider);
           addProviderLocally(newProvider);
           get().showToast({ type: "success", title: "Registration Successful", message: `Welcome, ${newProvider.name}!` });
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "Email already in use.";
+          if (isNetworkRegistrationError(message)) {
+            if (normalizedEmail && get().providers.some(p => p.email?.toLowerCase() === normalizedEmail)) {
+              get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
+              return;
+            }
+
+            const fallbackProvider: Provider = {
+              ...provider,
+              email: normalizedEmail,
+              id: crypto.randomUUID(),
+            };
+
+            addProviderLocally(fallbackProvider);
+            get().showToast({
+              type: "warning",
+              title: "Registered in Offline Mode",
+              message: "Auth service is unreachable, so your profile was created locally for now.",
+            });
+            return;
+          }
+
           get().showToast({ type: "error", title: "Registration Failed", message });
         }
       },
@@ -2186,6 +2233,14 @@ export const useScheduleStore = create<ScheduleState>()(
           type: 'info',
           title: 'Changes Rejected',
           message: 'All AI suggestions have been dismissed'
+        });
+      },
+
+      queueAISuggestions: (preview, suggestions) => {
+        set({
+          pendingAISuggestions: suggestions,
+          showChangePreview: true,
+          changePreviewData: preview,
         });
       },
 
