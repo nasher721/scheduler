@@ -593,7 +593,7 @@ const serviceLocationConfig: Record<string, {
   },
 };
 
-const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot[] => {
+export const generateInitialSlots = (startDateStr: string, numWeeks: number): ShiftSlot[] => {
   const slots: ShiftSlot[] = [];
   const start = startOfWeek(parseISO(startDateStr), { weekStartsOn: 1 });
 
@@ -932,21 +932,21 @@ export const useScheduleStore = create<ScheduleState>()(
       login: async (email) => {
         const normalizedEmail = email.toLowerCase().trim();
         const bypassSupabase = shouldUseLocalAuthBypass();
-        
+
         if (bypassSupabase) {
           console.log('[DEV] Bypassing Supabase auth for:', normalizedEmail);
-          
+
           // Find provider by email
-          const provider = get().providers.find(p => 
+          const provider = get().providers.find(p =>
             p.email?.toLowerCase() === normalizedEmail
           );
-          
+
           if (provider) {
             set({ currentUser: provider });
-            get().showToast({ 
-              type: "success", 
-              title: "Welcome back", 
-              message: `Logged in as ${provider.name}` 
+            get().showToast({
+              type: "success",
+              title: "Welcome back",
+              message: `Logged in as ${provider.name}`
             });
           } else {
             // Auto-create a provider for unknown emails in dev mode
@@ -965,16 +965,16 @@ export const useScheduleStore = create<ScheduleState>()(
               maxConsecutiveNights: 2,
               minDaysOffAfterNight: 1,
             };
-            
-            set(state => ({ 
+
+            set(state => ({
               providers: [...state.providers, newProvider],
-              currentUser: newProvider 
+              currentUser: newProvider
             }));
-            
-            get().showToast({ 
-              type: "success", 
-              title: "Welcome", 
-              message: `Created account for ${normalizedEmail}` 
+
+            get().showToast({
+              type: "success",
+              title: "Welcome",
+              message: `Created account for ${normalizedEmail}`
             });
           }
           return;
@@ -1004,13 +1004,13 @@ export const useScheduleStore = create<ScheduleState>()(
         } catch (error) {
           console.error("Unexpected Login Error:", error);
           const message = error instanceof Error ? error.message : "An unexpected error occurred.";
-          
+
           // Provide more helpful error message
           let userMessage = message;
           if (message.includes("Failed to fetch")) {
             userMessage = "Cannot connect to authentication server. If you're a developer, you can enable DEV mode bypass.";
           }
-          
+
           get().showToast({
             type: "error",
             title: "Login Error",
@@ -1409,7 +1409,7 @@ export const useScheduleStore = create<ScheduleState>()(
           const getLocationPriority = (slot: ShiftSlot) => {
             const serviceOrder = getServicePriority(slot);
             if (serviceOrder !== 0) return serviceOrder;
-            
+
             // Within critical services, prioritize by location
             const loc = slot.location.toLowerCase();
             if (loc.includes("g20")) return 0;

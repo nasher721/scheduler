@@ -1,6 +1,6 @@
-import { format } from "date-fns";
+import { format, parseISO, addDays, startOfWeek, differenceInCalendarDays } from "date-fns";
 import * as XLSX from "xlsx";
-import { useScheduleStore } from "../store.ts";
+import { useScheduleStore, generateInitialSlots } from "../store.ts";
 import type { Provider, ShiftSlot } from "../store.ts";
 
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
@@ -920,14 +920,53 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
     transactionSnapshot = createImportSnapshot(store.providers, store.slots);
 
     const providers = structuredClone(transactionSnapshot.providers);
-    const slots = structuredClone(transactionSnapshot.slots);
+
+    // ── Determine the date range covered by the imported rows ──────────────────
+    const validDates = preview.rows
+      .map(r => r.date)
+      .filter((d): d is string => Boolean(d) && /^\d{4}-\d{2}-\d{2}$/.test(d));
+
+    let slotsForImport: ShiftSlot[];
+
+    if (validDates.length > 0) {
+      const sortedDates = [...validDates].sort();
+      const minDate = sortedDates[0];
+      const maxDate = sortedDates[sortedDates.length - 1];
+
+      // Snap to the Monday of the first week through the Sunday of the last week
+      const importStart = startOfWeek(parseISO(minDate), { weekStartsOn: 1 });
+      const importEnd = parseISO(maxDate);
+      const daySpan = differenceInCalendarDays(importEnd, importStart);
+      const numWeeks = Math.ceil((daySpan + 1) / 7);
+
+      const importStartStr = format(importStart, "yyyy-MM-dd");
+
+      // Generate a complete set of slots for the imported date range
+      const freshImportSlots = generateInitialSlots(importStartStr, Math.max(numWeeks, 1));
+
+      // Build a set of all dates covered by the import
+      const importDateSet = new Set<string>();
+      for (let i = 0; i <= daySpan + 7; i++) {
+        importDateSet.add(format(addDays(importStart, i), "yyyy-MM-dd"));
+      }
+
+      // Keep existing slots that fall OUTSIDE the import range (preserve other months)
+      const existingOutsideRange = structuredClone(transactionSnapshot.slots).filter(
+        slot => !importDateSet.has(slot.date)
+      );
+
+      slotsForImport = [...existingOutsideRange, ...freshImportSlots];
+    } else {
+      // No valid dates — fall back to existing slots
+      slotsForImport = structuredClone(transactionSnapshot.slots);
+    }
 
     const providerIdByName = new Map<string, string>();
     providers.forEach((provider) => {
       providerIdByName.set(provider.name.trim().toLowerCase(), provider.id);
     });
 
-    const ignoredProviderNames = new Set(["unassigned", "open", "n/a"]);
+    const ignoredProviderNames = new Set(["unassigned", "open", "n/a", ""]);
 
     const getOrCreateProviderId = (name: string): string | null => {
       const cleanName = name.trim();
@@ -960,14 +999,14 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
       return newProvider.id;
     };
 
+    // Build lookup from date+serviceLocation → slot (mutable reference)
     const slotsByDateAndService = new Map<string, ShiftSlot>();
-    slots.forEach((slot) => {
+    slotsForImport.forEach((slot) => {
       const slotKey = `${slot.date}::${slot.serviceLocation}`;
       slotsByDateAndService.set(slotKey, slot);
     });
 
     let appliedAssignments = 0;
-    let vacationEntries = 0;
 
     preview.rows.forEach((row) => {
       if (!row.date || row.issues.some((issue) => issue.type === "error")) {
@@ -992,14 +1031,13 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
                   date: row.date,
                   type: "PTO"
                 });
-                vacationEntries++;
               }
             }
           });
           return;
         }
 
-        // Find slot by service location
+        // Find slot by date + service location
         const slotKey = `${row.date}::${slotSpec.serviceLocation}`;
         const slot = slotsByDateAndService.get(slotKey);
 
@@ -1017,7 +1055,9 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
 
         // Handle secondary providers (shared assignments)
         if (names.length > 1) {
-          slot.secondaryProviderIds = names.slice(1).map(name => getOrCreateProviderId(name)).filter((id): id is string => Boolean(id));
+          slot.secondaryProviderIds = names.slice(1)
+            .map(name => getOrCreateProviderId(name))
+            .filter((id): id is string => Boolean(id));
           slot.isSharedAssignment = true;
         }
 
@@ -1025,7 +1065,7 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
       });
     });
 
-    useScheduleStore.getState().applyImportedSnapshot(providers, slots, appliedAssignments, preview.invalidRows);
+    useScheduleStore.getState().applyImportedSnapshot(providers, slotsForImport, appliedAssignments, preview.invalidRows);
     lastImportSnapshot = transactionSnapshot;
 
     return {
