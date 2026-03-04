@@ -6,7 +6,6 @@ import {
   listEmailEvents,
   listShiftRequests,
   reviewShiftRequest,
-  submitInboundEmail,
   updateEmailEvent,
   type EmailEvent,
   type ShiftRequest,
@@ -39,9 +38,6 @@ export function ShiftRequestBoard() {
   const [date, setDate] = useState("");
   const [type, setType] = useState<ShiftRequestType>("time_off");
   const [notes, setNotes] = useState("");
-  const [emailFrom, setEmailFrom] = useState("");
-  const [emailSubject, setEmailSubject] = useState("Schedule change request");
-  const [emailBody, setEmailBody] = useState("date: \ntype: time_off\nnotes: ");
   const [emailEventCount, setEmailEventCount] = useState(0);
   const [emailEvents, setEmailEvents] = useState<EmailEvent[]>([]);
 
@@ -116,22 +112,6 @@ export function ShiftRequestBoard() {
     }
   };
 
-  const submitInboundRequestEmail = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!emailFrom.trim() || !emailSubject.trim()) {
-      showToast({ type: "warning", title: "Missing email metadata", message: "Sender and subject are required." });
-      return;
-    }
-
-    try {
-      await submitInboundEmail({ from: emailFrom, subject: emailSubject, body: emailBody });
-      await loadRequests();
-      await loadEmailEvents();
-      showToast({ type: "success", title: "Email triaged", message: "Inbound email was converted to a pending request." });
-    } catch {
-      showToast({ type: "error", title: "Email triage failed", message: "Could not process inbound email into triage board." });
-    }
-  };
 
   const updateEventStatus = async (eventId: string, status: string) => {
     try {
@@ -243,24 +223,6 @@ export function ShiftRequestBoard() {
       </form>
 
 
-      <form onSubmit={submitInboundRequestEmail} className="grid grid-cols-1 lg:grid-cols-6 gap-3 items-end border border-slate-200 rounded-xl p-3 bg-slate-50">
-        <p className="lg:col-span-6 text-xs text-slate-600">Triage inbound provider emails into pending requests (auto-refreshes every 15s).</p>
-        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
-          From
-          <input type="email" value={emailFrom} onChange={(event) => setEmailFrom(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" placeholder="physician@hospital.org" />
-        </label>
-        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
-          Subject
-          <input type="text" value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
-        </label>
-        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
-          Body
-          <input type="text" value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
-        </label>
-        <button type="submit" className="lg:col-span-6 justify-self-end px-4 py-2 rounded-lg bg-slate-800 text-white text-xs font-semibold">
-          Triage Inbound Email
-        </button>
-      </form>
 
       <div className="flex justify-end">
         <label className="text-xs text-slate-600 flex items-center gap-2">
