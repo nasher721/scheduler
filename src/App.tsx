@@ -37,8 +37,9 @@ import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
-import { saveScheduleState } from "./lib/api";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { saveScheduleState, loadScheduleState } from "./lib/api";
+import { supabase } from "./lib/supabase";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function App() {
@@ -88,9 +89,74 @@ export default function App() {
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
   const [isAiMapping, setIsAiMapping] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const isOnline = useNetworkStatus();
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
+
+  // ── Autosave: debounce 4s after any slot or provider change ───────────
+  const performSave = useCallback(async () => {
+    setAutoSaveStatus("saving");
+    try {
+      await saveScheduleState({
+        providers,
+        startDate,
+        numWeeks,
+        slots,
+        scenarios,
+        customRules,
+        auditLog,
+      });
+      setAutoSaveStatus("saved");
+      setTimeout(() => setAutoSaveStatus("idle"), 2000);
+    } catch {
+      setAutoSaveStatus("error");
+      setTimeout(() => setAutoSaveStatus("idle"), 3000);
+    }
+  }, [providers, startDate, numWeeks, slots, scenarios, customRules, auditLog]);
+
+  useEffect(() => {
+    // Don't autosave if not logged in or offline
+    if (!currentUser || !isOnline) return;
+    setAutoSaveStatus("pending");
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      performSave();
+    }, 4000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, providers]);
+
+  // ── Real-time: reload when another client mutates slots in Supabase ───
+  useEffect(() => {
+    if (!currentUser) return;
+    const channel = supabase
+      .channel("slots-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "slots" },
+        async () => {
+          try {
+            const { state } = await loadScheduleState();
+            if (state) {
+              useScheduleStore.setState({
+                providers: state.providers,
+                slots: state.slots,
+                startDate: state.startDate,
+                numWeeks: state.numWeeks,
+              });
+            }
+          } catch {
+            // ignore realtime reload errors silently
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUser]);
 
   const assigned = slots.filter((slot) => slot.providerId).length;
   const coverage = Math.round((assigned / Math.max(slots.length, 1)) * 100);
@@ -312,7 +378,18 @@ export default function App() {
                     <Sparkles className="w-3.5 h-3.5" />
                     Auto-Fill
                   </motion.button>
-                  <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync API"><Save className="w-4 h-4" /></button>
+                  {/* Autosave status chip */}
+                  {autoSaveStatus !== "idle" && (
+                    <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full ${autoSaveStatus === "saving" || autoSaveStatus === "pending"
+                        ? "bg-blue-100 text-blue-600 animate-pulse"
+                        : autoSaveStatus === "saved"
+                          ? "bg-emerald-100 text-emerald-600"
+                          : "bg-rose-100 text-rose-600"
+                      }`}>
+                      {autoSaveStatus === "pending" ? "Pending…" : autoSaveStatus === "saving" ? "Saving…" : autoSaveStatus === "saved" ? "✓ Saved" : "Save Failed"}
+                    </span>
+                  )}
+                  <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync to server now"><Save className="w-4 h-4" /></button>
                   <button onClick={handleClearSchedule} className="p-2 text-slate-400 hover:text-amber-600 transition-colors" title="Clear Schedule"><Trash className="w-4 h-4" /></button>
                   <button onClick={handleClearStaff} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Clear Staff"><AlertTriangle className="w-4 h-4" /></button>
                   <div className="w-px h-6 bg-slate-200/60 mx-1" />

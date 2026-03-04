@@ -2,13 +2,13 @@ import { useState, useMemo } from "react";
 import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type CalendarPresentationMode, type ShiftType, type ServicePriority } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday, isWeekend, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns";
-import { 
-  GripVertical, 
-  Sun, 
-  Moon, 
-  AlertTriangle, 
-  Sparkles, 
-  Activity, 
+import {
+  GripVertical,
+  Sun,
+  Moon,
+  AlertTriangle,
+  Sparkles,
+  Activity,
   Stethoscope,
   Calendar as CalendarIcon,
   Clock,
@@ -53,10 +53,10 @@ const servicePriorityConfig: Record<ServicePriority, {
   }
 };
 
-const shiftConfig: Record<ShiftType, { 
-  label: string; 
-  icon: React.ReactNode; 
-  colorClass: string; 
+const shiftConfig: Record<ShiftType, {
+  label: string;
+  icon: React.ReactNode;
+  colorClass: string;
   bgClass: string;
   borderClass: string;
 }> = {
@@ -114,13 +114,13 @@ const shiftConfig: Record<ShiftType, {
 
 
 // Provider Avatar Component
-function ProviderAvatar({ provider, size = "md", showConflict = false }: { 
-  provider?: Provider; 
+function ProviderAvatar({ provider, size = "md", showConflict = false }: {
+  provider?: Provider;
   size?: "sm" | "md" | "lg";
   showConflict?: boolean;
 }) {
   if (!provider) return null;
-  
+
   const sizeClasses = {
     sm: "w-6 h-6 text-[10px]",
     md: "w-8 h-8 text-xs",
@@ -170,15 +170,13 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
         ref={setNodeRef}
         whileHover={{ scale: 1.02 }}
         onClick={() => onClick(slot)}
-        className={`p-2 rounded-lg border cursor-pointer transition-all ${
-          isOver ? 'border-primary bg-primary/5' : ''
-        } ${
-          provider 
-            ? `${config.bgClass} ${config.borderClass}` 
+        className={`p-2 rounded-lg border cursor-pointer transition-all ${isOver ? 'border-primary bg-primary/5' : ''
+          } ${provider
+            ? `${config.bgClass} ${config.borderClass}`
             : isCriticalUnfilled
               ? 'bg-rose-50 border-rose-200'
               : 'bg-white border-slate-200'
-        } ${hasConflict ? 'ring-1 ring-error' : ''}`}
+          } ${hasConflict ? 'ring-1 ring-error' : ''}`}
       >
         <div className="flex items-center gap-2">
           <span className={`w-1 h-6 rounded-full ${priorityConfig.indicatorColor}`} />
@@ -206,15 +204,13 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
       layout
       whileHover={{ scale: 1.02, y: -2 }}
       onClick={() => onClick(slot)}
-      className={`relative p-3 rounded-2xl border-2 transition-all cursor-pointer ${
-        isOver ? 'border-primary bg-primary/5 scale-105' : ''
-      } ${
-        provider 
-          ? `${config.bgClass} ${config.borderClass}` 
+      className={`relative p-3 rounded-2xl border-2 transition-all cursor-pointer ${isOver ? 'border-primary bg-primary/5 scale-105' : ''
+        } ${provider
+          ? `${config.bgClass} ${config.borderClass}`
           : isCriticalUnfilled
             ? 'bg-rose-50 border-rose-300'
             : 'bg-white border-slate-200 hover:border-slate-300'
-      } ${hasConflict ? 'ring-2 ring-error/50' : ''}`}
+        } ${hasConflict ? 'ring-2 ring-error/50' : ''}`}
     >
       <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-full ${priorityConfig.indicatorColor}`} />
 
@@ -248,9 +244,8 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
           </>
         ) : (
           <div className="flex items-center gap-2 text-slate-400">
-            <div className={`w-6 h-6 rounded-full border-2 border-dashed flex items-center justify-center ${
-              isCriticalUnfilled ? 'border-rose-300' : 'border-slate-300'
-            }`}>
+            <div className={`w-6 h-6 rounded-full border-2 border-dashed flex items-center justify-center ${isCriticalUnfilled ? 'border-rose-300' : 'border-slate-300'
+              }`}>
               <User className="w-3 h-3" />
             </div>
             <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-400 font-medium' : ''}`}>
@@ -266,14 +261,14 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
 // ============ VIEW COMPONENTS ============
 
 // 1. GRID VIEW (Default)
-function GridView({ 
-  slots, 
-  providers, 
-  conflicts, 
+function GridView({
+  slots,
+  providers,
+  conflicts,
   weekDates,
-  onShiftClick 
-}: { 
-  slots: ShiftSlot[]; 
+  onShiftClick
+}: {
+  slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
@@ -303,13 +298,12 @@ function GridView({
             transition={{ delay: idx * 0.05 }}
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className={`flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg ${
-                isTodayDay 
-                  ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg' 
-                  : isWeekendDay 
-                    ? 'bg-amber-100 text-amber-700' 
-                    : 'bg-slate-100 text-slate-700'
-              }`}>
+              <div className={`flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg ${isTodayDay
+                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg'
+                : isWeekendDay
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-slate-100 text-slate-700'
+                }`}>
                 {format(date, "d")}
               </div>
               <div>
@@ -317,9 +311,8 @@ function GridView({
                   {format(date, "EEEE, MMMM d")}
                 </h3>
                 {(isTodayDay || isWeekendDay) && (
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                    isTodayDay ? 'text-primary' : 'text-amber-600'
-                  }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isTodayDay ? 'text-primary' : 'text-amber-600'
+                    }`}>
                     {isTodayDay && 'Today'}
                     {isTodayDay && isWeekendDay && ' • '}
                     {isWeekendDay && 'Weekend'}
@@ -335,7 +328,7 @@ function GridView({
               {(Object.entries(slotsByPriority) as [ServicePriority, ShiftSlot[]][]).map(([priority, prioritySlots]) => {
                 if (prioritySlots.length === 0) return null;
                 const config = servicePriorityConfig[priority];
-                
+
                 return (
                   <div key={priority} className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -347,12 +340,12 @@ function GridView({
                         ({prioritySlots.filter(s => s.providerId).length}/{prioritySlots.length})
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                       {prioritySlots.map((slot) => {
                         const provider = providers.find(p => p.id === slot.providerId);
                         const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
-                        
+
                         return (
                           <ShiftCard
                             key={slot.id}
@@ -376,13 +369,13 @@ function GridView({
 }
 
 // 2. LIST VIEW
-function ListView({ 
-  slots, 
-  providers, 
+function ListView({
+  slots,
+  providers,
   conflicts,
-  onShiftClick 
-}: { 
-  slots: ShiftSlot[]; 
+  onShiftClick
+}: {
+  slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   onShiftClick: (slot: ShiftSlot) => void;
@@ -391,7 +384,7 @@ function ListView({
     // Sort by date, then by priority
     const dateCompare = a.date.localeCompare(b.date);
     if (dateCompare !== 0) return dateCompare;
-    
+
     const priorityOrder = { CRITICAL: 0, STANDARD: 1, FLEXIBLE: 2 };
     return priorityOrder[a.servicePriority] - priorityOrder[b.servicePriority];
   });
@@ -412,16 +405,15 @@ function ListView({
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             onClick={() => onShiftClick(slot)}
-            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
-              isCriticalUnfilled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200'
-            } ${hasConflict ? 'ring-1 ring-error' : ''}`}
+            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${isCriticalUnfilled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200'
+              } ${hasConflict ? 'ring-1 ring-error' : ''}`}
           >
             <div className={`w-1 h-10 rounded-full ${priorityConfig.indicatorColor}`} />
 
             <div className={`p-2 rounded-lg ${config.bgClass} ${config.colorClass}`}>
               {config.icon}
             </div>
-            
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-bold ${config.colorClass}`}>{slot.serviceLocation}</span>
@@ -455,14 +447,14 @@ function ListView({
 }
 
 // 3. BAR VIEW (Timeline-style bars)
-function BarView({ 
-  slots, 
-  providers, 
+function BarView({
+  slots,
+  providers,
   conflicts,
   weekDates,
-  onShiftClick 
-}: { 
-  slots: ShiftSlot[]; 
+  onShiftClick
+}: {
+  slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
@@ -471,10 +463,10 @@ function BarView({
   // Group by provider for a Gantt-like view
   const providerSlots = useMemo(() => {
     const byProvider = new Map<string, ShiftSlot[]>();
-    
+
     // Add all providers
     providers.forEach(p => byProvider.set(p.id, []));
-    
+
     // Group slots
     slots.forEach(slot => {
       if (slot.providerId) {
@@ -483,7 +475,7 @@ function BarView({
         byProvider.set(slot.providerId, list);
       }
     });
-    
+
     return byProvider;
   }, [slots, providers]);
 
@@ -494,9 +486,8 @@ function BarView({
         <div className="flex border-b border-slate-200">
           <div className="w-40 p-3 bg-slate-50 text-xs font-bold text-slate-500 sticky left-0">Provider</div>
           {weekDates.map(date => (
-            <div key={format(date, "yyyy-MM-dd")} className={`flex-1 p-3 text-center text-xs font-bold border-l border-slate-200 ${
-              isToday(date) ? 'bg-blue-50 text-blue-700' : isWeekend(date) ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-600'
-            }`}>
+            <div key={format(date, "yyyy-MM-dd")} className={`flex-1 p-3 text-center text-xs font-bold border-l border-slate-200 ${isToday(date) ? 'bg-blue-50 text-blue-700' : isWeekend(date) ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-600'
+              }`}>
               <div>{format(date, "EEE")}</div>
               <div>{format(date, "d")}</div>
             </div>
@@ -506,34 +497,33 @@ function BarView({
         {/* Provider Rows */}
         {providers.map((provider) => {
           const pSlots = providerSlots.get(provider.id) || [];
-          
+
           return (
             <div key={provider.id} className="flex border-b border-slate-100 hover:bg-slate-50/50">
               <div className="w-40 p-3 flex items-center gap-2 sticky left-0 bg-white">
                 <ProviderAvatar provider={provider} size="sm" />
                 <span className="text-sm font-medium text-slate-700 truncate">{provider.name}</span>
               </div>
-              
+
               {weekDates.map(date => {
                 const dateStr = format(date, "yyyy-MM-dd");
                 const slot = pSlots.find(s => s.date === dateStr);
-                
+
                 if (!slot) {
                   return <div key={dateStr} className="flex-1 border-l border-slate-100 p-1" />;
                 }
-                
+
                 const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
                 const config = shiftConfig[slot.type];
                 const priorityConfig = servicePriorityConfig[slot.servicePriority];
-                
+
                 return (
                   <div key={dateStr} className="flex-1 border-l border-slate-100 p-1">
                     <motion.div
                       whileHover={{ scale: 1.05 }}
                       onClick={() => onShiftClick(slot)}
-                      className={`h-8 rounded-lg ${config.bgClass} ${config.borderClass} border flex items-center justify-center gap-1 cursor-pointer ${
-                        hasConflict ? 'ring-1 ring-error' : ''
-                      }`}
+                      className={`h-8 rounded-lg ${config.bgClass} ${config.borderClass} border flex items-center justify-center gap-1 cursor-pointer ${hasConflict ? 'ring-1 ring-error' : ''
+                        }`}
                       title={`${slot.serviceLocation} - ${format(parseISO(slot.date), "MMM d")}`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${priorityConfig.indicatorColor}`} />
@@ -556,12 +546,12 @@ function BarView({
             </div>
             <span className="text-sm font-medium text-amber-700">Unassigned</span>
           </div>
-          
+
           {weekDates.map(date => {
             const dateStr = format(date, "yyyy-MM-dd");
             const unassignedSlots = slots.filter(s => s.date === dateStr && !s.providerId);
             const criticalCount = unassignedSlots.filter(s => s.servicePriority === "CRITICAL").length;
-            
+
             return (
               <div key={dateStr} className="flex-1 border-l border-slate-200 p-2">
                 {unassignedSlots.length > 0 && (
@@ -602,14 +592,14 @@ function BarView({
 }
 
 // 4. WEEK VIEW (Compact weekly overview)
-function WeekView({ 
-  slots, 
-  providers, 
+function WeekView({
+  slots,
+  providers,
   conflicts,
   weekDates,
-  onShiftClick 
-}: { 
-  slots: ShiftSlot[]; 
+  onShiftClick
+}: {
+  slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
@@ -628,18 +618,16 @@ function WeekView({
             key={dateStr}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`min-h-[300px] rounded-2xl border-2 p-3 ${
-              isTodayDay 
-                ? 'border-primary bg-primary/5' 
-                : isWeekendDay 
-                  ? 'border-amber-200 bg-amber-50/30' 
-                  : 'border-slate-200 bg-white'
-            }`}
+            className={`min-h-[300px] rounded-2xl border-2 p-3 ${isTodayDay
+              ? 'border-primary bg-primary/5'
+              : isWeekendDay
+                ? 'border-amber-200 bg-amber-50/30'
+                : 'border-slate-200 bg-white'
+              }`}
           >
             {/* Day Header */}
-            <div className={`text-center pb-3 mb-3 border-b ${
-              isTodayDay ? 'border-primary/20' : 'border-slate-100'
-            }`}>
+            <div className={`text-center pb-3 mb-3 border-b ${isTodayDay ? 'border-primary/20' : 'border-slate-100'
+              }`}>
               <div className={`text-xs font-bold uppercase ${isWeekendDay ? 'text-amber-600' : 'text-slate-500'}`}>
                 {format(date, "EEE")}
               </div>
@@ -670,7 +658,7 @@ function WeekView({
                     />
                   );
                 })}
-              
+
               {/* Standard */}
               {daySlots
                 .filter(s => s.servicePriority === "STANDARD")
@@ -688,7 +676,7 @@ function WeekView({
                     />
                   );
                 })}
-              
+
               {/* Flexible */}
               {daySlots
                 .filter(s => s.servicePriority === "FLEXIBLE")
@@ -715,17 +703,17 @@ function WeekView({
 }
 
 // 5. MONTH VIEW
-function MonthView({ 
-  slots, 
-  onShiftClick 
-}: { 
-  slots: ShiftSlot[]; 
+function MonthView({
+  slots,
+  onShiftClick
+}: {
+  slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   onShiftClick: (slot: ShiftSlot) => void;
 }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  
+
   const monthDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -740,6 +728,7 @@ function MonthView({
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          title="Previous month"
           className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -749,6 +738,7 @@ function MonthView({
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          title="Next month"
           className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
@@ -785,19 +775,17 @@ function MonthView({
                   onShiftClick(daySlots[0]);
                 }
               }}
-              className={`min-h-[100px] p-2 rounded-xl border cursor-pointer transition-all ${
-                !isCurrentMonth 
-                  ? 'bg-slate-50 border-slate-100 opacity-50' 
-                  : isTodayDay
-                    ? 'bg-primary/5 border-primary'
-                    : isWeekendDay
-                      ? 'bg-amber-50/30 border-amber-100'
-                      : 'bg-white border-slate-200 hover:border-slate-300'
-              }`}
+              className={`min-h-[100px] p-2 rounded-xl border cursor-pointer transition-all ${!isCurrentMonth
+                ? 'bg-slate-50 border-slate-100 opacity-50'
+                : isTodayDay
+                  ? 'bg-primary/5 border-primary'
+                  : isWeekendDay
+                    ? 'bg-amber-50/30 border-amber-100'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
             >
-              <div className={`text-sm font-bold mb-1 ${
-                isTodayDay ? 'text-primary' : isCurrentMonth ? 'text-slate-700' : 'text-slate-400'
-              }`}>
+              <div className={`text-sm font-bold mb-1 ${isTodayDay ? 'text-primary' : isCurrentMonth ? 'text-slate-700' : 'text-slate-400'
+                }`}>
                 {format(date, "d")}
               </div>
 
@@ -811,9 +799,8 @@ function MonthView({
                       return (
                         <div
                           key={idx}
-                          className={`w-2 h-2 rounded-full ${
-                            isFilled ? config.indicatorColor : 'bg-slate-200'
-                          }`}
+                          className={`w-2 h-2 rounded-full ${isFilled ? config.indicatorColor : 'bg-slate-200'
+                            }`}
                           title={slot.serviceLocation}
                         />
                       );
@@ -846,13 +833,13 @@ function MonthView({
 }
 
 // 6. TIMELINE VIEW
-function TimelineView({ 
-  slots, 
+function TimelineView({
+  slots,
   providers,
   conflicts,
-  weekDates 
-}: { 
-  slots: ShiftSlot[]; 
+  weekDates
+}: {
+  slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
@@ -889,13 +876,13 @@ function TimelineView({
             {weekDates.map(date => {
               const dateStr = format(date, "yyyy-MM-dd");
               const slot = slots.find(s => s.date === dateStr && (
-                (s.type === "NIGHT" && hour >= 19) || 
+                (s.type === "NIGHT" && hour >= 19) ||
                 (s.type === "NIGHT" && hour < 7) ||
                 (s.type === "DAY" && hour >= 7 && hour < 19)
               ));
-              
+
               if (!slot) return <div key={`${dateStr}-${hour}`} className="flex-1 border-l border-slate-100" />;
-              
+
               const provider = providers.find(p => p.id === slot.providerId);
               const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
               const priorityConfig = servicePriorityConfig[slot.servicePriority];
@@ -959,11 +946,11 @@ function CoverageSummary({ slots }: { slots: ShiftSlot[] }) {
 }
 
 // View Selector Component
-function ViewSelector({ 
-  currentMode, 
-  onChange 
-}: { 
-  currentMode: CalendarPresentationMode; 
+function ViewSelector({
+  currentMode,
+  onChange
+}: {
+  currentMode: CalendarPresentationMode;
   onChange: (mode: CalendarPresentationMode) => void;
 }) {
   const views: { mode: CalendarPresentationMode; label: string; icon: React.ReactNode }[] = [
@@ -981,11 +968,10 @@ function ViewSelector({
         <button
           key={mode}
           onClick={() => onChange(mode)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            currentMode === mode
-              ? 'bg-white text-slate-900 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentMode === mode
+            ? 'bg-white text-slate-900 shadow-sm'
+            : 'text-slate-500 hover:text-slate-700'
+            }`}
         >
           {icon}
           <span className="hidden sm:inline">{label}</span>
@@ -999,15 +985,15 @@ function ViewSelector({
 export function EnhancedCalendar() {
   const { slots, providers, conflicts, setSelectedDate, setCalendarPresentationMode } = useScheduleStore();
   const { scheduleViewport, weekDates } = useScheduleViewport();
-  
+
   // Edit modal state
-  const [editingSlot, setEditingSlot] = useState<ShiftSlot | null>(null);
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Filter slots for current view
   const visibleSlots = useMemo(() => {
     const dateStrs = weekDates.map(d => format(d, "yyyy-MM-dd"));
-    
+
     return slots.filter(s => {
       // For month view, show all slots in the month
       if (scheduleViewport.calendarPresentationMode === "month") {
@@ -1015,7 +1001,7 @@ export function EnhancedCalendar() {
       }
       // For other views, filter by visible dates
       if (!dateStrs.includes(s.date)) return false;
-      
+
       if (scheduleViewport.shiftTypeFilter !== "all" && s.type !== scheduleViewport.shiftTypeFilter) return false;
       if (scheduleViewport.showConflictsOnly) {
         return conflicts.some(c => c.slotId === s.id && !c.resolvedAt);
@@ -1031,14 +1017,14 @@ export function EnhancedCalendar() {
   }, [slots, weekDates, scheduleViewport, conflicts, providers]);
 
   const handleShiftClick = (slot: ShiftSlot) => {
-    setEditingSlot(slot);
+    setEditingSlotId(slot.id);
     setSelectedDate(slot.date);
     setIsEditModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsEditModalOpen(false);
-    setEditingSlot(null);
+    setEditingSlotId(null);
   };
 
   return (
@@ -1064,8 +1050,8 @@ export function EnhancedCalendar() {
 
           <div className="flex items-center gap-3">
             {/* View Selector */}
-            <ViewSelector 
-              currentMode={scheduleViewport.calendarPresentationMode} 
+            <ViewSelector
+              currentMode={scheduleViewport.calendarPresentationMode}
               onChange={setCalendarPresentationMode}
             />
 
@@ -1158,7 +1144,7 @@ export function EnhancedCalendar() {
 
       {/* Edit Modal */}
       <ShiftEditModal
-        slot={editingSlot}
+        slotId={editingSlotId}
         isOpen={isEditModalOpen}
         onClose={handleCloseModal}
       />
