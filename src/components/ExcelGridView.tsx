@@ -1,9 +1,7 @@
 import { useState, useMemo } from "react";
-import { useScheduleStore, type ShiftType } from "../store";
+import { useScheduleStore, type ShiftType, type ShiftTypeFilter } from "../store";
 import { motion } from "framer-motion";
 import { 
-  ChevronLeft, 
-  ChevronRight, 
   Calendar,
   Filter,
   Search,
@@ -11,7 +9,8 @@ import {
   Plus,
   AlertCircle
 } from "lucide-react";
-import { format, parseISO, addDays, isWeekend, isToday } from "date-fns";
+import { format, isWeekend, isToday } from "date-fns";
+import { useScheduleViewport } from "./schedule/useScheduleViewport";
 
 const shiftColors: Record<ShiftType, { bg: string; text: string; border: string }> = {
   DAY: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
@@ -29,19 +28,9 @@ interface CellEditState {
 }
 
 export function ExcelGridView() {
-  const { slots, providers, assignShift, startDate, detectConflicts, conflicts } = useScheduleStore();
-  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
+  const { slots, providers, assignShift, detectConflicts, conflicts } = useScheduleStore();
+  const { scheduleViewport, weekDates, setShiftTypeFilter, setProviderSearchTerm, setShowUnfilledOnly } = useScheduleViewport();
   const [editingCell, setEditingCell] = useState<CellEditState | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterShiftType, setFilterShiftType] = useState<ShiftType | "all">("all");
-  const [showUnfilledOnly, setShowUnfilledOnly] = useState(false);
-
-  // Get current week dates
-  const weekDates = useMemo(() => {
-    const baseStart = parseISO(startDate);
-    const weekStart = addDays(baseStart, currentWeekOffset * 7);
-    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  }, [startDate, currentWeekOffset]);
 
   // Get unique shift types and locations for columns
   const shiftColumns = useMemo(() => {
@@ -95,7 +84,7 @@ export function ExcelGridView() {
 
   // Filter columns based on search
   const filteredColumns = shiftColumns.filter(col => 
-    filterShiftType === "all" || col.type === filterShiftType
+    scheduleViewport.shiftTypeFilter === "all" || col.type === scheduleViewport.shiftTypeFilter
   );
 
   // Export to CSV
@@ -140,27 +129,6 @@ export function ExcelGridView() {
             </div>
           </div>
 
-          {/* Week Navigation */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setCurrentWeekOffset(o => o - 1)}
-              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="px-4 py-2 bg-slate-50 rounded-xl">
-              <span className="text-sm font-bold text-slate-700">
-                {format(weekDates[0], "MMM d")} - {format(weekDates[6], "MMM d, yyyy")}
-              </span>
-            </div>
-            <button
-              onClick={() => setCurrentWeekOffset(o => o + 1)}
-              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
           {/* Actions */}
           <div className="flex items-center gap-2">
             <button
@@ -180,8 +148,8 @@ export function ExcelGridView() {
             <input
               type="text"
               placeholder="Search providers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={scheduleViewport.providerSearchTerm}
+              onChange={(e) => setProviderSearchTerm(e.target.value)}
               className="bg-transparent border-none text-sm text-slate-700 focus:outline-none w-40"
             />
           </div>
@@ -189,8 +157,8 @@ export function ExcelGridView() {
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl">
             <Filter className="w-4 h-4 text-slate-400" />
             <select
-              value={filterShiftType}
-              onChange={(e) => setFilterShiftType(e.target.value as ShiftType | "all")}
+              value={scheduleViewport.shiftTypeFilter}
+              onChange={(e) => setShiftTypeFilter(e.target.value as ShiftTypeFilter)}
               className="bg-transparent border-none text-sm text-slate-700 focus:outline-none"
             >
               <option value="all">All Shifts</option>
@@ -204,7 +172,7 @@ export function ExcelGridView() {
           <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl cursor-pointer">
             <input
               type="checkbox"
-              checked={showUnfilledOnly}
+              checked={scheduleViewport.showUnfilledOnly}
               onChange={(e) => setShowUnfilledOnly(e.target.checked)}
               className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
             />
@@ -247,16 +215,16 @@ export function ExcelGridView() {
               // Check if row should be shown based on filters
               const rowHasVisibleCells = filteredColumns.some(col => {
                 const data = getCellData(date, col.type, col.location);
-                if (showUnfilledOnly) {
+                if (scheduleViewport.showUnfilledOnly) {
                   return !data?.provider;
                 }
-                if (searchTerm) {
-                  return data?.provider?.name.toLowerCase().includes(searchTerm.toLowerCase());
+                if (scheduleViewport.providerSearchTerm) {
+                  return data?.provider?.name.toLowerCase().includes(scheduleViewport.providerSearchTerm.toLowerCase());
                 }
                 return true;
               });
 
-              if (!rowHasVisibleCells && (showUnfilledOnly || searchTerm)) {
+              if (!rowHasVisibleCells && (scheduleViewport.showUnfilledOnly || scheduleViewport.providerSearchTerm)) {
                 return null;
               }
 

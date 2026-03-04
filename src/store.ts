@@ -273,6 +273,20 @@ export interface CopilotFeedbackEntry {
   context?: Record<string, unknown>;
 }
 
+export type ScheduleSurfaceView = "calendar" | "excel";
+export type CalendarPresentationMode = "grid" | "list" | "timeline" | "month";
+export type ShiftTypeFilter = ShiftType | "all";
+
+export interface ScheduleViewportState {
+  surfaceView: ScheduleSurfaceView;
+  calendarPresentationMode: CalendarPresentationMode;
+  currentWeekOffset: number;
+  shiftTypeFilter: ShiftTypeFilter;
+  showConflictsOnly: boolean;
+  showUnfilledOnly: boolean;
+  providerSearchTerm: string;
+}
+
 interface ScheduleState {
   providers: Provider[];
   startDate: string;
@@ -307,6 +321,7 @@ interface ScheduleState {
   clearAssignments: () => void;
   clearStaff: () => void;
   clearSchedule: () => void;
+  applyImportedSnapshot: (providers: Provider[], slots: ShiftSlot[], appliedAssignments: number, skippedRows: number) => void;
   createScenario: (name: string) => void;
   loadScenario: (id: string) => void;
   deleteScenario: (id: string) => void;
@@ -361,6 +376,16 @@ interface ScheduleState {
   selectedProviderId: string | null;
   setSelectedDate: (date: string | null) => void;
   setSelectedProviderId: (id: string | null) => void;
+  scheduleViewport: ScheduleViewportState;
+  setScheduleSurfaceView: (view: ScheduleSurfaceView) => void;
+  setCalendarPresentationMode: (mode: CalendarPresentationMode) => void;
+  setCurrentWeekOffset: (offset: number) => void;
+  shiftWeekOffset: (delta: number) => void;
+  setShiftTypeFilter: (filter: ShiftTypeFilter) => void;
+  setShowConflictsOnly: (show: boolean) => void;
+  setShowUnfilledOnly: (show: boolean) => void;
+  setProviderSearchTerm: (term: string) => void;
+  resetScheduleViewportFilters: () => void;
   // AI Suggestions & Preview
   pendingAISuggestions: Array<{
     id: string;
@@ -664,6 +689,15 @@ export const useScheduleStore = create<ScheduleState>()(
       isCopilotOpen: false,
       selectedDate: null,
       selectedProviderId: null,
+      scheduleViewport: {
+        surfaceView: "calendar",
+        calendarPresentationMode: "grid",
+        currentWeekOffset: 0,
+        shiftTypeFilter: "all",
+        showConflictsOnly: false,
+        showUnfilledOnly: false,
+        providerSearchTerm: "",
+      },
 
       initialize: async () => {
         // 1. Set up session listener
@@ -1103,6 +1137,29 @@ export const useScheduleStore = create<ScheduleState>()(
         });
 
         get().showToast({ type: "warning", title: "Schedule Cleared", message: "All assignments and scenarios were reset." });
+      },
+
+      applyImportedSnapshot: (providers, slots, appliedAssignments, skippedRows) => {
+        const state = get();
+        const historyState: HistoryState = {
+          providers: state.providers,
+          slots: state.slots,
+          startDate: state.startDate,
+          numWeeks: state.numWeeks,
+          customRules: state.customRules,
+          auditLog: state.auditLog,
+        };
+        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+
+        set({
+          providers,
+          slots,
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+          lastActionMessage: `Import applied: ${appliedAssignments} assignments updated (${skippedRows} rows skipped).`,
+        });
+
+        get().detectConflicts();
       },
 
       autoAssign: () => {
@@ -1973,6 +2030,90 @@ export const useScheduleStore = create<ScheduleState>()(
         set({ selectedProviderId: id });
       },
 
+      setScheduleSurfaceView: (view) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            surfaceView: view,
+          },
+        }));
+      },
+
+      setCalendarPresentationMode: (mode) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            calendarPresentationMode: mode,
+          },
+        }));
+      },
+
+      setCurrentWeekOffset: (offset) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            currentWeekOffset: offset,
+          },
+        }));
+      },
+
+      shiftWeekOffset: (delta) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            currentWeekOffset: state.scheduleViewport.currentWeekOffset + delta,
+          },
+        }));
+      },
+
+      setShiftTypeFilter: (filter) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            shiftTypeFilter: filter,
+          },
+        }));
+      },
+
+      setShowConflictsOnly: (show) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            showConflictsOnly: show,
+          },
+        }));
+      },
+
+      setShowUnfilledOnly: (show) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            showUnfilledOnly: show,
+          },
+        }));
+      },
+
+      setProviderSearchTerm: (term) => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            providerSearchTerm: term,
+          },
+        }));
+      },
+
+      resetScheduleViewportFilters: () => {
+        set((state) => ({
+          scheduleViewport: {
+            ...state.scheduleViewport,
+            shiftTypeFilter: "all",
+            showConflictsOnly: false,
+            showUnfilledOnly: false,
+            providerSearchTerm: "",
+          },
+        }));
+      },
+
       pendingAISuggestions: [],
       showChangePreview: false,
       changePreviewData: null,
@@ -2163,6 +2304,7 @@ export const useScheduleStore = create<ScheduleState>()(
         preferenceProfiles: state.preferenceProfiles,
         mlSuggestions: state.mlSuggestions,
         scheduleTemplates: state.scheduleTemplates,
+        scheduleViewport: state.scheduleViewport,
         copilotConversations: state.copilotConversations,
         copilotFeedback: state.copilotFeedback,
       }),

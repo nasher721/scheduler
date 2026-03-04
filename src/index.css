@@ -687,6 +687,67 @@
     @apply absolute inset-y-1 bg-white rounded-full shadow-sm transition-all;
     box-shadow: var(--shadow-sm);
   }
+
+  /* Navigation and control micro-interactions */
+  .nav-chip {
+    @apply relative rounded-xl text-[10px] font-semibold uppercase tracking-wide transition-all duration-200;
+    @apply flex items-center gap-2 px-4 py-2;
+    color: hsl(var(--foreground-tertiary));
+  }
+
+  .nav-chip:hover {
+    color: hsl(var(--foreground));
+    transform: translateY(-0.5px);
+  }
+
+  .nav-chip:active {
+    transform: translateY(0);
+  }
+
+  .nav-chip:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  .nav-chip-active {
+    color: hsl(var(--primary));
+  }
+
+  .soft-control {
+    @apply rounded-xl border text-xs transition-all duration-200;
+    @apply bg-slate-50 border-slate-300/70 text-slate-800;
+  }
+
+  .soft-control:hover {
+    @apply border-slate-400/70;
+    background: hsla(var(--surface), 0.9);
+  }
+
+  .soft-control:focus-visible,
+  .soft-control:focus-within {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  .soft-icon-btn {
+    @apply p-2 rounded-xl transition-all duration-200 border border-transparent;
+    @apply text-slate-500;
+  }
+
+  .soft-icon-btn:hover {
+    @apply text-primary border-slate-300/70;
+    background: hsla(var(--primary), 0.06);
+    transform: translateY(-0.5px);
+  }
+
+  .soft-icon-btn:active {
+    transform: translateY(0);
+  }
+
+  .soft-icon-btn:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }
 
 /* ========== ANIMATIONS ========== */
@@ -1119,5 +1180,28 @@
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+    }
+
+    .nav-chip,
+    .soft-icon-btn,
+    .soft-control,
+    .satin-panel,
+    .stone-panel {
+      transform: none !important;
+    }
   }
 }

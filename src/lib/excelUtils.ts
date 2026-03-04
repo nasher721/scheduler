@@ -917,7 +917,7 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
       });
     });
 
-    useScheduleStore.setState({ providers, slots });
+    useScheduleStore.getState().applyImportedSnapshot(providers, slots, appliedAssignments, preview.invalidRows);
     lastImportSnapshot = transactionSnapshot;
 
     return {
@@ -931,6 +931,7 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
     if (transactionSnapshot) {
       try {
         useScheduleStore.setState({ providers: transactionSnapshot.providers, slots: transactionSnapshot.slots });
+        useScheduleStore.getState().detectConflicts();
       } catch (rollbackError) {
         rollbackFailure = rollbackError;
       }
@@ -961,6 +962,7 @@ export const rollbackLastImport = (): boolean => {
       providers: snapshot.providers,
       slots: snapshot.slots,
     });
+    useScheduleStore.getState().detectConflicts();
 
     lastImportSnapshot = null;
     return true;

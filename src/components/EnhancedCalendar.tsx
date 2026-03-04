@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { useScheduleStore, type ShiftSlot, type Provider, type ShiftType, type Conflict } from "../store";
+import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type CalendarPresentationMode, type ShiftType } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
-import { format, parseISO, isToday, addDays, isWeekend } from "date-fns";
+import { format, parseISO, isToday, isWeekend } from "date-fns";
 import { 
   GripVertical, 
   Sun, 
@@ -11,19 +11,16 @@ import {
   MapPin, 
   Activity, 
   Stethoscope,
-  ChevronLeft,
-  ChevronRight,
   Calendar as CalendarIcon,
-  Grid3X3,
-  List,
   Clock,
   User,
   Bot
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { InlineSuggestions } from './InlineSuggestions';
+import { useScheduleViewport } from './schedule/useScheduleViewport';
 
-export type CalendarViewMode = "list" | "grid" | "timeline";
+export type CalendarViewMode = Exclude<CalendarPresentationMode, "month">;
 
 const shiftConfig: Record<ShiftType, { 
   label: string; 
@@ -128,7 +125,7 @@ function SlotCard({
   slot: ShiftSlot; 
   provider?: Provider; 
   hasConflict?: boolean;
-  viewMode: CalendarViewMode;
+  viewMode: CalendarPresentationMode;
   onClick?: (e: React.MouseEvent, slot: ShiftSlot, provider?: Provider) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -301,36 +298,32 @@ function TimelineView({
 }
 
 export function EnhancedCalendar() {
-  const { slots, providers, conflicts, startDate, setSelectedDate, setSelectedProviderId } = useScheduleStore();
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("grid");
-  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
-  const [filterType, setFilterType] = useState<ShiftType | "all">("all");
-  const [showConflictsOnly, setShowConflictsOnly] = useState(false);
+  const { slots, providers, conflicts, setSelectedDate, setSelectedProviderId } = useScheduleStore();
+  const { scheduleViewport, weekDates } = useScheduleViewport();
   
   // Inline suggestions state
   const [selectedSlot, setSelectedSlot] = useState<ShiftSlot | null>(null);
   const [suggestionsPosition, setSuggestionsPosition] = useState({ x: 0, y: 0 });
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Get current week dates
-  const weekDates = useMemo(() => {
-    const baseStart = parseISO(startDate);
-    const weekStart = addDays(baseStart, currentWeekOffset * 7);
-    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  }, [startDate, currentWeekOffset]);
-
   // Filter slots for current week
   const weekSlots = useMemo(() => {
     const dateStrs = weekDates.map(d => format(d, "yyyy-MM-dd"));
     return slots.filter(s => {
       if (!dateStrs.includes(s.date)) return false;
-      if (filterType !== "all" && s.type !== filterType) return false;
-      if (showConflictsOnly) {
+      if (scheduleViewport.shiftTypeFilter !== "all" && s.type !== scheduleViewport.shiftTypeFilter) return false;
+      if (scheduleViewport.showConflictsOnly) {
         return conflicts.some(c => c.slotId === s.id && !c.resolvedAt);
+      }
+      if (scheduleViewport.showUnfilledOnly && s.providerId) return false;
+      if (scheduleViewport.providerSearchTerm) {
+        const provider = providers.find((p) => p.id === s.providerId);
+        if (!provider) return false;
+        return provider.name.toLowerCase().includes(scheduleViewport.providerSearchTerm.toLowerCase());
       }
       return true;
     });
-  }, [slots, weekDates, filterType, showConflictsOnly, conflicts]);
+  }, [slots, weekDates, scheduleViewport.shiftTypeFilter, scheduleViewport.showConflictsOnly, scheduleViewport.showUnfilledOnly, scheduleViewport.providerSearchTerm, conflicts, providers]);
 
   const datesWithSlots = useMemo(() => {
     return weekDates.filter(date => 
@@ -359,47 +352,6 @@ export function EnhancedCalendar() {
             </div>
           </div>
 
-          {/* Week Navigation */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setCurrentWeekOffset(o => o - 1)}
-              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="px-4 py-2 bg-slate-50 rounded-xl">
-              <span className="text-sm font-bold text-slate-700">
-                {format(weekDates[0], "MMM d")} - {format(weekDates[6], "MMM d")}
-              </span>
-            </div>
-            <button
-              onClick={() => setCurrentWeekOffset(o => o + 1)}
-              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            {(["grid", "list", "timeline"] as CalendarViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-                  viewMode === mode 
-                    ? "bg-white text-slate-800 shadow-sm" 
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {mode === "grid" && <Grid3X3 className="w-3.5 h-3.5" />}
-                {mode === "list" && <List className="w-3.5 h-3.5" />}
-                {mode === "timeline" && <CalendarIcon className="w-3.5 h-3.5" />}
-                {mode}
-              </button>
-            ))}
-          </div>
-
           {/* AI Assistant Button */}
           <button
             onClick={() => useScheduleStore.getState().toggleCopilot()}
@@ -410,36 +362,12 @@ export function EnhancedCalendar() {
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 mt-4">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as ShiftType | "all")}
-            className="px-3 py-2 bg-slate-50 rounded-xl text-sm text-slate-700 border-none focus:ring-2 focus:ring-primary/20"
-          >
-            <option value="all">All Shift Types</option>
-            <option value="DAY">Day Shifts</option>
-            <option value="NIGHT">Night Shifts</option>
-            <option value="CONSULTS">Consults</option>
-            <option value="JEOPARDY">Jeopardy</option>
-            <option value="NMET">NMET</option>
-          </select>
-
-          <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showConflictsOnly}
-              onChange={(e) => setShowConflictsOnly(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
-            />
-            <span className="text-sm text-slate-600">Conflicts only</span>
-          </label>
-        </div>
+        <p className="text-xs text-slate-500 mt-3">Calendar filters and week controls are managed from the shared schedule toolbar above.</p>
       </div>
 
       {/* Calendar Content */}
       <div className="p-6 overflow-auto max-h-[calc(100vh-350px)]">
-        {viewMode === "timeline" ? (
+        {scheduleViewport.calendarPresentationMode === "timeline" ? (
           <TimelineView slots={weekSlots} providers={providers} conflicts={conflicts} />
         ) : (
           <div className="space-y-6">
@@ -487,7 +415,7 @@ export function EnhancedCalendar() {
                   </div>
 
                   {/* Slots */}
-                  <div className={viewMode === "grid" 
+                  <div className={scheduleViewport.calendarPresentationMode === "grid" 
                     ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" 
                     : "space-y-2"
                   }>
@@ -501,7 +429,7 @@ export function EnhancedCalendar() {
                           slot={slot}
                           provider={provider}
                           hasConflict={hasConflict}
-                          viewMode={viewMode}
+                          viewMode={scheduleViewport.calendarPresentationMode}
                           onClick={(e, slot, provider) => {
                             e.stopPropagation();
                             setSelectedDate(slot.date);

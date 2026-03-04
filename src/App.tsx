@@ -19,10 +19,9 @@ import { ConflictDashboard } from "./components/ConflictDashboard";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { PredictiveInsights } from "./components/PredictiveInsights";
 import { ScheduleTemplates } from "./components/ScheduleTemplates";
+import { ScheduleWorkspace } from "./components/schedule/ScheduleWorkspace";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { useNetworkStatus } from "./hooks/usePWA";
-import { EnhancedCalendar } from "./components/EnhancedCalendar";
-import { ExcelGridView } from "./components/ExcelGridView";
 import {
   AlertTriangle,
   Save,
@@ -81,7 +80,7 @@ export default function App() {
     initialize();
   }, [initialize]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [viewMode, setViewMode] = useState<ViewMode>("schedule");
   const [scenarioName, setScenarioName] = useState("");
   const [importPreview, setImportPreview] = useState<ImportPreviewResult | null>(null);
   const [columnMapping, setColumnMapping] = useState<Partial<Record<ImportFieldKey, string>>>({});
@@ -482,10 +481,17 @@ export default function App() {
           </div>
 
           <div className="flex-1 w-full flex flex-col min-w-0">
-            <div className="flex justify-between items-center mb-6 gap-4">
-              <div className="h-[1px] flex-1 bg-slate-200/60" />
-              <ViewToggle view={viewMode} onChange={setViewMode} />
-              <ExportMenu />
+            <div className="satin-panel p-4 rounded-2xl border border-slate-200/50 mb-6">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Navigation</p>
+                  <p className="text-xs text-slate-500 mt-1">Switch between scheduling and supporting modules.</p>
+                </div>
+                <ExportMenu />
+              </div>
+              <div className="mt-3">
+                <ViewToggle view={viewMode} onChange={setViewMode} />
+              </div>
             </div>
 
             <div className="w-full pb-20">
@@ -499,10 +505,8 @@ export default function App() {
                 >
                   {viewMode === "analytics" ? (
                     <AnalyticsDashboard />
-                  ) : viewMode === "calendar" ? (
-                    <EnhancedCalendar />
-                  ) : viewMode === "excel" ? (
-                    <ExcelGridView />
+                  ) : viewMode === "schedule" ? (
+                    <ScheduleWorkspace />
                   ) : viewMode === "rules" ? (
                     <RuleBuilder />
                   ) : viewMode === "strategy" ? (
@@ -520,7 +524,7 @@ export default function App() {
                   ) : viewMode === "templates" ? (
                     <ScheduleTemplates />
                   ) : (
-                    <EnhancedCalendar />
+                    <ScheduleWorkspace />
                   )}
                 </motion.div>
               </AnimatePresence>
