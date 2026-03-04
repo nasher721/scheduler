@@ -30,6 +30,12 @@ const SHIFT_REQUESTS_PATH = path.join(DATA_DIR, "shift-requests.json");
 const EMAIL_EVENTS_PATH = path.join(DATA_DIR, "email-events.json");
 const NOTIFICATIONS_PATH = path.join(DATA_DIR, "notification-history.json");
 
+const baseProviders = [
+  { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
+  { id: "2", name: "Dr. Baker", email: "baker@hospital.org", role: "CLINICIAN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
+  { id: "3", name: "Dr. Clark", email: "clark@hospital.org", role: "SCHEDULER", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2, credentials: [{ credentialType: "NIHSS", expiresAt: "2027-03-01", status: "active" }] },
+];
+
 const app = express();
 const port = Number(process.env.PORT || 4000);
 
@@ -1051,9 +1057,17 @@ app.post("/api/register", async (req, res) => {
     return res.status(400).json({ error: "Name, email, and role are required for registration." });
   }
 
-  const state = await readState();
+  let state = await readState();
   if (!state) {
-    return res.status(500).json({ error: "Failed to read application state." });
+    state = {
+      providers: baseProviders,
+      slots: [],
+      scenarios: [],
+      customRules: [],
+      auditLog: [],
+      startDate: new Date().toISOString().split('T')[0],
+      numWeeks: 4
+    };
   }
 
   const providers = isArray(state.providers) ? state.providers : [];
@@ -1085,6 +1099,10 @@ app.post("/api/ai/explain", async (req, res) => {
   return res.json({ result: await explainDecision(req.body), updatedAt: new Date().toISOString() });
 });
 
-app.listen(port, () => {
-  console.log(`Scheduler API listening on http://localhost:${port}`);
-});
+export default app;
+
+if (process.env.NODE_ENV !== "production") {
+  app.listen(port, () => {
+    console.log(`Scheduler API listening on http://localhost:${port}`);
+  });
+}
