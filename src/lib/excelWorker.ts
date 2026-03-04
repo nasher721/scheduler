@@ -270,7 +270,9 @@ const buildImportPreviewFromRows = (
     ]);
   }
 
-  const availableHeaders = Object.keys(rows[0]).map((header) => header.trim());
+  // Use original (untrimmed) headers so row[mapping.field] lookups work correctly.
+  // resolveHeaderMapping normalizes headers internally for comparison.
+  const availableHeaders = Object.keys(rows[0]);
   const { mapping, issues: mappingIssues } = resolveHeaderMapping(availableHeaders, manualMapping);
 
   const previewRows: ImportPreviewRow[] = new Array(rows.length);
@@ -283,13 +285,13 @@ const buildImportPreviewFromRows = (
 
     const dateValue = mapping.date ? row[mapping.date] : "";
     const date = normalizeDate(dateValue);
-    
+
     // Skip rows with invalid dates (like header rows with "January" text)
     if (!date) {
       const dateStr = String(dateValue).trim().toLowerCase();
-      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
-                         'july', 'august', 'september', 'october', 'november', 'december'];
-      
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december'];
+
       if (monthNames.includes(dateStr) || dateStr === '' || dateValue === undefined || dateValue === null) {
         // Skip this row silently
         previewRows[idx] = {
@@ -299,7 +301,7 @@ const buildImportPreviewFromRows = (
         };
         continue;
       }
-      
+
       issues.push({
         type: "error",
         code: "INVALID_DATE",
@@ -415,4 +417,4 @@ workerContext.addEventListener("message", (event: MessageEvent<ParseImportWorker
   }
 });
 
-export {};
+export { };

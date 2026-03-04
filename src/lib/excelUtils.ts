@@ -219,8 +219,8 @@ type ProgressCallback = (percent: number) => void;
 type WorksheetRow = Record<string, unknown>;
 type ExportSheetCell = string | number | Date | null;
 
-const fieldToSlotSpec: Partial<Record<ImportFieldKey, { 
-  type: ShiftSlot["type"]; 
+const fieldToSlotSpec: Partial<Record<ImportFieldKey, {
+  type: ShiftSlot["type"];
   locationIncludes: string;
   serviceLocation: string;
 }>> = {
@@ -349,20 +349,20 @@ const NAME_CORRECTIONS: Record<string, string> = {
 export const normalizeProviderName = (name: string): string => {
   const trimmed = name.trim();
   if (!trimmed) return '';
-  
+
   // Check for exact match in corrections (case-insensitive)
   const lowerName = trimmed.toLowerCase();
   if (NAME_CORRECTIONS[lowerName]) {
     return NAME_CORRECTIONS[lowerName];
   }
-  
+
   // Check for partial matches (e.g., "Rosales" -> "Villamizar Rosales")
   for (const [key, value] of Object.entries(NAME_CORRECTIONS)) {
     if (lowerName.includes(key) && key.length > 3) {
       return value;
     }
   }
-  
+
   // Capitalize first letter of each word
   return trimmed
     .split(' ')
@@ -417,21 +417,21 @@ export const excelSerialToDate = (serial: number): string | null => {
   if (!Number.isFinite(serial) || serial <= 0) {
     return null;
   }
-  
+
   // Excel's epoch starts at December 30, 1899
   const EXCEL_EPOCH = new Date(Date.UTC(1899, 11, 30));
   const msPerDay = 24 * 60 * 60 * 1000;
-  
+
   // Handle Excel's leap year bug (Excel thinks 1900 was a leap year)
   // For dates after February 28, 1900, we need to subtract 1 day
   const adjustedSerial = serial > 60 ? serial - 1 : serial;
-  
+
   const date = new Date(EXCEL_EPOCH.getTime() + adjustedSerial * msPerDay);
-  
+
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  
+
   return format(date, "yyyy-MM-dd");
 };
 
@@ -618,8 +618,11 @@ const buildImportPreviewFromRows = (
     ]);
   }
 
-  const availableHeaders = Object.keys(rows[0]).map((header) => header.trim());
-  const { mapping, issues: mappingIssues } = resolveHeaderMapping(availableHeaders, manualMapping);
+  // Use original (untrimmed) headers so row[mapping.field] lookups work correctly.
+  // resolveHeaderMapping normalizes headers internally for comparison.
+  const originalHeaders = Object.keys(rows[0]);
+  const availableHeaders = originalHeaders.map((h) => h.trim()); // trimmed for display only
+  const { mapping, issues: mappingIssues } = resolveHeaderMapping(originalHeaders, manualMapping);
   const previewRows: ImportPreviewRow[] = new Array(rows.length);
   const rowIssues: ImportIssue[] = [];
   let rowErrors = 0;
@@ -636,9 +639,9 @@ const buildImportPreviewFromRows = (
     if (!date) {
       // Check if this looks like a month header row (text like "January" in date column)
       const dateStr = String(dateValue).trim().toLowerCase();
-      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
-                         'july', 'august', 'september', 'october', 'november', 'december'];
-      
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december'];
+
       if (monthNames.includes(dateStr) || dateStr === '' || dateValue === undefined || dateValue === null) {
         // Skip this row silently - it's likely a header/subheader row
         previewRows[idx] = {
@@ -649,7 +652,7 @@ const buildImportPreviewFromRows = (
         };
         continue;
       }
-      
+
       issues.push({
         type: "error",
         code: "INVALID_DATE",
@@ -995,7 +998,7 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
         // Find slot by service location
         const slotKey = `${row.date}::${slotSpec.serviceLocation}`;
         const slot = slotsByDateAndService.get(slotKey);
-        
+
         if (!slot) {
           return;
         }
@@ -1007,13 +1010,13 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
         }
 
         slot.providerId = primaryProviderId;
-        
+
         // Handle secondary providers (shared assignments)
         if (names.length > 1) {
           slot.secondaryProviderIds = names.slice(1).map(name => getOrCreateProviderId(name)).filter((id): id is string => Boolean(id));
           slot.isSharedAssignment = true;
         }
-        
+
         appliedAssignments += 1;
       });
     });
@@ -1168,16 +1171,16 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     const fteHeaders = [
       "Staff", "G20", "H22", "WeekDAY Nights", "Main Wknds", "WeekEND Nights",
       "Akron", "Akron Wknds", "Consults", "Total Weeks", "Total Weekends",
-      "Jeopardy", "FTE Week Target", "FTE Weekend Target", 
+      "Jeopardy", "FTE Week Target", "FTE Weekend Target",
       "Week Assigned", "Weekend Assigned", "Week Deficit", "Weekend Deficit", "Notes"
     ];
-    
+
     const fteData: ExportSheetCell[][] = [fteHeaders];
-    
+
     providers.forEach((provider, idx) => {
       const row = idx + 2; // Excel row number (1-indexed, with header)
       const pName = provider.name;
-      
+
       fteData.push([
         pName,
         `=COUNTIF('Schedule'!B:B,A${row})`, // G20
@@ -1200,18 +1203,18 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         provider.notes || "", // Notes
       ]);
     });
-    
+
     const fteSheet = XLSX.utils.aoa_to_sheet(fteData);
 
     // ============== SHEET 3: SWAP TRACKER ==============
     const swapHeaders = ["ID", "Date Requested", "Staff Involved", "Dates Exchanged", "Services", "Status", "Approved By", "Notes", "Validation"];
     const swapData: ExportSheetCell[][] = [swapHeaders];
-    
+
     swapRequests.forEach((swap) => {
       const requestorName = providerNamesById.get(swap.requestorId) || "Unknown";
       const targetName = swap.targetProviderId ? (providerNamesById.get(swap.targetProviderId) || "Unknown") : "Any";
       const resolverName = swap.resolvedBy ? (providerNamesById.get(swap.resolvedBy) || "Unknown") : "";
-      
+
       swapData.push([
         swap.id.slice(0, 8),
         swap.requestedAt,
@@ -1224,13 +1227,13 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         swap.validationErrors ? swap.validationErrors.join("; ") : "",
       ]);
     });
-    
+
     const swapSheet = XLSX.utils.aoa_to_sheet(swapData);
 
     // ============== SHEET 4: HOLIDAY SUMMARY ==============
     const holidayHeaders = ["Holiday", "Date", "Provider", "Shift Type", "Previous Year Provider"];
     const holidayData: ExportSheetCell[][] = [holidayHeaders];
-    
+
     holidayAssignments.forEach((holiday) => {
       holidayData.push([
         holiday.holidayName,
@@ -1240,7 +1243,7 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         holiday.previousYearProviderId ? (providerNamesById.get(holiday.previousYearProviderId) || "") : "",
       ]);
     });
-    
+
     const holidaySheet = XLSX.utils.aoa_to_sheet(holidayData);
 
     // ============== CREATE WORKBOOK ==============
