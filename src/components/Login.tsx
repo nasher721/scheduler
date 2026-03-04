@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useScheduleStore } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Lock, Sparkles, User, UserPlus } from "lucide-react";
+import { ArrowRight, Lock, Sparkles, User, UserPlus, Bug } from "lucide-react";
 import { Register } from "./Register";
 import { AdminRegister } from "./AdminRegister";
 
@@ -28,6 +28,9 @@ export function Login() {
     const [email, setEmail] = useState("");
     const [showHint, setShowHint] = useState(false);
     const login = useScheduleStore((state) => state.login);
+
+    // Check if we're in dev mode with bypass available
+    const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -143,6 +146,19 @@ export function Login() {
                                     Demo Access: adams@hospital.org (Admin)
                                 </p>
                             </div>
+
+                            {/* Dev Mode Indicator */}
+                            {isDevMode && (
+                                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                    <div className="flex items-center gap-2 text-amber-700">
+                                        <Bug className="h-4 w-4" />
+                                        <span className="text-xs font-medium">Dev Mode Active</span>
+                                    </div>
+                                    <p className="text-[10px] text-amber-600 mt-1">
+                                        Supabase auth bypass enabled. Login will work without email verification.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </motion.div>

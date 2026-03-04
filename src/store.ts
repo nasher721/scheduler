@@ -698,10 +698,64 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       login: async (email) => {
+        const normalizedEmail = email.toLowerCase().trim();
+        
+        // DEV MODE: Allow direct login without Supabase for local development
+        // This bypasses the "Failed to fetch" error when Supabase is not available
+        const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
+        const bypassSupabase = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
+        
+        if (bypassSupabase) {
+          console.log('[DEV] Bypassing Supabase auth for:', normalizedEmail);
+          
+          // Find provider by email
+          const provider = get().providers.find(p => 
+            p.email?.toLowerCase() === normalizedEmail
+          );
+          
+          if (provider) {
+            set({ currentUser: provider });
+            get().showToast({ 
+              type: "success", 
+              title: "Welcome back", 
+              message: `Logged in as ${provider.name}` 
+            });
+          } else {
+            // Auto-create a provider for unknown emails in dev mode
+            const newProvider: Provider = {
+              id: crypto.randomUUID(),
+              name: normalizedEmail.split('@')[0],
+              email: normalizedEmail,
+              role: "CLINICIAN",
+              targetWeekDays: 10,
+              targetWeekendDays: 4,
+              targetWeekNights: 3,
+              targetWeekendNights: 2,
+              timeOffRequests: [],
+              preferredDates: [],
+              skills: ["NEURO_CRITICAL"],
+              maxConsecutiveNights: 2,
+              minDaysOffAfterNight: 1,
+            };
+            
+            set(state => ({ 
+              providers: [...state.providers, newProvider],
+              currentUser: newProvider 
+            }));
+            
+            get().showToast({ 
+              type: "success", 
+              title: "Welcome", 
+              message: `Created account for ${normalizedEmail}` 
+            });
+          }
+          return;
+        }
+
+        // PRODUCTION: Use Supabase Magic Link
         try {
-          // Use Magic Link for a seamless email-only login experience as in original app
           const { error } = await supabase.auth.signInWithOtp({
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             options: {
               emailRedirectTo: window.location.origin,
             }
@@ -722,12 +776,17 @@ export const useScheduleStore = create<ScheduleState>()(
         } catch (error) {
           console.error("Unexpected Login Error:", error);
           const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+          
+          // Provide more helpful error message
+          let userMessage = message;
+          if (message.includes("Failed to fetch")) {
+            userMessage = "Cannot connect to authentication server. If you're a developer, you can enable DEV mode bypass.";
+          }
+          
           get().showToast({
             type: "error",
             title: "Login Error",
-            message: message.includes("Failed to fetch")
-              ? "Connection failed: Check your internet or Supabase configuration."
-              : message
+            message: userMessage
           });
         }
       },
