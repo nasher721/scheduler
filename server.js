@@ -18,6 +18,7 @@ import {
   parseIntent,
   getCopilotSuggestions,
   processCopilotMessage,
+  listCopilotCapabilities,
 } from "./ai-orchestrator.js";
 import {
   dispatchNotification,
@@ -329,16 +330,33 @@ async function readNotifications() {
 }
 
 async function persistNotification(notification) {
-  await supabase.from("notifications").insert({
-    event_type: notification.eventType || null,
-    title: notification.title,
-    body: notification.body,
-    severity: notification.severity || "info",
-    channels: isArray(notification.channels) ? notification.channels : [],
-    status_by_channel: notification.statusByChannel && typeof notification.statusByChannel === "object" ? notification.statusByChannel : {},
-    metadata: notification.metadata && typeof notification.metadata === "object" ? notification.metadata : {},
-  });
-  return notification;
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert({
+      event_type: notification.eventType || null,
+      title: notification.title,
+      body: notification.body,
+      severity: notification.severity || "info",
+      channels: isArray(notification.channels) ? notification.channels : [],
+      status_by_channel: notification.statusByChannel && typeof notification.statusByChannel === "object" ? notification.statusByChannel : {},
+      metadata: notification.metadata && typeof notification.metadata === "object" ? notification.metadata : {},
+    })
+    .select()
+    .single();
+
+  if (error || !data) return notification;
+
+  return {
+    id: data.id,
+    eventType: data.event_type || null,
+    title: data.title,
+    body: data.body,
+    severity: data.severity || "info",
+    channels: isArray(data.channels) ? data.channels : [],
+    statusByChannel: data.status_by_channel && typeof data.status_by_channel === "object" ? data.status_by_channel : {},
+    metadata: data.metadata && typeof data.metadata === "object" ? data.metadata : {},
+    createdAt: data.created_at,
+  };
 }
 
 const VALID_SHIFT_REQUEST_TYPES = new Set(["time_off", "swap", "availability"]);
@@ -676,9 +694,9 @@ app.post("/api/shift-requests", async (req, res) => {
       status: requestRecord.status,
     },
   });
-  await persistNotification(notification);
+  const persistedNotification = await persistNotification(notification);
 
-  return res.status(201).json({ request: requestRecord, notification, updatedAt: new Date().toISOString() });
+  return res.status(201).json({ request: requestRecord, notification: persistedNotification, updatedAt: new Date().toISOString() });
 });
 
 app.patch("/api/shift-requests/:id", async (req, res) => {
@@ -734,13 +752,39 @@ app.patch("/api/shift-requests/:id", async (req, res) => {
       status,
     },
   });
-  await persistNotification(notification);
+  const persistedNotification = await persistNotification(notification);
 
-  return res.json({ request: requestRecord, notification, updatedAt: new Date().toISOString() });
+  return res.json({ request: requestRecord, notification: persistedNotification, updatedAt: new Date().toISOString() });
+});
+
+app.delete("/api/shift-requests/:id", async (req, res) => {
+  const requestId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
+  if (!requestId) return res.status(400).json({ error: "Request id is required." });
+
+  const { data, error } = await supabase
+    .from("shift_requests")
+    .delete()
+    .eq("id", requestId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: `Request not found for id ${requestId}.` });
+  }
+
+  return res.json({
+    ok: true,
+    deletedId: requestId,
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 app.get("/api/notifications/channels", (_req, res) => {
-  return res.json({ channels: listNotificationChannels(), updatedAt: new Date().toISOString() });
+  return res.json({
+    capabilitySchemaVersion: "2026-03-04",
+    channels: listNotificationChannels(),
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 app.post("/api/notifications/send", async (req, res) => {
@@ -767,8 +811,8 @@ app.post("/api/notifications/send", async (req, res) => {
     metadata: req.body.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {},
   });
 
-  await persistNotification(notification);
-  return res.status(201).json({ notification, updatedAt: new Date().toISOString() });
+  const persistedNotification = await persistNotification(notification);
+  return res.status(201).json({ notification: persistedNotification, updatedAt: new Date().toISOString() });
 });
 
 app.get("/api/notifications/history", async (req, res) => {
@@ -782,6 +826,82 @@ app.get("/api/notifications/history", async (req, res) => {
   });
 });
 
+app.patch("/api/notifications/:id", async (req, res) => {
+  const notificationId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
+  if (!notificationId) return res.status(400).json({ error: "Notification id is required." });
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Notification patch payload must be an object." });
+  }
+
+  const updates = {};
+  if (typeof req.body.title === "string") updates.title = req.body.title.trim();
+  if (typeof req.body.body === "string") updates.body = req.body.body.trim();
+  if (typeof req.body.severity === "string") {
+    const severity = req.body.severity.trim().toLowerCase();
+    if (!["info", "warning", "critical"].includes(severity)) {
+      return res.status(400).json({ error: 'Field "severity" must be info, warning, or critical.' });
+    }
+    updates.severity = severity;
+  }
+  if (isArray(req.body.channels)) updates.channels = req.body.channels;
+  if (req.body.statusByChannel && typeof req.body.statusByChannel === "object") {
+    updates.status_by_channel = req.body.statusByChannel;
+  }
+  if (req.body.metadata && typeof req.body.metadata === "object") {
+    updates.metadata = req.body.metadata;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: "No valid notification fields provided for update." });
+  }
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .update(updates)
+    .eq("id", notificationId)
+    .select()
+    .single();
+  if (error || !data) {
+    return res.status(404).json({ error: `Notification not found for id ${notificationId}.` });
+  }
+
+  const notification = {
+    id: data.id,
+    eventType: data.event_type,
+    title: data.title,
+    body: data.body,
+    severity: data.severity,
+    channels: data.channels,
+    statusByChannel: data.status_by_channel,
+    metadata: data.metadata,
+    createdAt: data.created_at,
+  };
+
+  return res.json({ notification, updatedAt: new Date().toISOString() });
+});
+
+app.delete("/api/notifications/:id", async (req, res) => {
+  const notificationId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
+  if (!notificationId) return res.status(400).json({ error: "Notification id is required." });
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("id", notificationId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: `Notification not found for id ${notificationId}.` });
+  }
+
+  return res.json({
+    ok: true,
+    deletedId: notificationId,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
 app.post("/api/notifications/dispatch-pending-approvals", async (req, res) => {
   const alertWindowHours = Math.min(168, toPositiveInt(req.body?.alertWindowHours, 24));
   const requests = await readShiftRequests();
@@ -790,8 +910,8 @@ app.post("/api/notifications/dispatch-pending-approvals", async (req, res) => {
 
   for (const alert of alerts) {
     const notification = await dispatchNotification(alert);
-    await persistNotification(notification);
-    results.push(notification);
+    const persistedNotification = await persistNotification(notification);
+    results.push(persistedNotification);
   }
 
   return res.json({
@@ -803,7 +923,11 @@ app.post("/api/notifications/dispatch-pending-approvals", async (req, res) => {
 });
 
 app.get("/api/solver/profiles", (_req, res) => {
-  return res.json({ profiles: listSolverProfiles(), updatedAt: new Date().toISOString() });
+  return res.json({
+    capabilitySchemaVersion: "2026-03-04",
+    profiles: listSolverProfiles(),
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 app.post("/api/solver/optimize", async (req, res) => {
@@ -821,6 +945,56 @@ app.get("/api/email-events", async (req, res) => {
   const events = await readEmailEvents();
   const records = typeFilter ? events.filter((entry) => entry?.type === typeFilter) : events;
   return res.json({ events: records, total: records.length, updatedAt: new Date().toISOString() });
+});
+
+app.patch("/api/email-events/:id", async (req, res) => {
+  const eventId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
+  const status = typeof req.body?.status === "string" ? req.body.status.trim().toLowerCase() : "";
+  if (!eventId) return res.status(400).json({ error: "Email event id is required." });
+  if (!status) return res.status(400).json({ error: 'Field "status" is required.' });
+
+  const { data, error } = await supabase
+    .from("email_events")
+    .update({ status })
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: `Email event not found for id ${eventId}.` });
+  }
+
+  const event = {
+    id: data.id,
+    type: data.type,
+    status: data.status,
+    ...(data.raw_payload && typeof data.raw_payload === "object" ? data.raw_payload : {}),
+    createdAt: data.created_at,
+  };
+
+  return res.json({ event, updatedAt: new Date().toISOString() });
+});
+
+app.delete("/api/email-events/:id", async (req, res) => {
+  const eventId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
+  if (!eventId) return res.status(400).json({ error: "Email event id is required." });
+
+  const { data, error } = await supabase
+    .from("email_events")
+    .delete()
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: `Email event not found for id ${eventId}.` });
+  }
+
+  return res.json({
+    ok: true,
+    deletedId: eventId,
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 app.post("/api/email/inbound", async (req, res) => {
@@ -918,7 +1092,11 @@ function buildAiAuditEntry({ action, mode, accepted, details = {} }) {
 }
 
 app.get("/api/ai/providers", (_req, res) => {
-  return res.json({ providers: listProviders() });
+  return res.json({
+    capabilitySchemaVersion: "2026-03-04",
+    providers: listProviders(),
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 app.get("/api/ai/metrics", (_req, res) => {
@@ -1377,6 +1555,14 @@ app.get("/api/copilot/suggestions", async (req, res) => {
       message: error instanceof Error ? error.message : "Unknown error"
     });
   }
+});
+
+// GET /api/copilot/capabilities - Discover supported intents/actions
+app.get("/api/copilot/capabilities", (_req, res) => {
+  return res.json({
+    result: listCopilotCapabilities(),
+    updatedAt: new Date().toISOString(),
+  });
 });
 
 // GET /api/copilot/stream - SSE for streaming responses (placeholder for future)

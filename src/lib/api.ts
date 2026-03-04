@@ -288,6 +288,37 @@ export async function listEmailEvents(type?: string) {
   return { events: data as EmailEvent[] };
 }
 
+export async function updateEmailEvent(id: string, payload: { status: string }) {
+  const response = await fetch(`${API_BASE}/api/email-events/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update email event (${response.status})`);
+  }
+
+  return response.json() as Promise<{ event: EmailEvent; updatedAt: string }>;
+}
+
+export async function deleteEmailEvent(id: string) {
+  const response = await fetch(`${API_BASE}/api/email-events/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete email event (${response.status})`);
+  }
+
+  return response.json() as Promise<{ ok: boolean; deletedId: string; updatedAt: string }>;
+}
+
 export async function submitInboundEmail(payload: {
   from: string;
   subject: string;
@@ -349,6 +380,21 @@ export async function reviewShiftRequest(id: string, payload: { status: "approve
       reviewedBy: data.resolved_by,
     } as ShiftRequest
   };
+}
+
+export async function deleteShiftRequest(id: string) {
+  const response = await fetch(`${API_BASE}/api/shift-requests/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete shift request (${response.status})`);
+  }
+
+  return response.json() as Promise<{ ok: boolean; deletedId: string; updatedAt: string }>;
 }
 
 export type NotificationSeverity = "info" | "warning" | "critical";
@@ -430,6 +476,44 @@ export async function listNotificationHistory(limit = 50) {
     })) as NotificationRecord[],
     total: count || 0
   };
+}
+
+export async function updateNotification(id: string, payload: {
+  title?: string;
+  body?: string;
+  severity?: NotificationSeverity;
+  channels?: string[];
+  statusByChannel?: Record<string, string>;
+  metadata?: Record<string, unknown>;
+}) {
+  const response = await fetch(`${API_BASE}/api/notifications/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update notification (${response.status})`);
+  }
+
+  return response.json() as Promise<{ notification: NotificationRecord; updatedAt: string }>;
+}
+
+export async function deleteNotification(id: string) {
+  const response = await fetch(`${API_BASE}/api/notifications/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete notification (${response.status})`);
+  }
+
+  return response.json() as Promise<{ ok: boolean; deletedId: string; updatedAt: string }>;
 }
 
 export async function optimizeWithSolver(payload: PersistedScheduleState | { state: PersistedScheduleState; solverProfile?: string }) {
@@ -557,6 +641,17 @@ export interface CopilotSuggestionsResponse {
   updatedAt: string;
 }
 
+export interface CopilotCapabilitiesResponse {
+  result: {
+    capabilitySchemaVersion: string;
+    intents: string[];
+    actions: string[];
+    confirmationRequiredIntents: string[];
+    examplePrompts: string[];
+  };
+  updatedAt: string;
+}
+
 export async function getCopilotSuggestions(
   context: CopilotContext
 ): Promise<CopilotSuggestionsResponse> {
@@ -579,6 +674,21 @@ export async function getCopilotSuggestions(
   }
 
   return response.json() as Promise<CopilotSuggestionsResponse>;
+}
+
+export async function getCopilotCapabilities(): Promise<CopilotCapabilitiesResponse> {
+  const response = await fetch(`${API_BASE}/api/copilot/capabilities`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load copilot capabilities (${response.status})`);
+  }
+
+  return response.json() as Promise<CopilotCapabilitiesResponse>;
 }
 export async function registerProvider(provider: Omit<Provider, "id">) {
   try {

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useCopilot } from "@/hooks/useCopilot";
 import { useScheduleStore } from "@/store";
 import { useCopilotKeyboard, useMobileDetect } from "@/hooks/useKeyboardShortcuts";
+import { getCopilotCapabilities } from "@/lib/api";
 import { MobileCopilotSheet } from "./MobileCopilotSheet";
 import { KeyboardHelpOverlay } from "./KeyboardHelpOverlay";
 import { ConversationExportDialog } from "./ConversationExportDialog";
@@ -40,6 +41,7 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [capabilityPrompts, setCapabilityPrompts] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -78,6 +80,7 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
       console.error("Copilot error:", error);
     },
   });
+  const discoverSuggestions = suggestions.length > 0 ? suggestions : capabilityPrompts;
 
   // Get current conversation info
   const currentConversation = store.copilotConversations.find(
@@ -116,6 +119,15 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
       };
     }
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || capabilityPrompts.length > 0) return;
+    void getCopilotCapabilities()
+      .then((response) => {
+        setCapabilityPrompts(response.result.examplePrompts.slice(0, 5));
+      })
+      .catch(() => undefined);
+  }, [isOpen, capabilityPrompts.length]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -421,14 +433,14 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
         </div>
 
         {/* Quick suggestions */}
-        {suggestions.length > 0 && !isLoading && (
+        {discoverSuggestions.length > 0 && !isLoading && (
           <div className="px-4 py-2 border-t bg-slate-50">
             <div className="flex items-center gap-1 text-xs text-slate-500 mb-1.5">
               <Lightbulb className="h-3 w-3" />
               <span>Quick actions</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {suggestions.slice(0, 3).map((suggestion, idx) => (
+              {discoverSuggestions.slice(0, 3).map((suggestion, idx) => (
                 <button
                   key={idx}
                   onClick={() => {

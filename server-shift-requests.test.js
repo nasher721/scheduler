@@ -61,6 +61,16 @@ test("shift request endpoints support create, list, and review", async () => {
     assert.equal(filteredRes.ok, true);
     const filteredPayload = await filteredRes.json();
     assert.equal(filteredPayload.requests.some((entry) => entry.id === createPayload.request.id), true);
+
+    const deleteRes = await fetch(`${BASE_URL}/api/shift-requests/${createPayload.request.id}`, {
+      method: "DELETE",
+    });
+    assert.equal(deleteRes.ok, true);
+
+    const afterDeleteRes = await fetch(`${BASE_URL}/api/shift-requests`);
+    assert.equal(afterDeleteRes.ok, true);
+    const afterDeletePayload = await afterDeleteRes.json();
+    assert.equal(afterDeletePayload.requests.some((entry) => entry.id === createPayload.request.id), false);
   } finally {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.on("exit", resolve));

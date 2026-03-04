@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useScheduleStore } from "../store";
+import { supabaseStatus } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Lock, Sparkles, User, UserPlus, Bug } from "lucide-react";
 import { Register } from "./Register";
@@ -30,7 +31,7 @@ export function Login() {
     const login = useScheduleStore((state) => state.login);
 
     // Check if we're in dev mode with bypass available
-    const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
+    const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost' || supabaseStatus.isPlaceholder;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -155,7 +156,7 @@ export function Login() {
                                         <span className="text-xs font-medium">Dev Mode Active</span>
                                     </div>
                                     <p className="text-[10px] text-amber-600 mt-1">
-                                        Supabase auth bypass enabled. Login will work without email verification.
+                                        Local auth mode is enabled. Login works without remote email verification.
                                     </p>
                                 </div>
                             )}

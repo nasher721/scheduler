@@ -139,11 +139,14 @@ function executeCopilotActions(params: {
   }
 
   let executed = 0;
+  let unsupportedActionCount = 0;
+  let skippedActionCount = 0;
   for (const action of parsedActions) {
     const selectedDate = typeof action.date === "string" ? action.date : (context.selectedDate ?? store.selectedDate ?? null);
     const selectedShiftType = normalizeShiftType(action.shiftType);
 
     switch (action.type) {
+      case "check_coverage":
       case "show_coverage": {
         if (selectedDate) {
           store.setSelectedDate(selectedDate);
@@ -192,9 +195,15 @@ function executeCopilotActions(params: {
           return true;
         });
         const targetSlot = candidateSlots.find((slot) => !slot.providerId) || candidateSlots[0] || null;
-        if (!targetSlot) break;
+        if (!targetSlot) {
+          skippedActionCount += 1;
+          break;
+        }
         if (action.type === "assign_shift") {
-          if (!providerId) break;
+          if (!providerId) {
+            skippedActionCount += 1;
+            break;
+          }
           store.assignShift(targetSlot.id, providerId);
         } else {
           store.assignShift(targetSlot.id, null);
@@ -215,7 +224,10 @@ function executeCopilotActions(params: {
         const scenarioId = typeof action.scenarioId === "string"
           ? action.scenarioId
           : (typeof action.scenarioName === "string" ? resolveScenarioIdByName(action.scenarioName, store.scenarios.map((s) => ({ id: s.id, name: s.name }))) : null);
-        if (!scenarioId) break;
+        if (!scenarioId) {
+          skippedActionCount += 1;
+          break;
+        }
         if (action.type === "load_scenario") {
           store.loadScenario(scenarioId);
         } else {
@@ -224,7 +236,32 @@ function executeCopilotActions(params: {
         executed += 1;
         break;
       }
+      case "explain_assignments": {
+        const providerId = typeof action.providerId === "string"
+          ? action.providerId
+          : (context.selectedProviderId ?? store.selectedProviderId ?? null);
+        if (!providerId) {
+          skippedActionCount += 1;
+          break;
+        }
+        const provider = store.providers.find((entry: Provider) => entry.id === providerId);
+        if (!provider) {
+          skippedActionCount += 1;
+          break;
+        }
+        const providerSlots = store.slots.filter((slot: ShiftSlot) => slot.providerId === providerId);
+        const dayCount = providerSlots.filter((slot: ShiftSlot) => slot.type === "DAY").length;
+        const nightCount = providerSlots.filter((slot: ShiftSlot) => slot.type === "NIGHT").length;
+        store.showToast({
+          type: "info",
+          title: `Assignment Context: ${provider.name}`,
+          message: `${providerSlots.length} total assignments (${dayCount} day, ${nightCount} night). Use Conflict Dashboard for constraint details.`,
+        });
+        executed += 1;
+        break;
+      }
       default:
+        unsupportedActionCount += 1;
         break;
     }
   }
@@ -234,6 +271,20 @@ function executeCopilotActions(params: {
       type: "success",
       title: "Copilot Actions Applied",
       message: `${executed} action${executed === 1 ? "" : "s"} executed.`,
+    });
+  }
+  if (skippedActionCount > 0) {
+    store.showToast({
+      type: "warning",
+      title: "Some Copilot Actions Skipped",
+      message: `${skippedActionCount} action${skippedActionCount === 1 ? "" : "s"} could not be applied due to missing context.`,
+    });
+  }
+  if (unsupportedActionCount > 0) {
+    store.showToast({
+      type: "warning",
+      title: "Unsupported Copilot Action",
+      message: `${unsupportedActionCount} action type${unsupportedActionCount === 1 ? "" : "s"} are not implemented yet.`,
     });
   }
   return executed;

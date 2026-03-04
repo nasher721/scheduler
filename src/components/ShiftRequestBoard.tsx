@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createShiftRequest,
-  listShiftRequests,
+  deleteEmailEvent,
+  deleteShiftRequest,
   listEmailEvents,
+  listShiftRequests,
   reviewShiftRequest,
   submitInboundEmail,
+  updateEmailEvent,
+  type EmailEvent,
   type ShiftRequest,
   type ShiftRequestStatus,
   type ShiftRequestType,
@@ -39,6 +43,7 @@ export function ShiftRequestBoard() {
   const [emailSubject, setEmailSubject] = useState("Schedule change request");
   const [emailBody, setEmailBody] = useState("date: \ntype: time_off\nnotes: ");
   const [emailEventCount, setEmailEventCount] = useState(0);
+  const [emailEvents, setEmailEvents] = useState<EmailEvent[]>([]);
 
   const pendingCount = useMemo(() => requests.filter((request) => request.status === "pending").length, [requests]);
 
@@ -54,19 +59,29 @@ export function ShiftRequestBoard() {
     }
   }, [showToast, statusFilter]);
 
+  const loadEmailEvents = useCallback(async () => {
+    try {
+      const response = await listEmailEvents();
+      setEmailEvents(response.events);
+      setEmailEventCount(response.events.length);
+    } catch {
+      showToast({ type: "error", title: "Email events sync failed", message: "Could not load email workflow events." });
+    }
+  }, [showToast]);
+
   useEffect(() => {
     void loadRequests();
-    void listEmailEvents().then((response) => setEmailEventCount(response.events.length)).catch(() => undefined);
-  }, [loadRequests]);
+    void loadEmailEvents();
+  }, [loadRequests, loadEmailEvents]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       void loadRequests(statusFilter);
-      void listEmailEvents().then((response) => setEmailEventCount(response.events.length)).catch(() => undefined);
+      void loadEmailEvents();
     }, 15000);
 
     return () => window.clearInterval(interval);
-  }, [loadRequests, statusFilter]);
+  }, [loadRequests, loadEmailEvents, statusFilter]);
 
   useEffect(() => {
     const channel = supabase
@@ -75,14 +90,14 @@ export function ShiftRequestBoard() {
         void loadRequests(statusFilter);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "email_events" }, () => {
-        void listEmailEvents().then((response) => setEmailEventCount(response.events.length)).catch(() => undefined);
+        void loadEmailEvents();
       })
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadRequests, statusFilter]);
+  }, [loadRequests, loadEmailEvents, statusFilter]);
 
   const submitRequest = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -111,11 +126,30 @@ export function ShiftRequestBoard() {
     try {
       await submitInboundEmail({ from: emailFrom, subject: emailSubject, body: emailBody });
       await loadRequests();
-      const events = await listEmailEvents();
-      setEmailEventCount(events.events.length);
+      await loadEmailEvents();
       showToast({ type: "success", title: "Email triaged", message: "Inbound email was converted to a pending request." });
     } catch {
       showToast({ type: "error", title: "Email triage failed", message: "Could not process inbound email into triage board." });
+    }
+  };
+
+  const updateEventStatus = async (eventId: string, status: string) => {
+    try {
+      await updateEmailEvent(eventId, { status });
+      await loadEmailEvents();
+      showToast({ type: "success", title: "Event updated", message: `Email event marked as ${status}.` });
+    } catch {
+      showToast({ type: "error", title: "Update failed", message: "Could not update email event." });
+    }
+  };
+
+  const removeEmailEvent = async (eventId: string) => {
+    try {
+      await deleteEmailEvent(eventId);
+      await loadEmailEvents();
+      showToast({ type: "info", title: "Event deleted", message: "Email event removed." });
+    } catch {
+      showToast({ type: "error", title: "Delete failed", message: "Could not delete email event." });
     }
   };
 
@@ -130,6 +164,20 @@ export function ShiftRequestBoard() {
       });
     } catch {
       showToast({ type: "error", title: "Review failed", message: "Could not update request status." });
+    }
+  };
+
+  const removeRequest = async (requestId: string) => {
+    try {
+      await deleteShiftRequest(requestId);
+      await loadRequests();
+      showToast({
+        type: "info",
+        title: "Request deleted",
+        message: "The shift request was removed.",
+      });
+    } catch {
+      showToast({ type: "error", title: "Delete failed", message: "Could not delete request." });
     }
   };
 
@@ -285,10 +333,77 @@ export function ShiftRequestBoard() {
                         >
                           Deny
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => removeRequest(request.id)}
+                          className="px-2 py-1 rounded bg-slate-100 text-slate-700"
+                        >
+                          Delete
+                        </button>
                       </div>
                     ) : (
-                      <span className="text-slate-400">Reviewed</span>
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Reviewed</span>
+                        <button
+                          type="button"
+                          onClick={() => removeRequest(request.id)}
+                          className="px-2 py-1 rounded bg-slate-100 text-slate-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="border rounded-xl overflow-hidden bg-white">
+        <div className="px-3 py-2 bg-slate-50 text-slate-500 uppercase tracking-wider text-xs font-semibold">
+          Recent Email Events
+        </div>
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+            <tr>
+              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Created</th>
+              <th className="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {emailEvents.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
+                  No email events yet.
+                </td>
+              </tr>
+            ) : (
+              emailEvents.slice(0, 8).map((event) => (
+                <tr key={event.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2">{event.type}</td>
+                  <td className="px-3 py-2">{event.status}</td>
+                  <td className="px-3 py-2">{new Date(event.createdAt).toLocaleString()}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateEventStatus(event.id, "sent")}
+                        className="px-2 py-1 rounded bg-emerald-50 text-emerald-700"
+                      >
+                        Mark Sent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeEmailEvent(event.id)}
+                        className="px-2 py-1 rounded bg-slate-100 text-slate-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

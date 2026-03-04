@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useScheduleStore, type Notification, type NotificationType } from "../store";
+import { deleteNotification, listNotificationHistory, type NotificationRecord, updateNotification } from "../lib/api";
+import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Bell, 
@@ -107,6 +109,8 @@ export function NotificationCenter() {
   
   const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [backendNotifications, setBackendNotifications] = useState<NotificationRecord[]>([]);
+  const [isBackendLoading, setIsBackendLoading] = useState(false);
 
   const userPrefs = currentUser ? notificationPreferences[currentUser.id] : undefined;
   
@@ -124,6 +128,51 @@ export function NotificationCenter() {
     notifications
       .filter(n => !n.readAt && n.providerId === currentUser?.id)
       .forEach(n => markNotificationRead(n.id));
+  };
+
+  const loadBackendNotifications = useCallback(async () => {
+    try {
+      setIsBackendLoading(true);
+      const response = await listNotificationHistory(25);
+      setBackendNotifications(response.records);
+    } finally {
+      setIsBackendLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBackendNotifications();
+  }, [loadBackendNotifications]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("notification-center-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {
+        void loadBackendNotifications();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadBackendNotifications]);
+
+  const acknowledgeBackendNotification = async (id: string) => {
+    try {
+      await updateNotification(id, { statusByChannel: { log: "acknowledged" } });
+      await loadBackendNotifications();
+    } catch {
+      // keep local experience smooth; store toasts are app-notification specific
+    }
+  };
+
+  const removeBackendNotification = async (id: string) => {
+    try {
+      await deleteNotification(id);
+      await loadBackendNotifications();
+    } catch {
+      // keep local experience smooth; store toasts are app-notification specific
+    }
   };
 
   return (
@@ -279,6 +328,47 @@ export function NotificationCenter() {
             ))
           )}
         </AnimatePresence>
+      </div>
+
+      <div className="mt-6 border-t border-slate-100 pt-4">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+          Delivery History (Server)
+        </h3>
+        <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
+          {isBackendLoading ? (
+            <p className="text-xs text-slate-500">Loading server notifications...</p>
+          ) : backendNotifications.length === 0 ? (
+            <p className="text-xs text-slate-500">No server notifications yet.</p>
+          ) : (
+            backendNotifications.map((record) => (
+              <div key={record.id} className="border border-slate-100 rounded-xl p-3 bg-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{record.title}</p>
+                    <p className="text-xs text-slate-500">{record.body}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{new Date(record.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => acknowledgeBackendNotification(record.id)}
+                      className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold"
+                    >
+                      Ack
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeBackendNotification(record.id)}
+                      className="px-2 py-1 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </motion.div>
   );

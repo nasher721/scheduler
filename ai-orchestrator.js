@@ -830,6 +830,30 @@ const SUPPORTED_INTENTS = [
   "unknown"
 ];
 
+const SUPPORTED_COPILOT_ACTIONS = [
+  "check_coverage",
+  "show_coverage",
+  "detect_conflicts",
+  "resolve_conflicts",
+  "auto_assign",
+  "optimize_schedule",
+  "assign_shift",
+  "unassign_shift",
+  "save_scenario",
+  "create_scenario",
+  "load_scenario",
+  "delete_scenario",
+  "explain_assignments",
+];
+
+const COPILOT_EXAMPLE_PROMPTS = [
+  "Optimize schedule",
+  "Show conflicts",
+  "Assign day shift on selected date",
+  "Save scenario Weekend Plan",
+  "Explain my assignments",
+];
+
 const INTENT_PATTERNS = {
   greeting: /^(hi|hello|hey|good morning|good afternoon|good evening)/i,
   request_time_off: /(need|want|request).*(off|vacation|time off|pto|away)/i,
@@ -991,11 +1015,22 @@ export async function parseIntent(input) {
   return executeTask(task, payload, deterministicParseIntent);
 }
 
+export function listCopilotCapabilities() {
+  return {
+    capabilitySchemaVersion: "2026-03-04",
+    intents: [...SUPPORTED_INTENTS],
+    actions: [...SUPPORTED_COPILOT_ACTIONS],
+    confirmationRequiredIntents: ["optimize_schedule"],
+    examplePrompts: [...COPILOT_EXAMPLE_PROMPTS],
+  };
+}
+
 // ==================== CONTEXTUAL RECOMMENDATIONS ====================
 
 function buildContextualRecommendations(input, context) {
   const base = deterministicRecommendations(input, context?.provider);
   const recommendations = [...(base.recommendations || [])];
+  const providers = isArray(input?.state?.providers) ? input.state.providers : [];
 
   // Add context-specific recommendations
   if (context?.viewType === 'week' && context?.selectedDate) {
@@ -1022,6 +1057,17 @@ function buildContextualRecommendations(input, context) {
       rationale: 'Check for fairness relative to targets and preferences.',
       context: { providerId: context.selectedProvider.id }
     });
+  } else if (context?.selectedProviderId) {
+    const selectedProvider = providers.find((provider) => provider?.id === context.selectedProviderId);
+    if (selectedProvider) {
+      recommendations.push({
+        id: 'provider-specific',
+        title: `Review ${selectedProvider.name}'s assignments`,
+        impact: 'medium',
+        rationale: 'Check for fairness relative to targets and preferences.',
+        context: { providerId: selectedProvider.id }
+      });
+    }
   }
 
   return {

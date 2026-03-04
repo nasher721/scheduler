@@ -88,6 +88,17 @@ test("email workflow supports schedule update notifications and inbound request 
     assert.equal(eventRes.ok, true);
     const eventPayload = await eventRes.json();
     assert.equal(eventPayload.events.length >= 1, true);
+    const firstScheduleEvent = eventPayload.events[0];
+    assert.equal(typeof firstScheduleEvent.id, "string");
+
+    const patchEventRes = await fetch(`${BASE_URL}/api/email-events/${firstScheduleEvent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "sent" }),
+    });
+    assert.equal(patchEventRes.ok, true);
+    const patchEventPayload = await patchEventRes.json();
+    assert.equal(patchEventPayload.event.status, "sent");
 
     const inboundRes = await fetch(`${BASE_URL}/api/email/inbound`, {
       method: "POST",
@@ -106,6 +117,11 @@ test("email workflow supports schedule update notifications and inbound request 
     assert.equal(pendingRes.ok, true);
     const pendingPayload = await pendingRes.json();
     assert.equal(pendingPayload.requests.some((entry) => entry.id === inboundPayload.request.id), true);
+
+    const deleteEventRes = await fetch(`${BASE_URL}/api/email-events/${firstScheduleEvent.id}`, {
+      method: "DELETE",
+    });
+    assert.equal(deleteEventRes.ok, true);
   } finally {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.on("exit", resolve));

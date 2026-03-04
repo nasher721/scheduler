@@ -62,6 +62,20 @@ test("notification and solver endpoints are available", async () => {
       }),
     });
     assert.equal(sendRes.status, 201);
+    const sendPayload = await sendRes.json();
+    assert.equal(typeof sendPayload.notification.id, "string");
+
+    const patchNotificationRes = await fetch(`${BASE_URL}/api/notifications/${sendPayload.notification.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        severity: "warning",
+        statusByChannel: { log: "acknowledged" },
+      }),
+    });
+    assert.equal(patchNotificationRes.ok, true);
+    const patchNotificationPayload = await patchNotificationRes.json();
+    assert.equal(patchNotificationPayload.notification.severity, "warning");
 
     const historyRes = await fetch(`${BASE_URL}/api/notifications/history?limit=5`);
     assert.equal(historyRes.ok, true);
@@ -72,6 +86,12 @@ test("notification and solver endpoints are available", async () => {
     assert.equal(profilesRes.ok, true);
     const profilesPayload = await profilesRes.json();
     assert.equal(profilesPayload.profiles.some((profile) => profile.id === "greedy-balanced"), true);
+
+    const capabilitiesRes = await fetch(`${BASE_URL}/api/copilot/capabilities`);
+    assert.equal(capabilitiesRes.ok, true);
+    const capabilitiesPayload = await capabilitiesRes.json();
+    assert.equal(Array.isArray(capabilitiesPayload.result.intents), true);
+    assert.equal(Array.isArray(capabilitiesPayload.result.actions), true);
 
     const optimizeRes = await fetch(`${BASE_URL}/api/solver/optimize`, {
       method: "POST",
@@ -90,6 +110,11 @@ test("notification and solver endpoints are available", async () => {
     assert.equal(aiOptimizeRes.ok, true);
     const aiOptimizePayload = await aiOptimizeRes.json();
     assert.equal(aiOptimizePayload.result.source, "solver-service");
+
+    const deleteNotificationRes = await fetch(`${BASE_URL}/api/notifications/${sendPayload.notification.id}`, {
+      method: "DELETE",
+    });
+    assert.equal(deleteNotificationRes.ok, true);
   } finally {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.on("exit", resolve));

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
 import { registerProvider, loadScheduleState } from "./lib/api";
-import { supabase } from "./lib/supabase";
+import { supabase, supabaseStatus } from "./lib/supabase";
 export * from "./types";
 import {
   ShiftType, ProviderCredential, CredentialStatus,
@@ -438,6 +438,20 @@ function isNetworkRegistrationError(message: string): boolean {
   );
 }
 
+function isDuplicateRegistrationError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("already in use")
+    || normalized.includes("already registered")
+    || normalized.includes("already exists")
+    || normalized.includes("duplicate");
+}
+
+function shouldUseLocalAuthBypass() {
+  const isDevMode = import.meta.env.DEV || window.location.hostname === "localhost";
+  const bypassByEnv = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
+  return bypassByEnv || supabaseStatus.isPlaceholder;
+}
+
 const baseProviders: Provider[] = [
   { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
   { id: "2", name: "Dr. Baker", email: "baker@hospital.org", role: "CLINICIAN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
@@ -755,11 +769,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
       login: async (email) => {
         const normalizedEmail = email.toLowerCase().trim();
-        
-        // DEV MODE: Allow direct login without Supabase for local development
-        // This bypasses the "Failed to fetch" error when Supabase is not available
-        const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
-        const bypassSupabase = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
+        const bypassSupabase = shouldUseLocalAuthBypass();
         
         if (bypassSupabase) {
           console.log('[DEV] Bypassing Supabase auth for:', normalizedEmail);
@@ -855,8 +865,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
       register: async (provider) => {
         const normalizedEmail = provider.email?.toLowerCase().trim();
-        const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
-        const bypassSupabase = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
+        const bypassSupabase = shouldUseLocalAuthBypass();
 
         const addProviderLocally = (providerToAdd: Provider) => {
           const state = get();
@@ -910,7 +919,11 @@ export const useScheduleStore = create<ScheduleState>()(
           get().showToast({ type: "success", title: "Registration Successful", message: `Welcome, ${newProvider.name}!` });
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "Email already in use.";
-          if (isNetworkRegistrationError(message)) {
+          if (isDuplicateRegistrationError(message)) {
+            get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
+            return;
+          }
+          if (isNetworkRegistrationError(message) || !bypassSupabase) {
             if (normalizedEmail && get().providers.some(p => p.email?.toLowerCase() === normalizedEmail)) {
               get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
               return;
@@ -926,7 +939,7 @@ export const useScheduleStore = create<ScheduleState>()(
             get().showToast({
               type: "warning",
               title: "Registered in Offline Mode",
-              message: "Auth service is unreachable, so your profile was created locally for now.",
+              message: "Auth service is unavailable, so your profile was created locally for now.",
             });
             return;
           }
