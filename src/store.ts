@@ -698,18 +698,37 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       login: async (email) => {
-        // Use Magic Link for a seamless email-only login experience as in original app
-        const { error } = await supabase.auth.signInWithOtp({
-          email: email.toLowerCase(),
-          options: {
-            emailRedirectTo: window.location.origin,
-          }
-        });
+        try {
+          // Use Magic Link for a seamless email-only login experience as in original app
+          const { error } = await supabase.auth.signInWithOtp({
+            email: email.toLowerCase(),
+            options: {
+              emailRedirectTo: window.location.origin,
+            }
+          });
 
-        if (error) {
-          get().showToast({ type: "error", title: "Login Failed", message: error.message });
-        } else {
-          get().showToast({ type: "success", title: "Check your email", message: "A login link has been sent to your inbox." });
+          if (error) {
+            console.error("Supabase Login Error:", error);
+            get().showToast({
+              type: "error",
+              title: "Login Failed",
+              message: error.message.includes("Failed to fetch")
+                ? "Connection failed: Check your internet or Supabase configuration."
+                : error.message
+            });
+          } else {
+            get().showToast({ type: "success", title: "Check your email", message: "A login link has been sent to your inbox." });
+          }
+        } catch (error) {
+          console.error("Unexpected Login Error:", error);
+          const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+          get().showToast({
+            type: "error",
+            title: "Login Error",
+            message: message.includes("Failed to fetch")
+              ? "Connection failed: Check your internet or Supabase configuration."
+              : message
+          });
         }
       },
 

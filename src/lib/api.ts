@@ -444,46 +444,62 @@ export async function getCopilotSuggestions(
   return response.json() as Promise<CopilotSuggestionsResponse>;
 }
 export async function registerProvider(provider: Omit<Provider, "id">) {
-  // 1. Sign up the user in Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: provider.email || "",
-    password: "password123", // Default password for migration simplicity, can be changed later
-    options: {
-      data: {
-        name: provider.name,
-        role: provider.role,
+  try {
+    // 1. Sign up the user in Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: provider.email || "",
+      password: "password123", // Default password for migration simplicity
+      options: {
+        data: {
+          name: provider.name,
+          role: provider.role,
+        },
       },
-    },
-  });
+    });
 
-  if (authError) throw authError;
-  if (!authData.user) throw new Error("Registration failed: No user returned");
+    if (authError) {
+      console.error("Supabase Auth Error:", authError);
+      throw new Error(`Auth Error: ${authError.message}`);
+    }
 
-  // 2. Insert provider details into the providers table
-  // The profile is created automatically via trigger
-  const { data: providerData, error: providerError } = await supabase
-    .from("providers")
-    .insert({
-      id: crypto.randomUUID(), // Or use authData.user.id if preferred for 1:1, but current app uses UUID/string
-      profile_id: authData.user.id,
-      name: provider.name,
-      email: provider.email,
-      role: provider.role,
-      target_week_days: provider.targetWeekDays,
-      target_weekend_days: provider.targetWeekendDays,
-      target_week_nights: provider.targetWeekNights,
-      target_weekend_nights: provider.targetWeekendNights,
-      time_off_requests: provider.timeOffRequests,
-      preferred_dates: provider.preferredDates,
-      skills: provider.skills,
-      max_consecutive_nights: provider.maxConsecutiveNights,
-      min_days_off_after_night: provider.minDaysOffAfterNight,
-      notes: provider.notes,
-    })
-    .select()
-    .single();
+    if (!authData.user) {
+      throw new Error("Registration failed: No user returned from Supabase");
+    }
 
-  if (providerError) throw providerError;
+    // 2. Insert provider details into the providers table
+    const { data: providerData, error: providerError } = await supabase
+      .from("providers")
+      .insert({
+        id: crypto.randomUUID(),
+        profile_id: authData.user.id,
+        name: provider.name,
+        email: provider.email,
+        role: provider.role,
+        target_week_days: provider.targetWeekDays,
+        target_weekend_days: provider.targetWeekendDays,
+        target_week_nights: provider.targetWeekNights,
+        target_weekend_nights: provider.targetWeekendNights,
+        time_off_requests: provider.timeOffRequests,
+        preferred_dates: provider.preferredDates,
+        skills: provider.skills,
+        max_consecutive_nights: provider.maxConsecutiveNights,
+        min_days_off_after_night: provider.minDaysOffAfterNight,
+        notes: provider.notes,
+      })
+      .select()
+      .single();
 
-  return { ok: true, provider: { ...provider, id: providerData.id } as Provider };
+    if (providerError) {
+      console.error("Supabase Database Error:", providerError);
+      throw new Error(`Database Error: ${providerError.message}`);
+    }
+
+    return { ok: true, provider: { ...provider, id: providerData.id } as Provider };
+  } catch (err) {
+    console.error("Full Registration Failure:", err);
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error("Connection failed: Ensure Supabase URL is correct and you have an internet connection.");
+    }
+    throw err;
+  }
 }
