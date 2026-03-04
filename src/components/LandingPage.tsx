@@ -481,70 +481,81 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                                 </text>
                             </g>
 
-                            {/* Natural Login Form Transition */}
-                            <foreignObject x="0" y="0" width="1200" height="800">
-                                <AnimatePresence>
-                                    {showLoginOverlay && (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.9 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="w-full h-full flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-xl"
-                                        >
-                                            <div className="w-full max-w-md bg-slate-900 border border-cyan-500/20 rounded-3xl p-10 shadow-2xl shadow-cyan-500/10 relative overflow-hidden">
-                                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
-
-                                                <div className="flex flex-col items-center text-center gap-4 mb-8">
-                                                    <div className="w-20 h-20 rounded-2xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                                                        <Lock className="w-10 h-10 text-cyan-400" />
-                                                    </div>
-                                                    <h2 className="text-3xl font-bold text-white tracking-tight">Access Control</h2>
-                                                    <p className="text-slate-400 text-sm font-medium">Please authenticate to access the NeuroSync scheduling environment.</p>
-                                                </div>
-
-                                                <form onSubmit={handleSubmit} className="space-y-6">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-500/80 ml-1">Provider Credentials</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="email"
-                                                                required
-                                                                value={email}
-                                                                onChange={(e) => setEmail(e.target.value)}
-                                                                placeholder="name@hospital.org"
-                                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-12 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all font-medium"
-                                                            />
-                                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                                                        </div>
-                                                    </div>
-
-                                                    <button
-                                                        type="submit"
-                                                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 transition-all flex items-center justify-center gap-2 group"
-                                                    >
-                                                        Enter Environment
-                                                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                                    </button>
-                                                </form>
-
-                                                <div className="mt-8 pt-6 border-t border-slate-800 flex flex-col items-center gap-4">
-                                                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                                        <Sparkles className="w-3 h-3 text-cyan-400" />
-                                                        Secure Authorization Required
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setShowLoginOverlay(false)}
-                                                        className="text-xs text-slate-500 hover:text-white transition-colors"
-                                                    >
-                                                        Return to Animation
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </foreignObject>
                         </g>
                     </svg>
+
+                    {/* Login Overlay — rendered as real HTML, outside the SVG */}
+                    <AnimatePresence>
+                        {showLoginOverlay && (
+                            <motion.div
+                                key="login-overlay"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.4 }}
+                                className="absolute inset-0 flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-xl z-30 rounded-3xl"
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.9, y: 20 }}
+                                    animate={{ scale: 1, y: 0 }}
+                                    exit={{ scale: 0.9, y: 20 }}
+                                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                                    className="w-full max-w-md bg-slate-900 border border-cyan-500/20 rounded-3xl p-10 shadow-2xl shadow-cyan-500/10 relative overflow-hidden"
+                                >
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600" />
+
+                                    <div className="flex flex-col items-center text-center gap-4 mb-8">
+                                        <div className="w-20 h-20 rounded-2xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                                            <Lock className="w-10 h-10 text-cyan-400" />
+                                        </div>
+                                        <h2 className="text-3xl font-bold text-white tracking-tight">Access Control</h2>
+                                        <p className="text-slate-400 text-sm font-medium">Please authenticate to access the NeuroSync scheduling environment.</p>
+                                    </div>
+
+                                    <form onSubmit={handleSubmit} className="space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-500/80 ml-1">Provider Credentials</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="email"
+                                                    required
+                                                    autoFocus
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    placeholder="name@hospital.org"
+                                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-12 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all font-medium"
+                                                />
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            disabled={!email.trim()}
+                                            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Enter Environment
+                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </button>
+                                    </form>
+
+                                    <div className="mt-8 pt-6 border-t border-slate-800 flex flex-col items-center gap-4">
+                                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                            <Sparkles className="w-3 h-3 text-cyan-400" />
+                                            Secure Authorization Required
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowLoginOverlay(false)}
+                                            className="text-xs text-slate-500 hover:text-white transition-colors"
+                                        >
+                                            Return to Animation
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </main>
 
