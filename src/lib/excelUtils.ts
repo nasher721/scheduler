@@ -6,18 +6,6 @@ import type { Provider, ShiftSlot } from "../store.ts";
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
 const WORKER_PARSE_TIMEOUT_MS = 120_000;
 
-const COLUMN_HEADERS = [
-  "Month / Date",
-  "G20",
-  "H22",
-  "Akron",
-  "Nights",
-  "Consults",
-  "AMET / NMET",
-  "Jeopardy",
-  "Recovery",
-  "Vacations",
-] as const;
 
 /** Excel column mapping for MASTER_NEW_CALENDAR format (trimmed keys) */
 const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
@@ -34,23 +22,6 @@ const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
   "Vacations": "vacation",
 };
 
-const slotToColumnMap: Record<string, number> = {
-  "DAY-G20": 1,
-  "DAY-H22": 2,
-  "DAY-Akron": 3,
-  "NIGHT-Main Campus": 4,
-  "NIGHT-0": 4,
-  "CONSULTS-Main Campus": 5,
-  "CONSULTS-0": 5,
-  "NMET-Main Campus": 6,
-  "NMET-0": 6,
-  "JEOPARDY-Main Campus": 7,
-  "JEOPARDY-0": 7,
-  "RECOVERY-Main Campus": 8,
-  "RECOVERY-0": 8,
-  "VACATION-Any": 9,
-  "VACATION-0": 9,
-};
 
 const IMPORT_FIELDS = ["date", "dayG20", "dayH22", "dayAkron", "night", "consults", "nmet", "jeopardy", "recovery", "vacation"] as const;
 type AssignmentImportFieldKey = Exclude<ImportFieldKey, "date">;
@@ -217,7 +188,6 @@ let lastImportSnapshot: ImportSnapshot | null = null;
 
 type ProgressCallback = (percent: number) => void;
 type WorksheetRow = Record<string, unknown>;
-type ExportSheetCell = string | number | Date | null;
 
 const fieldToSlotSpec: Partial<Record<ImportFieldKey, {
   type: ShiftSlot["type"];
@@ -1127,178 +1097,261 @@ export const hasImportRollback = (): boolean => {
   }
 };
 
-const countMonthRows = (dates: string[]): number => {
-  let monthRows = 0;
-  for (let index = 0; index < dates.length; index += 1) {
-    const date = new Date(`${dates[index]}T00:00:00`);
-    if (index === 0 || date.getDate() === 1) {
-      monthRows += 1;
-    }
-  }
-
-  return monthRows;
-};
 
 export const exportScheduleToExcel = (): ExcelOperationResult => {
   try {
     const { slots, startDate, providers, swapRequests, holidayAssignments } = useScheduleStore.getState();
 
     const providerNamesById = new Map<string, string>();
-    providers.forEach((provider) => {
-      providerNamesById.set(provider.id, provider.name);
+    providers.forEach((p) => providerNamesById.set(p.id, p.name));
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SHEET 1: "2026 Sch" — mirrors the master NICU Excel format exactly
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Column order and exact header text (incl. trailing spaces from master)
+    const MASTER_HEADERS = [
+      "Month ", "G20 ", "H22", "Akron ", "Nights",
+      "Consults ", "AMET", "Jeopardy", "Recovery", "Vacations ",
+    ] as const;
+
+    // 0-based column indices
+    const COL_DATE = 0;  // A
+    const COL_G20 = 1;  // B
+    const COL_H22 = 2;  // C
+    const COL_AKRON = 3;  // D
+    const COL_NIGHTS = 4;  // E
+    const COL_CONSULTS = 5;  // F
+    const COL_AMET = 6;  // G
+    const COL_JEOPARDY = 7;  // H
+    const COL_RECOVERY = 8;  // I
+    const COL_VACATIONS = 9;  // J
+    const NUM_COLS = 10;
+
+    // slot.serviceLocation → export column (handles both AMET and NMET → col G)
+    const svcToCol: Record<string, number> = {
+      G20: COL_G20,
+      H22: COL_H22,
+      Akron: COL_AKRON,
+      Nights: COL_NIGHTS,
+      Consults: COL_CONSULTS,
+      AMET: COL_AMET,
+      NMET: COL_AMET,
+      Jeopardy: COL_JEOPARDY,
+      Recovery: COL_RECOVERY,
+      Vacation: COL_VACATIONS,
+    };
+
+    // Gold fill that matches master (FFFFC000)
+    const goldFill = { patternType: "solid", fgColor: { rgb: "FFC000" } };
+
+    const ws: XLSX.WorkSheet = {};
+    const addr = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
+
+    const cell = (
+      v: XLSX.CellObject["v"],
+      t: XLSX.CellObject["t"],
+      extra?: Partial<XLSX.CellObject>,
+    ): XLSX.CellObject => ({ v, t, ...extra } as XLSX.CellObject);
+
+    let ri = 0; // current row index (0-based)
+
+    // ── Row 1: Column headers ────────────────────────────────────────────────
+    MASTER_HEADERS.forEach((hdr, ci) => {
+      ws[addr(ri, ci)] = cell(hdr, "s");
+    });
+    ri++;
+
+    // ── Build date → slots map ───────────────────────────────────────────────
+    const byDate = new Map<string, ShiftSlot[]>();
+    slots.forEach((s) => {
+      const list = byDate.get(s.date);
+      if (list) list.push(s); else byDate.set(s.date, [s]);
+    });
+    const dates = [...byDate.keys()].sort();
+
+    let prevMonth = -1;
+
+    dates.forEach((dateStr) => {
+      const d = new Date(`${dateStr}T00:00:00`);
+      const month = d.getMonth();
+      const isNewMonth = month !== prevMonth;
+      prevMonth = month;
+
+      // ── Month header row (e.g. "January" repeated across A-F & J) ─────────
+      if (isNewMonth) {
+        const monthName = format(d, "MMMM");
+        for (let ci = 0; ci < NUM_COLS; ci++) {
+          // Original master fills A-F (cols 0-5) + J (col 9) with month name
+          const showName = ci <= COL_CONSULTS || ci === COL_VACATIONS;
+          ws[addr(ri, ci)] = showName
+            ? cell(monthName, "s", { s: { fill: goldFill } })
+            : cell(undefined, "z", { s: { fill: goldFill } });
+        }
+        ri++;
+      }
+
+      // ── Date row ─────────────────────────────────────────────────────────
+      // First day of a new month gets gold fill (matches master Jan 1)
+      const rowStyle = isNewMonth ? { s: { fill: goldFill } } : undefined;
+
+      // Column A: Excel date serial + master number format
+      const epoch = new Date(1899, 11, 30);
+      const serial = Math.round((d.getTime() - epoch.getTime()) / 86400000);
+      ws[addr(ri, COL_DATE)] = {
+        v: serial,
+        t: "n",
+        z: '[$-F800]dddd\\, mmmm dd\\, yyyy',
+        ...rowStyle,
+      } as XLSX.CellObject;
+
+      // Blank-fill remaining columns (carries gold fill for new-month row)
+      for (let ci = 1; ci < NUM_COLS; ci++) {
+        ws[addr(ri, ci)] = rowStyle
+          ? cell(undefined, "z", rowStyle)
+          : cell(undefined, "z");
+      }
+
+      // Fill in provider assignments
+      (byDate.get(dateStr) ?? []).forEach((slot) => {
+        if (!slot.providerId) return;
+        const ci = svcToCol[slot.serviceLocation ?? ""];
+        if (ci === undefined) return;
+
+        let name = providerNamesById.get(slot.providerId) ?? "";
+        if (slot.isSharedAssignment && slot.secondaryProviderIds?.length) {
+          const extras = slot.secondaryProviderIds
+            .map((id) => providerNamesById.get(id))
+            .filter(Boolean)
+            .join(" & ");
+          if (extras) name = `${name} & ${extras}`;
+        }
+        ws[addr(ri, ci)] = rowStyle
+          ? cell(name, "s", rowStyle)
+          : cell(name, "s");
+      });
+
+      ri++;
     });
 
-    // ============== SHEET 1: SCHEDULE ==============
-    const slotsByDate = new Map<string, ShiftSlot[]>();
-    slots.forEach((slot) => {
-      const dateSlots = slotsByDate.get(slot.date);
-      if (dateSlots) {
-        dateSlots.push(slot);
-      } else {
-        slotsByDate.set(slot.date, [slot]);
-      }
-    });
+    ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: ri - 1, c: NUM_COLS - 1 });
+    // Column widths matching the master NICU file
+    ws["!cols"] = [
+      { wch: 30 }, // A – Date
+      { wch: 10.3 }, // B – G20
+      { wch: 8 }, // C – H22
+      { wch: 11.1 }, // D – Akron
+      { wch: 11.3 }, // E – Nights
+      { wch: 13.7 }, // F – Consults
+      { wch: 13.7 }, // G – AMET
+      { wch: 10 }, // H – Jeopardy
+      { wch: 17.9 }, // I – Recovery
+      { wch: 30.3 }, // J – Vacations
+    ];
 
-    const dates = Array.from(slotsByDate.keys()).sort();
-    const totalRows = 1 + dates.length + countMonthRows(dates);
-    const wsData: ExportSheetCell[][] = new Array(totalRows);
-
-    wsData[0] = [...COLUMN_HEADERS];
-    let rowIndex = 1;
-
-    dates.forEach((date, dateIndex) => {
-      const dateObj = new Date(`${date}T00:00:00`);
-      if (dateIndex === 0 || dateObj.getDate() === 1) {
-        const monthLabel = format(dateObj, "MMMM");
-        const monthRow: ExportSheetCell[] = new Array(COLUMN_HEADERS.length);
-        monthRow.fill(monthLabel);
-        wsData[rowIndex] = monthRow;
-        rowIndex += 1;
-      }
-
-      const row: ExportSheetCell[] = new Array(COLUMN_HEADERS.length);
-      row.fill(null);
-      row[0] = dateObj;
-
-      const dateSlots = slotsByDate.get(date);
-      if (dateSlots) {
-        dateSlots.forEach((slot) => {
-          const specificKey = `${slot.type}-${slot.location}`;
-          const fallbackKey = `${slot.type}-0`;
-          const columnIndex = slotToColumnMap[specificKey] ?? slotToColumnMap[fallbackKey];
-
-          if (columnIndex !== undefined && slot.providerId) {
-            const providerName = providerNamesById.get(slot.providerId) ?? "";
-            // Handle shared assignments
-            if (slot.isSharedAssignment && slot.secondaryProviderIds && slot.secondaryProviderIds.length > 0) {
-              const secondaryNames = slot.secondaryProviderIds
-                .map(id => providerNamesById.get(id))
-                .filter(Boolean)
-                .join(" & ");
-              row[columnIndex] = secondaryNames ? `${providerName} & ${secondaryNames}` : providerName;
-            } else {
-              row[columnIndex] = providerName;
-            }
-          }
-        });
-      }
-
-      wsData[rowIndex] = row;
-      rowIndex += 1;
-    });
-
-    wsData.length = rowIndex;
-
-    const scheduleSheet = XLSX.utils.aoa_to_sheet(wsData);
-
-    // ============== SHEET 2: STAFF FTE TRACKING ==============
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SHEET 2: "Staff 2026 #s" — FTE tracking (mirrors "Staff 2026 #s" tab)
+    // ═══════════════════════════════════════════════════════════════════════════
     const fteHeaders = [
       "Staff", "G20", "H22", "WeekDAY Nights", "Main Wknds", "WeekEND Nights",
       "Akron", "Akron Wknds", "Consults", "Total Weeks", "Total Weekends",
       "Jeopardy", "FTE Week Target", "FTE Weekend Target",
-      "Week Assigned", "Weekend Assigned", "Week Deficit", "Weekend Deficit", "Notes"
+      "Week Assigned", "Weekend Assigned", "Week Deficit", "Weekend Deficit", "Notes",
     ];
 
-    const fteData: ExportSheetCell[][] = [fteHeaders];
+    const yr = new Date(startDate).getFullYear();
+    const fteRows: (string | number)[][] = [fteHeaders];
 
-    providers.forEach((provider, idx) => {
-      const row = idx + 2; // Excel row number (1-indexed, with header)
-      const pName = provider.name;
-
-      fteData.push([
-        pName,
-        `=COUNTIF('Schedule'!B:B,A${row})`, // G20
-        `=COUNTIF('Schedule'!C:C,A${row})`, // H22
-        `=COUNTIF('Schedule'!E:E,A${row})`, // WeekDAY Nights
-        `=COUNTIFS('Schedule'!B:B,A${row},'Schedule'!A:A,">="&DATE(${new Date(startDate).getFullYear()},1,1),WEEKDAY('Schedule'!A:A,2)>5)`, // Main Wknds
-        `=COUNTIFS('Schedule'!E:E,A${row},'Schedule'!A:A,">="&DATE(${new Date(startDate).getFullYear()},1,1),WEEKDAY('Schedule'!A:A,2)>5)`, // WeekEND Nights
-        `=COUNTIF('Schedule'!D:D,A${row})`, // Akron
-        `=COUNTIFS('Schedule'!D:D,A${row},'Schedule'!A:A,">="&DATE(${new Date(startDate).getFullYear()},1,1),WEEKDAY('Schedule'!A:A,2)>5)`, // Akron Wknds
-        `=COUNTIF('Schedule'!F:F,A${row})`, // Consults
-        `=SUM(B${row}:E${row},G${row}:I${row})`, // Total Weeks
-        `=F${row}+H${row}`, // Total Weekends
-        `=COUNTIF('Schedule'!H:H,A${row})`, // Jeopardy
-        provider.targetWeekDays + provider.targetWeekendDays, // FTE Week Target
-        provider.targetWeekendNights + provider.targetWeekNights, // FTE Weekend Target (using nights as proxy for weekend target)
-        `=J${row}`, // Week Assigned
-        `=K${row}`, // Weekend Assigned
-        `=M${row}-O${row}`, // Week Deficit
-        `=N${row}-P${row}`, // Weekend Deficit
-        provider.notes || "", // Notes
+    providers.forEach((p, idx) => {
+      const r = idx + 2;
+      fteRows.push([
+        p.name,
+        `=COUNTIF('2026 Sch'!B:B,A${r})`,
+        `=COUNTIF('2026 Sch'!C:C,A${r})`,
+        `=COUNTIF('2026 Sch'!E:E,A${r})`,
+        `=COUNTIFS('2026 Sch'!B:B,A${r},'2026 Sch'!A:A,">="&DATE(${yr},1,1),WEEKDAY('2026 Sch'!A:A,2)>5)`,
+        `=COUNTIFS('2026 Sch'!E:E,A${r},'2026 Sch'!A:A,">="&DATE(${yr},1,1),WEEKDAY('2026 Sch'!A:A,2)>5)`,
+        `=COUNTIF('2026 Sch'!D:D,A${r})`,
+        `=COUNTIFS('2026 Sch'!D:D,A${r},'2026 Sch'!A:A,">="&DATE(${yr},1,1),WEEKDAY('2026 Sch'!A:A,2)>5)`,
+        `=COUNTIF('2026 Sch'!F:F,A${r})`,
+        `=SUM(B${r}:E${r},G${r}:I${r})`,
+        `=F${r}+H${r}`,
+        `=COUNTIF('2026 Sch'!H:H,A${r})`,
+        p.targetWeekDays + p.targetWeekendDays,
+        p.targetWeekNights + p.targetWeekendNights,
+        `=J${r}`,
+        `=K${r}`,
+        `=M${r}-O${r}`,
+        `=N${r}-P${r}`,
+        p.notes || "",
       ]);
     });
+    const fteSheet = XLSX.utils.aoa_to_sheet(fteRows);
 
-    const fteSheet = XLSX.utils.aoa_to_sheet(fteData);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SHEET 3: Swap Tracker
+    // ═══════════════════════════════════════════════════════════════════════════
+    const swapHeaders = [
+      "ID", "Date Requested", "Staff Involved", "Dates Exchanged",
+      "Services", "Status", "Approved By", "Notes", "Validation",
+    ];
+    const swapRows: (string | null)[][] = [swapHeaders];
 
-    // ============== SHEET 3: SWAP TRACKER ==============
-    const swapHeaders = ["ID", "Date Requested", "Staff Involved", "Dates Exchanged", "Services", "Status", "Approved By", "Notes", "Validation"];
-    const swapData: ExportSheetCell[][] = [swapHeaders];
-
-    swapRequests.forEach((swap) => {
-      const requestorName = providerNamesById.get(swap.requestorId) || "Unknown";
-      const targetName = swap.targetProviderId ? (providerNamesById.get(swap.targetProviderId) || "Unknown") : "Any";
-      const resolverName = swap.resolvedBy ? (providerNamesById.get(swap.resolvedBy) || "Unknown") : "";
-
-      swapData.push([
-        swap.id.slice(0, 8),
-        swap.requestedAt,
-        `${requestorName} ↔ ${targetName}`,
-        `${swap.fromDate} (${swap.fromShiftType}) ↔ ${swap.toDate} (${swap.toShiftType})`,
-        `${swap.fromShiftType} ↔ ${swap.toShiftType}`,
-        swap.status,
-        resolverName,
-        swap.notes || "",
-        swap.validationErrors ? swap.validationErrors.join("; ") : "",
+    swapRequests.forEach((sw) => {
+      const rName = providerNamesById.get(sw.requestorId) || "Unknown";
+      const tName = sw.targetProviderId ? (providerNamesById.get(sw.targetProviderId) || "Unknown") : "Any";
+      const approver = sw.resolvedBy ? (providerNamesById.get(sw.resolvedBy) || "Unknown") : "";
+      swapRows.push([
+        sw.id.slice(0, 8),
+        sw.requestedAt,
+        `${rName} ↔ ${tName}`,
+        `${sw.fromDate} (${sw.fromShiftType}) ↔ ${sw.toDate} (${sw.toShiftType})`,
+        `${sw.fromShiftType} ↔ ${sw.toShiftType}`,
+        sw.status,
+        approver,
+        sw.notes || "",
+        sw.validationErrors ? sw.validationErrors.join("; ") : "",
       ]);
     });
+    const swapSheet = XLSX.utils.aoa_to_sheet(swapRows);
 
-    const swapSheet = XLSX.utils.aoa_to_sheet(swapData);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SHEET 4: Holiday Summary
+    // ═══════════════════════════════════════════════════════════════════════════
+    const holHeaders = ["Holiday", "Date", "Provider", "Shift Type", "Previous Year Provider"];
+    const holRows: (string | null)[][] = [holHeaders];
 
-    // ============== SHEET 4: HOLIDAY SUMMARY ==============
-    const holidayHeaders = ["Holiday", "Date", "Provider", "Shift Type", "Previous Year Provider"];
-    const holidayData: ExportSheetCell[][] = [holidayHeaders];
-
-    holidayAssignments.forEach((holiday) => {
-      holidayData.push([
-        holiday.holidayName,
-        holiday.date,
-        providerNamesById.get(holiday.providerId) || "Unknown",
-        holiday.shiftType,
-        holiday.previousYearProviderId ? (providerNamesById.get(holiday.previousYearProviderId) || "") : "",
+    holidayAssignments.forEach((h) => {
+      holRows.push([
+        h.holidayName,
+        h.date,
+        providerNamesById.get(h.providerId) || "Unknown",
+        h.shiftType,
+        h.previousYearProviderId ? (providerNamesById.get(h.previousYearProviderId) || "") : "",
       ]);
     });
+    const holSheet = XLSX.utils.aoa_to_sheet(holRows);
 
-    const holidaySheet = XLSX.utils.aoa_to_sheet(holidayData);
-
-    // ============== CREATE WORKBOOK ==============
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Assemble workbook with master-matching sheet names
+    // ═══════════════════════════════════════════════════════════════════════════
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, scheduleSheet, "Schedule");
-    XLSX.utils.book_append_sheet(workbook, fteSheet, "Staff FTE Tracking");
+    XLSX.utils.book_append_sheet(workbook, ws, "2026 Sch");
+    XLSX.utils.book_append_sheet(workbook, fteSheet, "Staff 2026 #s");
     XLSX.utils.book_append_sheet(workbook, swapSheet, "Swap Tracker");
-    XLSX.utils.book_append_sheet(workbook, holidaySheet, "Holiday Summary");
+    XLSX.utils.book_append_sheet(workbook, holSheet, "Holiday Summary");
 
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    saveBlobToFile(new Blob([excelBuffer], { type: "application/octet-stream" }), `NICU_Schedule_${startDate}.xlsx`);
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+      cellStyles: true,
+    });
+
+    const year = new Date(startDate).getFullYear();
+    saveBlobToFile(
+      new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `NICU_Schedule_${year}.xlsx`,
+    );
 
     return { success: true };
   } catch (error) {
