@@ -1,9 +1,16 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Filter, List, Rows3, Table2, TimerReset } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, List, Rows3, Table2, TimerReset, BarChart3, CalendarIcon, Clock4 } from "lucide-react";
 import { format } from "date-fns";
 import { useScheduleStore, type CalendarPresentationMode, type ShiftTypeFilter } from "@/store";
 import { useScheduleViewport } from "./useScheduleViewport";
 
-const CALENDAR_MODES: CalendarPresentationMode[] = ["grid", "list", "timeline"];
+const CALENDAR_MODES: { mode: CalendarPresentationMode; icon: React.ReactNode; label: string }[] = [
+  { mode: "grid", icon: <Rows3 className="w-3.5 h-3.5" />, label: "Grid" },
+  { mode: "list", icon: <List className="w-3.5 h-3.5" />, label: "List" },
+  { mode: "bar", icon: <BarChart3 className="w-3.5 h-3.5" />, label: "Bar" },
+  { mode: "week", icon: <CalendarDays className="w-3.5 h-3.5" />, label: "Week" },
+  { mode: "month", icon: <CalendarIcon className="w-3.5 h-3.5" />, label: "Month" },
+  { mode: "timeline", icon: <Clock4 className="w-3.5 h-3.5" />, label: "Timeline" },
+];
 
 export function ScheduleToolbar() {
   const {
@@ -63,21 +70,20 @@ export function ScheduleToolbar() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
-            {CALENDAR_MODES.map((mode) => (
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto">
+            {CALENDAR_MODES.map(({ mode, icon, label }) => (
               <button
                 key={mode}
                 onClick={() => setCalendarPresentationMode(mode)}
-                className={`nav-chip px-2.5 py-1.5 rounded-lg ${
+                className={`nav-chip px-2.5 py-1.5 rounded-lg whitespace-nowrap ${
                   scheduleViewport.calendarPresentationMode === mode
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-800"
                 }`}
+                title={label}
               >
-                {mode === "grid" && <Rows3 className="w-3.5 h-3.5" />}
-                {mode === "list" && <List className="w-3.5 h-3.5" />}
-                {mode === "timeline" && <Filter className="w-3.5 h-3.5" />}
-                {mode}
+                {icon}
+                <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
           </div>

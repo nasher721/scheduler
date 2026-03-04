@@ -17,16 +17,31 @@ type AssignmentImportFieldKey = Exclude<ImportFieldKey, "date">;
 const ASSIGNMENT_IMPORT_FIELDS: AssignmentImportFieldKey[] = IMPORT_FIELDS.filter((field): field is AssignmentImportFieldKey => field !== "date");
 
 const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
-  date: ["month / date", "month", "date", "schedule date"],
-  dayG20: ["g20", "g20 unit", "day g20"],
-  dayH22: ["h22", "h22 unit", "day h22"],
-  dayAkron: ["akron", "akron unit", "day akron"],
-  night: ["nights", "night", "overnight"],
-  consults: ["consults", "consult", "consult service"],
-  nmet: ["amet / nmet", "nmet", "amet", "airway"],
+  date: ["month / date", "month", "date", "schedule date", "month / date ", "month "],
+  dayG20: ["g20", "g20 unit", "day g20", "g20 "],
+  dayH22: ["h22", "h22 unit", "day h22", "h22 "],
+  dayAkron: ["akron", "akron unit", "day akron", "akron "],
+  night: ["nights", "night", "overnight", "nights "],
+  consults: ["consults", "consult", "consult service", "consults "],
+  nmet: ["amet / nmet", "nmet", "amet", "airway", "amet ", "amet / nmet "],
   jeopardy: ["jeopardy", "backup", "backup jeopardy"],
   recovery: ["recovery", "post call", "post-call"],
-  vacation: ["vacations", "vacation", "time off", "pto"],
+  vacation: ["vacations", "vacation", "time off", "pto", "vacations "],
+};
+
+/** Excel column mapping for MASTER_NEW_CALENDAR format (trimmed keys) */
+const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
+  "Month": "date",
+  "G20": "dayG20",
+  "H22": "dayH22",
+  "Akron": "dayAkron",
+  "Nights": "night",
+  "Consults": "consults",
+  "AMET": "nmet",
+  "NMET": "nmet",
+  "Jeopardy": "jeopardy",
+  "Recovery": "recovery",
+  "Vacations": "vacation",
 };
 
 const REQUIRED_FIELDS: ImportFieldKey[] = ["date", "night"];
@@ -129,10 +144,24 @@ const resolveHeaderMapping = (
   const mapping: Partial<Record<ImportFieldKey, string>> = {};
   const issues: ImportIssue[] = [];
 
+  // First try exact MASTER file column matching
+  headers.forEach((header) => {
+    const trimmedHeader = header.trim();
+    const masterField = EXCEL_MASTER_COLUMNS[trimmedHeader];
+    if (masterField && !mapping[masterField]) {
+      mapping[masterField] = header;
+    }
+  });
+
   IMPORT_FIELDS.forEach((field) => {
     const manual = manualMapping?.[field];
     if (manual && headers.includes(manual)) {
       mapping[field] = manual;
+      return;
+    }
+
+    // Skip if already mapped via EXCEL_MASTER_COLUMNS
+    if (mapping[field]) {
       return;
     }
 
@@ -254,7 +283,23 @@ const buildImportPreviewFromRows = (
 
     const dateValue = mapping.date ? row[mapping.date] : "";
     const date = normalizeDate(dateValue);
+    
+    // Skip rows with invalid dates (like header rows with "January" text)
     if (!date) {
+      const dateStr = String(dateValue).trim().toLowerCase();
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
+                         'july', 'august', 'september', 'october', 'november', 'december'];
+      
+      if (monthNames.includes(dateStr) || dateStr === '' || dateValue === undefined || dateValue === null) {
+        // Skip this row silently
+        previewRows[idx] = {
+          date: "",
+          assignments: {},
+          issues: [],
+        };
+        continue;
+      }
+      
       issues.push({
         type: "error",
         code: "INVALID_DATE",

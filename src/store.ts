@@ -275,7 +275,7 @@ export interface CopilotFeedbackEntry {
 }
 
 export type ScheduleSurfaceView = "calendar" | "excel";
-export type CalendarPresentationMode = "grid" | "list" | "timeline" | "month";
+export type CalendarPresentationMode = "grid" | "list" | "timeline" | "month" | "bar" | "week";
 export type ShiftTypeFilter = ShiftType | "all";
 
 export interface ScheduleViewportState {

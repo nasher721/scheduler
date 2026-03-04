@@ -19,23 +19,18 @@ const COLUMN_HEADERS = [
   "Vacations",
 ] as const;
 
-/** Excel column mapping for MASTER_NEW_CALENDAR format */
+/** Excel column mapping for MASTER_NEW_CALENDAR format (trimmed keys) */
 const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
-  "G20 ": "dayG20",
+  "Month": "date",
   "G20": "dayG20",
   "H22": "dayH22",
-  "H22 ": "dayH22",
-  "Akron ": "dayAkron",
   "Akron": "dayAkron",
   "Nights": "night",
-  "Consults ": "consults",
   "Consults": "consults",
   "AMET": "nmet",
-  "AMET ": "nmet",
   "NMET": "nmet",
   "Jeopardy": "jeopardy",
   "Recovery": "recovery",
-  "Vacations ": "vacation",
   "Vacations": "vacation",
 };
 
@@ -199,7 +194,7 @@ export interface ParseImportWorkerErrorResponse {
 export type ParseImportWorkerResponse = ParseImportWorkerProgressResponse | ParseImportWorkerResultResponse | ParseImportWorkerErrorResponse;
 
 const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
-  date: ["month / date", "month", "date", "schedule date", "month "],
+  date: ["month / date", "month", "date", "schedule date", "month / date ", "month "],
   dayG20: ["g20", "g20 unit", "day g20", "g20 "],
   dayH22: ["h22", "h22 unit", "day h22", "h22 "],
   dayAkron: ["akron", "akron unit", "day akron", "akron "],
@@ -637,7 +632,24 @@ const buildImportPreviewFromRows = (
     const dateValue = mapping.date ? row[mapping.date] : "";
     const date = normalizeDate(dateValue);
 
+    // Skip rows with invalid dates (like header rows with "January" text)
     if (!date) {
+      // Check if this looks like a month header row (text like "January" in date column)
+      const dateStr = String(dateValue).trim().toLowerCase();
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
+                         'july', 'august', 'september', 'october', 'november', 'december'];
+      
+      if (monthNames.includes(dateStr) || dateStr === '' || dateValue === undefined || dateValue === null) {
+        // Skip this row silently - it's likely a header/subheader row
+        previewRows[idx] = {
+          date: "",
+          assignments: {},
+          parsedAssignments: {},
+          issues: [],
+        };
+        continue;
+      }
+      
       issues.push({
         type: "error",
         code: "INVALID_DATE",
