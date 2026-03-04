@@ -808,4 +808,336 @@ export async function parseExcelStructure(input) {
   });
 }
 
-export { listProviders, listProviderMetrics, recordAutomationOutcome };
+// ==================== COPILOT / INTENT PARSING ====================
+
+const SUPPORTED_INTENTS = [
+  "request_time_off",
+  "request_swap",
+  "optimize_schedule",
+  "check_coverage",
+  "explain_assignment",
+  "simulate_scenario",
+  "get_recommendations",
+  "show_conflicts",
+  "adjust_preferences",
+  "greeting",
+  "unknown"
+];
+
+const INTENT_PATTERNS = {
+  greeting: /^(hi|hello|hey|good morning|good afternoon|good evening)/i,
+  request_time_off: /(need|want|request).*(off|vacation|time off|pto|away)/i,
+  request_swap: /(swap|trade|exchange|switch).*(shift|with)/i,
+  optimize_schedule: /(optimize|balance|improve|better|fix|adjust).*(schedule|shifts|fair)/i,
+  check_coverage: /(who|coverage|covering|working|on call|oncall).*(weekend|night|day|shift)/i,
+  explain_assignment: /(why|how come|explain).*(assigned|schedule|shift)/i,
+  simulate_scenario: /(what if|simulate|scenario|suppose|if).*(sick|absent|missing)/i,
+  get_recommendations: /(recommend|suggest|advice|how can|what should)/i,
+  show_conflicts: /(conflict|problem|issue|violation|overlap|double)/i,
+  adjust_preferences: /(prefer|want|like).*(fewer|less|more|weekend|night)/i,
+};
+
+function deterministicParseIntent(input, provider) {
+  const text = String(input?.text || "").toLowerCase().trim();
+  
+  if (!text) {
+    return {
+      provider,
+      source: "deterministic-fallback",
+      intent: "unknown",
+      confidence: 0,
+      entities: {},
+      originalText: input?.text || ""
+    };
+  }
+
+  // Try pattern matching
+  for (const [intent, pattern] of Object.entries(INTENT_PATTERNS)) {
+    if (pattern.test(text)) {
+      return {
+        provider,
+        source: "deterministic-fallback",
+        intent,
+        confidence: 0.7,
+        entities: extractEntitiesRuleBased(text),
+        originalText: input?.text || ""
+      };
+    }
+  }
+
+  // Default to unknown
+  return {
+    provider,
+    source: "deterministic-fallback",
+    intent: "unknown",
+    confidence: 0.3,
+    entities: extractEntitiesRuleBased(text),
+    originalText: input?.text || ""
+  };
+}
+
+function extractEntitiesRuleBased(text) {
+  const entities = {
+    providerName: null,
+    date: null,
+    dateRange: null,
+    shiftType: null,
+    targetProvider: null
+  };
+
+  // Extract provider names (Dr. X or simple names)
+  const nameMatch = text.match(/(?:dr\.?\s*)?(\w+)(?:\s+(?:smith|johnson|lee|chen|kim|patel|martinez|brown))/i);
+  if (nameMatch) {
+    entities.providerName = nameMatch[0];
+  }
+
+  // Extract "with X" for swaps
+  const withMatch = text.match(/with\s+(?:dr\.?\s*)?(\w+)/i);
+  if (withMatch) {
+    entities.targetProvider = withMatch[1];
+  }
+
+  // Extract dates (simplified)
+  const datePatterns = [
+    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+    /(next\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day)/i,
+    /(tomorrow|today|next week)/i,
+    /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/,
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})/i
+  ];
+
+  for (const pattern of datePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      entities.date = match[0];
+      break;
+    }
+  }
+
+  // Extract shift types
+  const shiftMatch = text.match(/(day|night|evening|morning|g20|h22|akron|consult|nmet|jeopardy|recovery)/i);
+  if (shiftMatch) {
+    entities.shiftType = shiftMatch[1].toUpperCase();
+  }
+
+  return entities;
+}
+
+function buildIntentPrompt(text, context) {
+  return `Parse the user intent from this ICU scheduling request.
+
+Available intents:
+- request_time_off: User wants time off for specific date(s)
+- request_swap: User wants to swap shifts with another provider
+- optimize_schedule: User wants to improve/optimize the current schedule
+- check_coverage: User is asking who is covering a specific time
+- explain_assignment: User wants to understand why they were assigned something
+- simulate_scenario: User wants to simulate what would happen in a scenario
+- get_recommendations: User wants general scheduling advice/recommendations
+- show_conflicts: User wants to see scheduling conflicts or problems
+- adjust_preferences: User wants to change their scheduling preferences
+- greeting: Simple greeting/hello
+- unknown: None of the above
+
+User message: "${text}"
+
+Current context:
+- View type: ${context?.viewType || 'unknown'}
+- Selected date: ${context?.selectedDate || 'none'}
+- User role: ${context?.userRole || 'unknown'}
+- Visible providers: ${context?.visibleProviderCount || 0}
+
+Return ONLY a JSON object:
+{
+  "intent": "one of the above intent names",
+  "confidence": 0.0-1.0,
+  "entities": {
+    "providerName": "extracted name or null",
+    "date": "extracted date reference or null",
+    "shiftType": "DAY|NIGHT|G20|H22|AKRON|CONSULT|NMET|JEOPARDY|RECOVERY or null",
+    "targetProvider": "for swaps, who to swap with or null"
+  }
+}`;
+}
+
+export async function parseIntent(input) {
+  const provider = getConfiguredProvider();
+  const task = "intent-parsing";
+  const payload = {
+    text: input?.text,
+    context: input?.context || {}
+  };
+
+  // Use LLM if available, otherwise deterministic
+  return executeTask(task, payload, deterministicParseIntent);
+}
+
+// ==================== CONTEXTUAL RECOMMENDATIONS ====================
+
+function buildContextualRecommendations(input, context) {
+  const base = deterministicRecommendations(input, context?.provider);
+  const recommendations = [...(base.recommendations || [])];
+
+  // Add context-specific recommendations
+  if (context?.viewType === 'week' && context?.selectedDate) {
+    const date = context.selectedDate;
+    const dayOfWeek = new Date(date).getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    
+    recommendations.push({
+      id: 'day-specific-check',
+      title: isWeekend ? 'Weekend coverage verification' : 'Weekday staffing review',
+      impact: isWeekend ? 'high' : 'medium',
+      rationale: isWeekend 
+        ? `Weekend shifts for ${date} should be verified for adequate coverage.`
+        : `Review ${date} assignments for balanced workload distribution.`,
+      context: { date, isWeekend }
+    });
+  }
+
+  if (context?.selectedProvider) {
+    recommendations.push({
+      id: 'provider-specific',
+      title: `Review ${context.selectedProvider.name}'s assignments`,
+      impact: 'medium',
+      rationale: 'Check for fairness relative to targets and preferences.',
+      context: { providerId: context.selectedProvider.id }
+    });
+  }
+
+  return {
+    ...base,
+    recommendations,
+    context,
+    source: base.source
+  };
+}
+
+export async function getCopilotSuggestions(input) {
+  const { state, context } = input || {};
+  const provider = getConfiguredProvider();
+  
+  // Always use contextual recommendations for suggestions
+  return buildContextualRecommendations({ state }, context);
+}
+
+export async function processCopilotMessage(input) {
+  const { message, context, conversationHistory = [] } = input || {};
+  
+  // Step 1: Parse intent
+  const intentResult = await parseIntent({ text: message, context });
+  
+  // Step 2: Build response based on intent
+  const response = await buildCopilotResponse(intentResult, context, conversationHistory);
+  
+  return {
+    messageId: generateMessageId(),
+    intent: intentResult.intent,
+    confidence: intentResult.confidence,
+    entities: intentResult.entities,
+    response: response.message,
+    suggestions: response.suggestions || [],
+    requiresConfirmation: response.requiresConfirmation || false,
+    preview: response.preview || null,
+    actions: response.actions || []
+  };
+}
+
+function generateMessageId() {
+  return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+async function buildCopilotResponse(intentResult, context, history) {
+  const { intent, entities, confidence } = intentResult;
+  
+  const responses = {
+    greeting: {
+      message: "Hello! I'm your scheduling assistant. How can I help you today? You can ask me to:\n• Request time off\n• Check coverage\n• Optimize the schedule\n• Find conflicts\n• Or just tell me what you need!",
+      suggestions: ['Show my schedule', 'Who covers next weekend?', 'Optimize schedule'],
+      requiresConfirmation: false
+    },
+    
+    request_time_off: {
+      message: entities.date 
+        ? `I'll help you request time off${entities.date ? ` for ${entities.date}` : ''}. Let me check coverage first.`
+        : "I'd be happy to help you request time off. What date(s) do you need?",
+      suggestions: entities.date ? ['Check coverage', 'Submit request', 'Find alternative'] : ['Next Monday', 'Next week', 'March 15-17'],
+      requiresConfirmation: false,
+      actions: entities.date ? [{ type: 'check_coverage', date: entities.date }] : []
+    },
+    
+    request_swap: {
+      message: entities.targetProvider
+        ? `I can help you swap shifts with ${entities.targetProvider}. Which shift would you like to swap?`
+        : "I can help you arrange a shift swap. Which shift do you want to swap and with whom?",
+      suggestions: ['My next night shift', 'This weekend', 'Let me pick from calendar'],
+      requiresConfirmation: false
+    },
+    
+    optimize_schedule: {
+      message: "I'll analyze the current schedule and suggest optimizations for better fairness and coverage.",
+      suggestions: ['Optimize now', 'Show me conflicts first', 'Adjust optimization goals'],
+      requiresConfirmation: true,
+      preview: { type: 'optimization', estimatedImpact: 'Calculating...' }
+    },
+    
+    check_coverage: {
+      message: entities.date 
+        ? `Let me check coverage${entities.date ? ` for ${entities.date}` : ''}${entities.shiftType ? ` (${entities.shiftType})` : ''}.`
+        : "Which date or time period would you like me to check coverage for?",
+      suggestions: ['This weekend', 'Next week', 'Tonight', 'All uncovered shifts'],
+      requiresConfirmation: false,
+      actions: [{ type: 'show_coverage', date: entities.date, shiftType: entities.shiftType }]
+    },
+    
+    explain_assignment: {
+      message: "I'll explain the reasoning behind your assignments. Looking at your targets, preferences, and fairness across the team...",
+      suggestions: ['Why so many nights?', 'Why this weekend?', 'Show my fairness score'],
+      requiresConfirmation: false,
+      actions: [{ type: 'explain_assignments', providerId: context?.currentUser?.id }]
+    },
+    
+    simulate_scenario: {
+      message: "I can simulate what would happen in that scenario. This helps us prepare contingency plans.",
+      suggestions: ['Dr. Smith sick', 'Census surge 20%', 'Multiple absences'],
+      requiresConfirmation: false,
+      preview: { type: 'simulation', scenario: 'absence' }
+    },
+    
+    get_recommendations: {
+      message: "Here are my recommendations based on the current schedule:",
+      suggestions: ['Show all recommendations', 'Focus on fairness', 'Focus on coverage'],
+      requiresConfirmation: false
+    },
+    
+    show_conflicts: {
+      message: "I'll scan the schedule for conflicts, double-bookings, and constraint violations.",
+      suggestions: ['Show all conflicts', 'Show critical only', 'Auto-fix where possible'],
+      requiresConfirmation: false,
+      actions: [{ type: 'detect_conflicts' }]
+    },
+    
+    adjust_preferences: {
+      message: "I can help you update your scheduling preferences. What would you like to change?",
+      suggestions: ['Fewer weekends', 'Fewer nights', 'More day shifts', 'Specific dates off'],
+      requiresConfirmation: false
+    },
+    
+    unknown: {
+      message: "I'm not sure I understood. I can help you with:\n• Requesting time off or swaps\n• Checking coverage\n• Optimizing the schedule\n• Explaining assignments\n• Finding conflicts\n\nWhat would you like to do?",
+      suggestions: ['Request time off', 'Check coverage', 'Optimize schedule', 'Show help'],
+      requiresConfirmation: false
+    }
+  };
+
+  const baseResponse = responses[intent] || responses.unknown;
+  
+  // Add confidence indicator for low-confidence intents
+  if (confidence < 0.7 && intent !== 'unknown') {
+    baseResponse.message = `I think you want to ${intent.replace(/_/g, ' ')}, but I'm not entirely sure. ${baseResponse.message}`;
+  }
+
+  return baseResponse;
+}
+
+export { listProviders, listProviderMetrics, recordAutomationOutcome, buildContextualRecommendations };

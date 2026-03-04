@@ -1,112 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
-import { registerProvider } from "./lib/api";
-
-export type ShiftType = "DAY" | "NIGHT" | "NMET" | "JEOPARDY" | "RECOVERY" | "CONSULTS" | "VACATION";
-
-export type TimeOffType = "PTO" | "CME" | "SICK" | "UNAVAILABLE";
-
-export interface TimeOffRequest {
-  date: string;
-  type: TimeOffType;
-}
-
-export type CredentialStatus = "active" | "expiring_soon" | "expired" | "pending_verification";
-
-export interface ProviderCredential {
-  credentialType: string;
-  issuedAt?: string;
-  expiresAt?: string;
-  status: CredentialStatus;
-}
-
-export interface SchedulingRestrictions {
-  /** Provider cannot be assigned night shifts */
-  noNights?: boolean;
-  /** Provider cannot be assigned weekend shifts */
-  noWeekends?: boolean;
-  /** Provider cannot be assigned holiday shifts */
-  noHolidays?: boolean;
-  /** Maximum shifts allowed per week (rolling 7-day window) */
-  maxShiftsPerWeek?: number;
-  /** Specific date range restrictions (e.g., maternity leave) */
-  restrictedDateRanges?: { start: string; end: string; reason?: string }[];
-}
-
-export interface Provider {
-  id: string;
-  name: string;
-  targetWeekDays: number;
-  targetWeekendDays: number;
-  targetWeekNights: number;
-  targetWeekendNights: number;
-  timeOffRequests: TimeOffRequest[];
-  preferredDates: string[];
-  skills: string[];
-  maxConsecutiveNights: number;
-  minDaysOffAfterNight: number;
-  credentials?: ProviderCredential[];
-  email?: string;
-  role?: "ADMIN" | "SCHEDULER" | "CLINICIAN";
-  /** Scheduling restrictions for this provider */
-  schedulingRestrictions?: SchedulingRestrictions;
-  /** Notes about provider (e.g., "FTE with no nights", "Maternity leave") */
-  notes?: string;
-}
-
-export type CustomRuleType = 'AVOID_PAIRING' | 'MAX_SHIFTS_PER_WEEK';
-
-export interface CustomRule {
-  id: string;
-  type: CustomRuleType;
-  providerA?: string;
-  providerB?: string;
-  providerId?: string;
-  maxShifts?: number;
-}
-
-export interface ShiftSlot {
-  id: string;
-  date: string;
-  type: ShiftType;
-  providerId: string | null;
-  isWeekendLayout: boolean;
-  requiredSkill: string;
-  priority: "CRITICAL" | "STANDARD";
-  isBackup?: boolean;
-  location: string;
-  /** Secondary providers for shared assignments (e.g., "Bates & Hassett") */
-  secondaryProviderIds?: string[];
-  /** Whether this is a shared/multi-provider assignment */
-  isSharedAssignment?: boolean;
-}
+import { registerProvider, loadScheduleState } from "./lib/api";
+import { supabase } from "./lib/supabase";
+import {
+  ShiftType, ProviderCredential, CredentialStatus,
+  Provider, CustomRule, ShiftSlot, ScenarioSnapshot, AuditLogEntry
+} from "./types";
 
 export interface ProviderCounts {
   weekDays: number;
   weekendDays: number;
   weekNights: number;
   weekendNights: number;
-}
-
-export interface ScenarioSnapshot {
-  id: string;
-  name: string;
-  createdAt: string;
-  providers: Provider[];
-  slots: ShiftSlot[];
-  startDate: string;
-  numWeeks: number;
-}
-
-export interface AuditLogEntry {
-  id: string;
-  timestamp: string;
-  action: 'ASSIGN' | 'UNASSIGN' | 'AUTO_ASSIGN' | 'CLEAR' | 'RULE_CHANGE';
-  details: string;
-  slotId?: string;
-  providerId?: string;
-  user?: string;
 }
 
 export interface Toast {
@@ -160,11 +66,11 @@ export interface HolidayAssignment {
   previousYearProviderId?: string;
 }
 
-export type ConflictType = 
-  | 'OVERLOAD_FTE' 
-  | 'CONSECUTIVE_NIGHTS' 
-  | 'SKILL_MISMATCH' 
-  | 'CREDENTIAL_EXPIRING' 
+export type ConflictType =
+  | 'OVERLOAD_FTE'
+  | 'CONSECUTIVE_NIGHTS'
+  | 'SKILL_MISMATCH'
+  | 'CREDENTIAL_EXPIRING'
   | 'CREDENTIAL_EXPIRED'
   | 'FATIGUE_EXPOSURE'
   | 'UNFILLED_CRITICAL'
@@ -217,7 +123,7 @@ export interface NotificationPreferences {
   quietHoursEnd?: string;
 }
 
-export type NotificationType = 
+export type NotificationType =
   | 'SHIFT_REMINDER'
   | 'SWAP_REQUEST'
   | 'SWAP_APPROVED'
@@ -330,6 +236,42 @@ interface HistoryState {
   auditLog: AuditLogEntry[];
 }
 
+// Copilot Conversation Types
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  intent?: string;
+  confidence?: number;
+  suggestions?: string[];
+  requiresConfirmation?: boolean;
+  actions?: unknown[];
+}
+
+export interface CopilotConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: CopilotMessage[];
+  context?: {
+    viewType?: string;
+    selectedDate?: string | null;
+    userRole?: string;
+  };
+}
+
+export interface CopilotFeedbackEntry {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  intent: string;
+  action: 'accepted' | 'rejected' | 'modified' | 'ignored';
+  timestamp: string;
+  context?: Record<string, unknown>;
+}
+
 interface ScheduleState {
   providers: Provider[];
   startDate: string;
@@ -410,6 +352,41 @@ interface ScheduleState {
   deleteTemplate: (id: string) => void;
   applyTemplate: (id: string, startDate: string) => void;
   createProviderGroup: (name: string, providerIds: string[]) => void;
+  initialize: () => Promise<void>;
+  // Copilot AI Assistant
+  isCopilotOpen: boolean;
+  toggleCopilot: () => void;
+  selectedDate: string | null;
+  selectedProviderId: string | null;
+  setSelectedDate: (date: string | null) => void;
+  setSelectedProviderId: (id: string | null) => void;
+  // AI Suggestions & Preview
+  pendingAISuggestions: Array<{
+    id: string;
+    type: 'assign' | 'remove' | 'swap';
+    slotId: string;
+    fromProviderId?: string | null;
+    toProviderId?: string | null;
+    reason: string;
+  }>;
+  applyAISuggestion: (suggestionId: string) => void;
+  applyAllAISuggestions: () => void;
+  rejectAISuggestions: () => void;
+  showChangePreview: boolean;
+  changePreviewData: unknown;
+  openChangePreview: (preview: unknown) => void;
+  closeChangePreview: () => void;
+  // Copilot Conversation History
+  copilotConversations: CopilotConversation[];
+  currentConversationId: string | null;
+  createConversation: () => string;
+  loadConversation: (id: string) => void;
+  deleteConversation: (id: string) => void;
+  addMessageToConversation: (conversationId: string, message: CopilotMessage) => void;
+  // Copilot Personalization
+  copilotFeedback: CopilotFeedbackEntry[];
+  recordCopilotFeedback: (feedback: Omit<CopilotFeedbackEntry, 'id' | 'timestamp'>) => void;
+  getCopilotPreferenceScore: (intent: string) => number;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -547,32 +524,32 @@ const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, s
     if (restrictions.noNights && slot.type === "NIGHT") {
       return { canAssign: false, reason: "Provider restricted from nights" };
     }
-    
+
     // Check noWeekends restriction
     if (restrictions.noWeekends && slot.isWeekendLayout) {
       return { canAssign: false, reason: "Provider restricted from weekends" };
     }
-    
+
     // Check maxShiftsPerWeek restriction
     if (restrictions.maxShiftsPerWeek) {
       for (let i = 0; i < 7; i++) {
         const windowStartObj = addDays(parseISO(slot.date), -i);
         const windowStart = format(windowStartObj, "yyyy-MM-dd");
         const windowEnd = format(addDays(windowStartObj, 6), "yyyy-MM-dd");
-        
+
         const shiftsInWindow = slots.filter(s =>
           s.providerId === provider.id &&
           s.date >= windowStart &&
           s.date <= windowEnd &&
           s.id !== currentSlotId
         );
-        
+
         if (shiftsInWindow.length + 1 > restrictions.maxShiftsPerWeek) {
           return { canAssign: false, reason: `Max ${restrictions.maxShiftsPerWeek} shifts per week` };
         }
       }
     }
-    
+
     // Check restricted date ranges
     if (restrictions.restrictedDateRanges) {
       for (const range of restrictions.restrictedDateRanges) {
@@ -683,19 +660,60 @@ export const useScheduleStore = create<ScheduleState>()(
       preferenceProfiles: {},
       mlSuggestions: [],
       scheduleTemplates: [],
+      isCopilotOpen: false,
+      selectedDate: null,
+      selectedProviderId: null,
 
-      login: (email) => {
-        const state = get();
-        const user = state.providers.find(p => p.email?.toLowerCase() === email.toLowerCase());
-        if (user) {
-          set({ currentUser: user });
-          get().showToast({ type: "success", title: "Logged In", message: `Welcome back, ${user.name}` });
-        } else {
-          get().showToast({ type: "error", title: "Login Failed", message: "User not found" });
+      initialize: async () => {
+        // 1. Set up session listener
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === "SIGNED_IN" && session?.user) {
+            const { providers } = get();
+            const user = providers.find(p => p.email?.toLowerCase() === session.user.email?.toLowerCase());
+            if (user) {
+              set({ currentUser: user });
+            }
+          } else if (event === "SIGNED_OUT") {
+            set({ currentUser: null });
+          }
+        });
+
+        // 2. Load initial state from Supabase
+        try {
+          const { state } = await loadScheduleState();
+          if (state) {
+            set({
+              providers: state.providers,
+              slots: state.slots,
+              startDate: state.startDate,
+              numWeeks: state.numWeeks,
+              customRules: state.customRules,
+              auditLog: state.auditLog,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to load initial state:", error);
         }
       },
 
-      logout: () => {
+      login: async (email) => {
+        // Use Magic Link for a seamless email-only login experience as in original app
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.toLowerCase(),
+          options: {
+            emailRedirectTo: window.location.origin,
+          }
+        });
+
+        if (error) {
+          get().showToast({ type: "error", title: "Login Failed", message: error.message });
+        } else {
+          get().showToast({ type: "success", title: "Check your email", message: "A login link has been sent to your inbox." });
+        }
+      },
+
+      logout: async () => {
+        await supabase.auth.signOut();
         set({ currentUser: null });
         get().showToast({ type: "info", title: "Logged Out", message: "You have been logged out." });
       },
@@ -1318,11 +1336,11 @@ export const useScheduleStore = create<ScheduleState>()(
         const state = get();
         const conflicts: Conflict[] = [];
         const counts = getProviderCounts(state.slots, state.providers);
-        
+
         state.providers.forEach(provider => {
           const count = counts[provider.id];
           if (!count) return;
-          
+
           // Check FTE overloads
           if (count.weekDays > provider.targetWeekDays) {
             conflicts.push({
@@ -1340,7 +1358,7 @@ export const useScheduleStore = create<ScheduleState>()(
               ]
             });
           }
-          
+
           if (count.weekendDays > provider.targetWeekendDays) {
             conflicts.push({
               id: crypto.randomUUID(),
@@ -1356,13 +1374,13 @@ export const useScheduleStore = create<ScheduleState>()(
               ]
             });
           }
-          
+
           // Check consecutive nights
           const nightSlots = state.slots.filter(s => s.providerId === provider.id && s.type === 'NIGHT');
           let consecutive = 0;
           let maxConsecutive = 0;
           let prevDate: Date | null = null;
-          
+
           nightSlots.sort((a, b) => a.date.localeCompare(b.date)).forEach(slot => {
             const currDate = parseISO(slot.date);
             if (prevDate && differenceInCalendarDays(currDate, prevDate) === 1) {
@@ -1373,7 +1391,7 @@ export const useScheduleStore = create<ScheduleState>()(
             maxConsecutive = Math.max(maxConsecutive, consecutive);
             prevDate = currDate;
           });
-          
+
           if (maxConsecutive > provider.maxConsecutiveNights) {
             conflicts.push({
               id: crypto.randomUUID(),
@@ -1389,7 +1407,7 @@ export const useScheduleStore = create<ScheduleState>()(
               ]
             });
           }
-          
+
           // Check credential expirations
           provider.credentials?.forEach(cred => {
             if (cred.expiresAt) {
@@ -1427,7 +1445,7 @@ export const useScheduleStore = create<ScheduleState>()(
             }
           });
         });
-        
+
         // Check skill mismatches
         state.slots.forEach(slot => {
           if (slot.providerId) {
@@ -1451,7 +1469,7 @@ export const useScheduleStore = create<ScheduleState>()(
             }
           }
         });
-        
+
         // Check unfilled critical shifts
         state.slots.filter(s => s.priority === 'CRITICAL' && !s.providerId).forEach(slot => {
           conflicts.push({
@@ -1469,14 +1487,14 @@ export const useScheduleStore = create<ScheduleState>()(
             ]
           });
         });
-        
+
         set({ conflicts });
       },
 
       acknowledgeConflict: (id) => {
         const state = get();
         set({
-          conflicts: state.conflicts.map(c => 
+          conflicts: state.conflicts.map(c =>
             c.id === id ? { ...c, acknowledged: true } : c
           )
         });
@@ -1486,11 +1504,11 @@ export const useScheduleStore = create<ScheduleState>()(
         const state = get();
         const conflict = state.conflicts.find(c => c.id === id);
         if (!conflict) return;
-        
+
         // Apply resolution based on action type
         const action = conflict.suggestedActions.find(a => a.id === actionId);
         if (!action) return;
-        
+
         // Handle auto-fixable actions
         if (action.type === 'AUTO_FIX') {
           // Implementation depends on conflict type
@@ -1499,13 +1517,13 @@ export const useScheduleStore = create<ScheduleState>()(
             get().autoAssign();
           }
         }
-        
+
         set({
-          conflicts: state.conflicts.map(c => 
+          conflicts: state.conflicts.map(c =>
             c.id === id ? { ...c, resolvedAt: new Date().toISOString() } : c
           )
         });
-        
+
         get().showToast({ type: "success", title: "Conflict Resolved", message: action.description });
       },
 
@@ -1532,7 +1550,7 @@ export const useScheduleStore = create<ScheduleState>()(
       markNotificationRead: (id) => {
         const state = get();
         set({
-          notifications: state.notifications.map(n => 
+          notifications: state.notifications.map(n =>
             n.id === id ? { ...n, readAt: new Date().toISOString() } : n
           )
         });
@@ -1559,43 +1577,43 @@ export const useScheduleStore = create<ScheduleState>()(
       analyzeProviderPatterns: () => {
         const state = get();
         const profiles: Record<string, ProviderPreferenceProfile> = {};
-        
+
         state.providers.forEach(provider => {
           const providerSlots = state.slots.filter(s => s.providerId === provider.id);
-          
+
           // Analyze preferred weekdays
           const weekdayCounts: Record<number, number> = {};
           const shiftTypeCounts: Record<ShiftType, number> = {
             DAY: 0, NIGHT: 0, NMET: 0, JEOPARDY: 0, RECOVERY: 0, CONSULTS: 0, VACATION: 0
           };
-          
+
           providerSlots.forEach(slot => {
             const date = parseISO(slot.date);
             const day = date.getDay();
             weekdayCounts[day] = (weekdayCounts[day] || 0) + 1;
             shiftTypeCounts[slot.type]++;
           });
-          
+
           // Determine preferred weekdays (above average)
           const avgShiftsPerDay = providerSlots.length / 7;
           const preferredWeekdays = Object.entries(weekdayCounts)
             .filter(([, count]) => count > avgShiftsPerDay)
             .map(([day]) => parseInt(day));
-          
+
           const avoidedWeekdays = Object.entries(weekdayCounts)
             .filter(([, count]) => count < avgShiftsPerDay / 2)
             .map(([day]) => parseInt(day));
-          
+
           // Determine preferred shift types
           const preferredShiftTypes = Object.entries(shiftTypeCounts)
             .filter(([, count]) => count > 0)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 3)
             .map(([type]) => type as ShiftType);
-          
+
           // Detect patterns
           const detectedPatterns: DetectedPattern[] = [];
-          
+
           if (shiftTypeCounts.NIGHT > shiftTypeCounts.DAY) {
             detectedPatterns.push({
               type: 'PREFERS_NIGHTS',
@@ -1604,7 +1622,7 @@ export const useScheduleStore = create<ScheduleState>()(
               evidence: [`${shiftTypeCounts.NIGHT} night shifts vs ${shiftTypeCounts.DAY} day shifts`]
             });
           }
-          
+
           if (shiftTypeCounts.DAY > shiftTypeCounts.NIGHT * 2) {
             detectedPatterns.push({
               type: 'AVOIDS_NIGHTS',
@@ -1613,16 +1631,16 @@ export const useScheduleStore = create<ScheduleState>()(
               evidence: [`Only ${shiftTypeCounts.NIGHT} night shifts taken`]
             });
           }
-          
+
           // Analyze swap history
           const providerSwaps = state.swapRequests.filter(
             s => s.requestorId === provider.id || s.targetProviderId === provider.id
           );
           const completedSwaps = providerSwaps.filter(s => s.status === 'approved');
-          const swapWillingness = providerSwaps.length > 0 
-            ? completedSwaps.length / providerSwaps.length 
+          const swapWillingness = providerSwaps.length > 0
+            ? completedSwaps.length / providerSwaps.length
             : 0.5;
-          
+
           profiles[provider.id] = {
             providerId: provider.id,
             preferredWeekdays,
@@ -1636,7 +1654,7 @@ export const useScheduleStore = create<ScheduleState>()(
             lastUpdated: new Date().toISOString(),
           };
         });
-        
+
         set({ preferenceProfiles: profiles });
         get().showToast({ type: "success", title: "ML Analysis Complete", message: `Analyzed patterns for ${state.providers.length} providers` });
       },
@@ -1648,19 +1666,19 @@ export const useScheduleStore = create<ScheduleState>()(
       generateMLSuggestions: () => {
         const state = get();
         const suggestions: MLSuggestion[] = [];
-        
+
         // Only generate if we have profiles
         if (Object.keys(state.preferenceProfiles).length === 0) {
           get().analyzeProviderPatterns();
         }
-        
+
         const profiles = get().preferenceProfiles;
-        
+
         // Find unfilled slots and suggest optimal providers
         state.slots.filter(s => !s.providerId).forEach(slot => {
           const date = parseISO(slot.date);
           const dayOfWeek = date.getDay();
-          
+
           // Score each provider for this slot
           const scoredProviders = state.providers.map(provider => {
             const profile = profiles[provider.id];
@@ -1671,13 +1689,13 @@ export const useScheduleStore = create<ScheduleState>()(
               fairnessBalance: 0,
               skillMatch: 0,
             };
-            
+
             // Check skills
             if (provider.skills.includes(slot.requiredSkill)) {
               factors.skillMatch = 1;
               score += 25;
             }
-            
+
             // Check preferences
             if (profile) {
               // Preferred weekday bonus
@@ -1685,39 +1703,39 @@ export const useScheduleStore = create<ScheduleState>()(
                 factors.preferenceMatch += 0.5;
                 score += 20;
               }
-              
+
               // Avoided weekday penalty
               if (profile.avoidedWeekdays.includes(dayOfWeek)) {
                 factors.preferenceMatch -= 0.3;
                 score -= 15;
               }
-              
+
               // Preferred shift type bonus
               if (profile.preferredShiftTypes.includes(slot.type)) {
                 factors.historicalFit = 0.7;
                 score += 20;
               }
-              
+
               // Swap willingness
               if (profile.swapWillingness > 0.7) {
                 score += 10;
               }
             }
-            
+
             // Fairness - providers with fewer shifts get bonus
             const counts = getProviderCounts(state.slots, state.providers)[provider.id];
             const totalAssigned = counts.weekDays + counts.weekendDays + counts.weekNights + counts.weekendNights;
             const totalTarget = provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights + provider.targetWeekendNights;
-            
+
             if (totalAssigned < totalTarget) {
               factors.fairnessBalance = 1 - (totalAssigned / totalTarget);
               score += factors.fairnessBalance * 15;
             }
-            
+
             return { provider, score, factors };
           }).filter(s => s.factors.skillMatch > 0) // Only providers with required skills
             .sort((a, b) => b.score - a.score);
-          
+
           // Create suggestion for top match
           if (scoredProviders.length > 0) {
             const topMatch = scoredProviders[0];
@@ -1732,7 +1750,7 @@ export const useScheduleStore = create<ScheduleState>()(
             });
           }
         });
-        
+
         set({ mlSuggestions: suggestions });
         get().showToast({ type: "success", title: "ML Suggestions Generated", message: `${suggestions.length} assignments suggested` });
       },
@@ -1741,7 +1759,7 @@ export const useScheduleStore = create<ScheduleState>()(
         const state = get();
         const suggestion = state.mlSuggestions.find(s => s.id === suggestionId);
         if (!suggestion || suggestion.applied) return;
-        
+
         // Apply the assignment
         const slot = state.slots.find(s => s.id === suggestion.slotId);
         if (slot) {
@@ -1753,13 +1771,13 @@ export const useScheduleStore = create<ScheduleState>()(
             state.customRules,
             slot.id
           );
-          
+
           if (canAssignResult.canAssign) {
             set({
-              slots: state.slots.map(s => 
+              slots: state.slots.map(s =>
                 s.id === suggestion.slotId ? { ...s, providerId: suggestion.providerId } : s
               ),
-              mlSuggestions: state.mlSuggestions.map(s => 
+              mlSuggestions: state.mlSuggestions.map(s =>
                 s.id === suggestionId ? { ...s, applied: true } : s
               ),
             });
@@ -1803,21 +1821,21 @@ export const useScheduleStore = create<ScheduleState>()(
         const state = get();
         const template = state.scheduleTemplates.find(t => t.id === id);
         if (!template) return;
-        
+
         const start = parseISO(startDate);
         const newSlots = [...state.slots];
-        
+
         template.pattern.forEach(patternSlot => {
           const slotDate = format(addDays(start, patternSlot.dayOffset), "yyyy-MM-dd");
-          const targetSlot = newSlots.find(s => 
-            s.date === slotDate && 
+          const targetSlot = newSlots.find(s =>
+            s.date === slotDate &&
             s.type === patternSlot.shiftType &&
             s.location === patternSlot.location
           );
-          
+
           if (targetSlot && patternSlot.assignment !== "ROTATE") {
             // Find provider by name if it's a group reference
-            const provider = state.providers.find(p => 
+            const provider = state.providers.find(p =>
               p.id === patternSlot.assignment || p.name === patternSlot.assignment
             );
             if (provider) {
@@ -1825,7 +1843,7 @@ export const useScheduleStore = create<ScheduleState>()(
             }
           }
         });
-        
+
         set({ slots: newSlots });
         get().showToast({ type: "success", title: "Template Applied", message: `"${template.name}" applied to schedule` });
       },
@@ -1834,6 +1852,191 @@ export const useScheduleStore = create<ScheduleState>()(
         // This would be stored with the template or as a separate entity
         // For now, we'll just acknowledge the creation
         get().showToast({ type: "success", title: "Group Created", message: `"${name}" group with ${providerIds.length} providers` });
+      },
+
+      // Copilot AI Assistant actions
+      toggleCopilot: () => {
+        set((state) => ({ isCopilotOpen: !state.isCopilotOpen }));
+      },
+
+      setSelectedDate: (date) => {
+        set({ selectedDate: date });
+      },
+
+      setSelectedProviderId: (id) => {
+        set({ selectedProviderId: id });
+      },
+
+      pendingAISuggestions: [],
+      showChangePreview: false,
+      changePreviewData: null,
+
+      applyAISuggestion: (suggestionId) => {
+        const state = get();
+        const suggestion = state.pendingAISuggestions.find(s => s.id === suggestionId);
+        if (!suggestion) return;
+
+        // Apply the suggestion
+        const newSlots = state.slots.map(slot => {
+          if (slot.id === suggestion.slotId) {
+            return {
+              ...slot,
+              providerId: suggestion.toProviderId
+            };
+          }
+          return slot;
+        });
+
+        // Remove from pending
+        set({
+          slots: newSlots,
+          pendingAISuggestions: state.pendingAISuggestions.filter(s => s.id !== suggestionId)
+        });
+
+        get().showToast({
+          type: 'success',
+          title: 'Suggestion Applied',
+          message: 'The schedule has been updated'
+        });
+      },
+
+      applyAllAISuggestions: () => {
+        const state = get();
+        let newSlots = [...state.slots];
+
+        state.pendingAISuggestions.forEach(suggestion => {
+          newSlots = newSlots.map(slot => {
+            if (slot.id === suggestion.slotId) {
+              return {
+                ...slot,
+                providerId: suggestion.toProviderId
+              };
+            }
+            return slot;
+          });
+        });
+
+        set({
+          slots: newSlots,
+          pendingAISuggestions: [],
+          showChangePreview: false
+        });
+
+        get().showToast({
+          type: 'success',
+          title: 'All Changes Applied',
+          message: `${state.pendingAISuggestions.length} changes have been applied`
+        });
+      },
+
+      rejectAISuggestions: () => {
+        set({
+          pendingAISuggestions: [],
+          showChangePreview: false
+        });
+
+        get().showToast({
+          type: 'info',
+          title: 'Changes Rejected',
+          message: 'All AI suggestions have been dismissed'
+        });
+      },
+
+      openChangePreview: (preview) => {
+        set({
+          showChangePreview: true,
+          changePreviewData: preview
+        });
+      },
+
+      closeChangePreview: () => {
+        set({ showChangePreview: false });
+      },
+
+      // Copilot Conversation History
+      copilotConversations: [],
+      currentConversationId: null,
+
+      createConversation: () => {
+        const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newConversation: CopilotConversation = {
+          id,
+          title: `Conversation ${new Date().toLocaleDateString()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [{
+            id: 'welcome',
+            role: 'assistant',
+            content: "Hello! I'm your scheduling assistant. How can I help you today?",
+            timestamp: new Date().toISOString()
+          }]
+        };
+        
+        set((state) => ({
+          copilotConversations: [newConversation, ...state.copilotConversations].slice(0, 50), // Keep last 50
+          currentConversationId: id
+        }));
+        
+        return id;
+      },
+
+      loadConversation: (id) => {
+        set({ currentConversationId: id });
+      },
+
+      deleteConversation: (id) => {
+        set((state) => ({
+          copilotConversations: state.copilotConversations.filter(c => c.id !== id),
+          currentConversationId: state.currentConversationId === id ? null : state.currentConversationId
+        }));
+      },
+
+      addMessageToConversation: (conversationId, message) => {
+        set((state) => ({
+          copilotConversations: state.copilotConversations.map(conv => {
+            if (conv.id === conversationId) {
+              return {
+                ...conv,
+                messages: [...conv.messages, message],
+                updatedAt: new Date().toISOString(),
+                // Update title based on first user message
+                title: conv.messages.length === 1 && message.role === 'user' 
+                  ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
+                  : conv.title
+              };
+            }
+            return conv;
+          })
+        }));
+      },
+
+      // Copilot Personalization
+      copilotFeedback: [],
+
+      recordCopilotFeedback: (feedback) => {
+        const entry: CopilotFeedbackEntry = {
+          id: `feedback_${Date.now()}`,
+          ...feedback,
+          timestamp: new Date().toISOString()
+        };
+        
+        set((state) => ({
+          copilotFeedback: [entry, ...state.copilotFeedback].slice(0, 1000) // Keep last 1000
+        }));
+      },
+
+      getCopilotPreferenceScore: (intent) => {
+        const state = get();
+        const relevantFeedback = state.copilotFeedback.filter(f => f.intent === intent);
+        
+        if (relevantFeedback.length === 0) return 0.5; // Neutral default
+        
+        const accepted = relevantFeedback.filter(f => f.action === 'accepted').length;
+        const rejected = relevantFeedback.filter(f => f.action === 'rejected').length;
+        
+        if (relevantFeedback.length < 3) return 0.5; // Need more data
+        
+        return accepted / (accepted + rejected);
       },
     }),
     {
@@ -1854,6 +2057,8 @@ export const useScheduleStore = create<ScheduleState>()(
         preferenceProfiles: state.preferenceProfiles,
         mlSuggestions: state.mlSuggestions,
         scheduleTemplates: state.scheduleTemplates,
+        copilotConversations: state.copilotConversations,
+        copilotFeedback: state.copilotFeedback,
       }),
     },
   ),

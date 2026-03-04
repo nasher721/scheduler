@@ -17,9 +17,11 @@ import {
   Grid3X3,
   List,
   Clock,
-  User
+  User,
+  Bot
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { InlineSuggestions } from './InlineSuggestions';
 
 export type CalendarViewMode = "list" | "grid" | "timeline";
 
@@ -120,12 +122,14 @@ function SlotCard({
   slot, 
   provider, 
   hasConflict,
-  viewMode 
+  viewMode,
+  onClick
 }: { 
   slot: ShiftSlot; 
   provider?: Provider; 
   hasConflict?: boolean;
   viewMode: CalendarViewMode;
+  onClick?: (e: React.MouseEvent, slot: ShiftSlot, provider?: Provider) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: slot.id,
@@ -142,6 +146,7 @@ function SlotCard({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         whileHover={{ scale: 1.02, y: -2 }}
+        onClick={(e) => onClick?.(e, slot, provider)}
         className={`relative p-3 rounded-2xl border-2 transition-all cursor-pointer ${
           isOver ? 'border-primary bg-primary/5 scale-105' : ''
         } ${
@@ -296,11 +301,16 @@ function TimelineView({
 }
 
 export function EnhancedCalendar() {
-  const { slots, providers, conflicts, startDate } = useScheduleStore();
+  const { slots, providers, conflicts, startDate, setSelectedDate, setSelectedProviderId } = useScheduleStore();
   const [viewMode, setViewMode] = useState<CalendarViewMode>("grid");
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
   const [filterType, setFilterType] = useState<ShiftType | "all">("all");
   const [showConflictsOnly, setShowConflictsOnly] = useState(false);
+  
+  // Inline suggestions state
+  const [selectedSlot, setSelectedSlot] = useState<ShiftSlot | null>(null);
+  const [suggestionsPosition, setSuggestionsPosition] = useState({ x: 0, y: 0 });
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Get current week dates
   const weekDates = useMemo(() => {
@@ -389,6 +399,15 @@ export function EnhancedCalendar() {
               </button>
             ))}
           </div>
+
+          {/* AI Assistant Button */}
+          <button
+            onClick={() => useScheduleStore.getState().toggleCopilot()}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:shadow-lg hover:scale-105 transition-all"
+          >
+            <Bot className="w-4 h-4" />
+            <span className="hidden sm:inline">AI Assistant</span>
+          </button>
         </div>
 
         {/* Filters */}
@@ -483,6 +502,14 @@ export function EnhancedCalendar() {
                           provider={provider}
                           hasConflict={hasConflict}
                           viewMode={viewMode}
+                          onClick={(e, slot, provider) => {
+                            e.stopPropagation();
+                            setSelectedDate(slot.date);
+                            setSelectedProviderId(provider?.id || null);
+                            setSelectedSlot(slot);
+                            setSuggestionsPosition({ x: e.clientX, y: e.clientY });
+                            setShowSuggestions(true);
+                          }}
                         />
                       );
                     })}
@@ -493,6 +520,20 @@ export function EnhancedCalendar() {
           </div>
         )}
       </div>
+
+      {/* Inline AI Suggestions */}
+      {selectedSlot && (
+        <InlineSuggestions
+          slot={selectedSlot}
+          provider={providers.find(p => p.id === selectedSlot.providerId)}
+          isOpen={showSuggestions}
+          onClose={() => {
+            setShowSuggestions(false);
+            setSelectedSlot(null);
+          }}
+          position={suggestionsPosition}
+        />
+      )}
     </motion.div>
   );
 }

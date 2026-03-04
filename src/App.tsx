@@ -1,4 +1,6 @@
 import { ProviderManager } from "./components/ProviderManager";
+import { CopilotPanel } from "./components/CopilotPanel";
+import { ScheduleChangePreview, type OptimizationPreview } from "./components/ScheduleChangePreview";
 import { SparkAnnotation } from "spark-banana";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RuleBuilder } from "./components/RuleBuilder";
@@ -27,13 +29,15 @@ import {
   Zap,
   Sparkles,
   Undo2,
-  Redo2
+  Redo2,
+  Bot
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState } from "./lib/api";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function App() {
@@ -61,7 +65,19 @@ export default function App() {
     auditLog,
     showToast,
     currentUser,
+    initialize,
+    isCopilotOpen,
+    toggleCopilot,
+    showChangePreview,
+    changePreviewData,
+    closeChangePreview,
+    applyAllAISuggestions,
+    rejectAISuggestions,
   } = useScheduleStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const [scenarioName, setScenarioName] = useState("");
@@ -294,6 +310,18 @@ export default function App() {
                   <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync API"><Save className="w-4 h-4" /></button>
                   <button onClick={handleClearSchedule} className="p-2 text-slate-400 hover:text-amber-600 transition-colors" title="Clear Schedule"><Trash className="w-4 h-4" /></button>
                   <button onClick={handleClearStaff} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Clear Staff"><AlertTriangle className="w-4 h-4" /></button>
+                  <div className="w-px h-6 bg-slate-200/60 mx-1" />
+                  <button 
+                    onClick={toggleCopilot} 
+                    className={cn(
+                      "p-2 rounded-lg transition-colors flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider",
+                      isCopilotOpen ? "bg-primary text-white" : "text-slate-400 hover:text-primary"
+                    )} 
+                    title="AI Assistant"
+                  >
+                    <Bot className="w-4 h-4" />
+                    <span className="hidden sm:inline">AI</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -578,6 +606,19 @@ export default function App() {
 
       <ToastContainer />
       <InstallPrompt />
+      <CopilotPanel isOpen={isCopilotOpen} onToggle={toggleCopilot} />
+      
+      {/* AI Change Preview Modal */}
+      {showChangePreview && changePreviewData && (
+        <ScheduleChangePreview
+          preview={changePreviewData as OptimizationPreview}
+          isOpen={showChangePreview}
+          onClose={closeChangePreview}
+          onAccept={applyAllAISuggestions}
+          onReject={rejectAISuggestions}
+        />
+      )}
+      
       {import.meta.env.DEV && (
         <SparkAnnotation projectRoot={import.meta.env.VITE_SPARK_PROJECT_ROOT as string} />
       )}
