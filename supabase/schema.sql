@@ -1,7 +1,7 @@
 -- Supabase Schema for NICU Scheduling App
 
 -- 1. Profiles (extending auth.users)
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE profiles (
 );
 
 -- 2. Providers (Detailed scheduling info)
-CREATE TABLE providers (
+CREATE TABLE IF NOT EXISTS providers (
   id TEXT PRIMARY KEY, -- Using the app's string IDs for compatibility
   profile_id UUID REFERENCES profiles(id),
   name TEXT NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE providers (
 );
 
 -- 3. Slots (The Schedule)
-CREATE TABLE slots (
+CREATE TABLE IF NOT EXISTS slots (
   id TEXT PRIMARY KEY,
   date DATE NOT NULL,
   type TEXT NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE slots (
 );
 
 -- 4. Shift Requests
-CREATE TABLE shift_requests (
+CREATE TABLE IF NOT EXISTS shift_requests (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   provider_id TEXT REFERENCES providers(id),
   provider_name TEXT, -- Fallback for migration
@@ -67,7 +67,7 @@ CREATE TABLE shift_requests (
 );
 
 -- 5. Audit Logs
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   timestamp TIMESTAMPTZ DEFAULT NOW(),
   action TEXT NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE audit_logs (
 );
 
 -- 6. Custom Rules
-CREATE TABLE custom_rules (
+CREATE TABLE IF NOT EXISTS custom_rules (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
   provider_a TEXT,
@@ -88,14 +88,14 @@ CREATE TABLE custom_rules (
 );
 
 -- 7. Global Settings (Schedule Meta)
-CREATE TABLE global_settings (
+CREATE TABLE IF NOT EXISTS global_settings (
   key TEXT PRIMARY KEY,
   value JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 8. Notifications
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   event_type TEXT,
   title TEXT NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE notifications (
 );
 
 -- 9. Email Events
-CREATE TABLE email_events (
+CREATE TABLE IF NOT EXISTS email_events (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   type TEXT NOT NULL,
   status TEXT NOT NULL,
@@ -125,14 +125,29 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
 
--- Basic Policies (Allow all for now, can be hardened later)
-CREATE POLICY "Public read" ON profiles FOR SELECT USING (true);
-CREATE POLICY "Public read" ON providers FOR SELECT USING (true);
-CREATE POLICY "Public read" ON slots FOR SELECT USING (true);
-CREATE POLICY "Public read" ON shift_requests FOR SELECT USING (true);
-CREATE POLICY "Public read" ON notifications FOR SELECT USING (true);
-CREATE POLICY "Public read" ON email_events FOR SELECT USING (true);
+-- Basic Policies (Allow all for rapid prototyping, can be hardened later)
+DROP POLICY IF EXISTS "Allow all" ON profiles;
+DROP POLICY IF EXISTS "Allow all" ON providers;
+DROP POLICY IF EXISTS "Allow all" ON slots;
+DROP POLICY IF EXISTS "Allow all" ON shift_requests;
+DROP POLICY IF EXISTS "Allow all" ON notifications;
+DROP POLICY IF EXISTS "Allow all" ON email_events;
+DROP POLICY IF EXISTS "Allow all" ON custom_rules;
+DROP POLICY IF EXISTS "Allow all" ON audit_logs;
+DROP POLICY IF EXISTS "Allow all" ON global_settings;
+
+CREATE POLICY "Allow all" ON profiles FOR ALL USING (true);
+CREATE POLICY "Allow all" ON providers FOR ALL USING (true);
+CREATE POLICY "Allow all" ON slots FOR ALL USING (true);
+CREATE POLICY "Allow all" ON shift_requests FOR ALL USING (true);
+CREATE POLICY "Allow all" ON notifications FOR ALL USING (true);
+CREATE POLICY "Allow all" ON email_events FOR ALL USING (true);
+CREATE POLICY "Allow all" ON custom_rules FOR ALL USING (true);
+CREATE POLICY "Allow all" ON audit_logs FOR ALL USING (true);
+CREATE POLICY "Allow all" ON global_settings FOR ALL USING (true);
+
 
 -- Functions
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -142,6 +157,10 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS update_providers_updated_at ON providers;
+DROP TRIGGER IF EXISTS update_slots_updated_at ON slots;
 
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 CREATE TRIGGER update_providers_updated_at BEFORE UPDATE ON providers FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
@@ -162,6 +181,8 @@ CREATE TRIGGER update_slots_updated_at BEFORE UPDATE ON slots FOR EACH ROW EXECU
  END;
  $$ LANGUAGE plpgsql SECURITY DEFINER;
  
+ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
  CREATE TRIGGER on_auth_user_created
      AFTER INSERT ON auth.users
      FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();

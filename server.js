@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+
 import {
   listProviders,
   buildRecommendations,
@@ -24,14 +26,17 @@ import {
 } from "./notification-service.js";
 import { listSolverProfiles, optimizeWithSolver } from "./solver-service.js";
 
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.join(__dirname, "data");
-const STATE_PATH = path.join(DATA_DIR, "schedule-state.json");
-const AI_APPLY_HISTORY_PATH = path.join(DATA_DIR, "ai-apply-history.json");
-const SHIFT_REQUESTS_PATH = path.join(DATA_DIR, "shift-requests.json");
-const EMAIL_EVENTS_PATH = path.join(DATA_DIR, "email-events.json");
-const NOTIFICATIONS_PATH = path.join(DATA_DIR, "notification-history.json");
+dotenv.config({ path: path.join(__dirname, '.env.local') });
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+
 
 const baseProviders = [
   { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
@@ -102,96 +107,66 @@ function validateStatePayload(payload) {
   return null;
 }
 
-async function ensureDataFile() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  try {
-    await fs.access(STATE_PATH);
-  } catch {
-    await fs.writeFile(STATE_PATH, JSON.stringify(null), "utf-8");
-  }
+async function getSupabaseSetting(key, defaultValue) {
+  const { data, error } = await supabase.from('global_settings')
+    .select('value')
+    .eq('key', key)
+    .single();
 
-  try {
-    await fs.access(AI_APPLY_HISTORY_PATH);
-  } catch {
-    await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify([], null, 2), "utf-8");
-  }
+  if (error || !data) return defaultValue;
+  return data.value;
+}
 
-  try {
-    await fs.access(SHIFT_REQUESTS_PATH);
-  } catch {
-    await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify([], null, 2), "utf-8");
-  }
-
-  try {
-    await fs.access(EMAIL_EVENTS_PATH);
-  } catch {
-    await fs.writeFile(EMAIL_EVENTS_PATH, JSON.stringify([], null, 2), "utf-8");
-  }
-
-  try {
-    await fs.access(NOTIFICATIONS_PATH);
-  } catch {
-    await fs.writeFile(NOTIFICATIONS_PATH, JSON.stringify([], null, 2), "utf-8");
-  }
+async function setSupabaseSetting(key, value) {
+  await supabase.from('global_settings').upsert({
+    key,
+    value,
+    updated_at: new Date().toISOString()
+  });
 }
 
 async function readState() {
-  await ensureDataFile();
-  const raw = await fs.readFile(STATE_PATH, "utf-8");
-  return JSON.parse(raw || "null");
+  return await getSupabaseSetting('schedule_state', null);
 }
 
 async function writeState(state) {
-  await ensureDataFile();
-  await fs.writeFile(STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
+  await setSupabaseSetting('schedule_state', state);
 }
 
 async function readApplyHistory() {
-  await ensureDataFile();
-  const raw = await fs.readFile(AI_APPLY_HISTORY_PATH, "utf-8");
-  const parsed = JSON.parse(raw || "[]");
-  return isArray(parsed) ? parsed : [];
+  const history = await getSupabaseSetting('ai_apply_history', []);
+  return isArray(history) ? history : [];
 }
 
 async function writeApplyHistory(history) {
-  await ensureDataFile();
-  await fs.writeFile(AI_APPLY_HISTORY_PATH, JSON.stringify(history, null, 2), "utf-8");
+  await setSupabaseSetting('ai_apply_history', history);
 }
 
 async function readShiftRequests() {
-  await ensureDataFile();
-  const raw = await fs.readFile(SHIFT_REQUESTS_PATH, "utf-8");
-  const parsed = JSON.parse(raw || "[]");
-  return isArray(parsed) ? parsed : [];
+  const requests = await getSupabaseSetting('shift_requests_data', []);
+  return isArray(requests) ? requests : [];
 }
 
 async function writeShiftRequests(requests) {
-  await ensureDataFile();
-  await fs.writeFile(SHIFT_REQUESTS_PATH, JSON.stringify(requests, null, 2), "utf-8");
+  await setSupabaseSetting('shift_requests_data', requests);
 }
 
 async function readEmailEvents() {
-  await ensureDataFile();
-  const raw = await fs.readFile(EMAIL_EVENTS_PATH, "utf-8");
-  const parsed = JSON.parse(raw || "[]");
-  return isArray(parsed) ? parsed : [];
-}
-
-async function readNotifications() {
-  await ensureDataFile();
-  const raw = await fs.readFile(NOTIFICATIONS_PATH, "utf-8");
-  const parsed = JSON.parse(raw || "[]");
-  return isArray(parsed) ? parsed : [];
+  const events = await getSupabaseSetting('email_events_data', []);
+  return isArray(events) ? events : [];
 }
 
 async function writeEmailEvents(events) {
-  await ensureDataFile();
-  await fs.writeFile(EMAIL_EVENTS_PATH, JSON.stringify(events, null, 2), "utf-8");
+  await setSupabaseSetting('email_events_data', events);
+}
+
+async function readNotifications() {
+  const records = await getSupabaseSetting('notification_history', []);
+  return isArray(records) ? records : [];
 }
 
 async function writeNotifications(records) {
-  await ensureDataFile();
-  await fs.writeFile(NOTIFICATIONS_PATH, JSON.stringify(records, null, 2), "utf-8");
+  await setSupabaseSetting('notification_history', records);
 }
 
 async function persistNotification(notification) {
@@ -1118,15 +1093,15 @@ app.post("/api/copilot/chat", async (req, res) => {
 
   try {
     const result = await processCopilotMessage({ message, context, conversationHistory });
-    return res.json({ 
-      result, 
-      updatedAt: new Date().toISOString() 
+    return res.json({
+      result,
+      updatedAt: new Date().toISOString()
     });
   } catch (error) {
     console.error("Copilot chat error:", error);
-    return res.status(500).json({ 
-      error: "Failed to process message", 
-      message: error instanceof Error ? error.message : "Unknown error" 
+    return res.status(500).json({
+      error: "Failed to process message",
+      message: error instanceof Error ? error.message : "Unknown error"
     });
   }
 });
@@ -1145,15 +1120,15 @@ app.post("/api/copilot/intent", async (req, res) => {
 
   try {
     const result = await parseIntent({ text, context });
-    return res.json({ 
-      result, 
-      updatedAt: new Date().toISOString() 
+    return res.json({
+      result,
+      updatedAt: new Date().toISOString()
     });
   } catch (error) {
     console.error("Intent parsing error:", error);
-    return res.status(500).json({ 
-      error: "Failed to parse intent", 
-      message: error instanceof Error ? error.message : "Unknown error" 
+    return res.status(500).json({
+      error: "Failed to parse intent",
+      message: error instanceof Error ? error.message : "Unknown error"
     });
   }
 });
@@ -1171,15 +1146,15 @@ app.get("/api/copilot/suggestions", async (req, res) => {
     };
 
     const result = await getCopilotSuggestions({ context });
-    return res.json({ 
-      result, 
-      updatedAt: new Date().toISOString() 
+    return res.json({
+      result,
+      updatedAt: new Date().toISOString()
     });
   } catch (error) {
     console.error("Suggestions error:", error);
-    return res.status(500).json({ 
-      error: "Failed to get suggestions", 
-      message: error instanceof Error ? error.message : "Unknown error" 
+    return res.status(500).json({
+      error: "Failed to get suggestions",
+      message: error instanceof Error ? error.message : "Unknown error"
     });
   }
 });
@@ -1189,15 +1164,15 @@ app.get("/api/copilot/stream", (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  
+
   // Send initial connection message
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Stream connected' })}\n\n`);
-  
+
   // Keep connection alive
   const keepAlive = setInterval(() => {
     res.write(`data: ${JSON.stringify({ type: 'ping' })}\n\n`);
   }, 30000);
-  
+
   // Clean up on client disconnect
   req.on('close', () => {
     clearInterval(keepAlive);
