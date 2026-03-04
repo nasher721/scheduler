@@ -799,10 +799,11 @@ export const useScheduleStore = create<ScheduleState>()(
 
       register: async (provider) => {
         const state = get();
-        try {
-          const { provider: newProvider } = await registerProvider(provider);
+        const normalizedEmail = provider.email?.toLowerCase().trim();
+        const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost';
+        const bypassSupabase = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
 
-          // Still update local state for immediate feedback
+        const addProviderLocally = (providerToAdd: Provider) => {
           const historyState: HistoryState = {
             providers: state.providers,
             slots: state.slots,
@@ -814,12 +815,38 @@ export const useScheduleStore = create<ScheduleState>()(
           const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
 
           set({
-            providers: [...state.providers, newProvider],
-            currentUser: newProvider,
+            providers: [...state.providers, providerToAdd],
+            currentUser: providerToAdd,
             history: newHistory,
             historyIndex: newHistory.length - 1,
-            lastActionMessage: `Self-registered: ${newProvider.name}`,
+            lastActionMessage: `Self-registered: ${providerToAdd.name}`,
           });
+        };
+
+        if (bypassSupabase) {
+          if (normalizedEmail && state.providers.some(p => p.email?.toLowerCase() === normalizedEmail)) {
+            get().showToast({ type: "error", title: "Registration Failed", message: "Email already in use." });
+            return;
+          }
+
+          const newProvider: Provider = {
+            ...provider,
+            email: normalizedEmail,
+            id: crypto.randomUUID(),
+          };
+
+          addProviderLocally(newProvider);
+          get().showToast({
+            type: "success",
+            title: "Registration Successful",
+            message: `Welcome, ${newProvider.name}! (DEV mode)`,
+          });
+          return;
+        }
+
+        try {
+          const { provider: newProvider } = await registerProvider(provider);
+          addProviderLocally(newProvider);
           get().showToast({ type: "success", title: "Registration Successful", message: `Welcome, ${newProvider.name}!` });
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "Email already in use.";
