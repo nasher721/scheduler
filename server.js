@@ -273,36 +273,71 @@ async function writeApplyHistory(history) {
 }
 
 async function readShiftRequests() {
-  const requests = await getSupabaseSetting('shift_requests_data', []);
-  return isArray(requests) ? requests : [];
-}
-
-async function writeShiftRequests(requests) {
-  await setSupabaseSetting('shift_requests_data', requests);
+  const { data, error } = await supabase
+    .from("shift_requests")
+    .select("*")
+    .order("requested_at", { ascending: false });
+  if (error) return [];
+  return (data || []).map((entry) => ({
+    id: entry.id,
+    providerName: entry.provider_name || "",
+    providerEmail: entry.provider_email || null,
+    date: entry.date,
+    type: entry.type,
+    notes: entry.notes || "",
+    deadlineAt: entry.deadline_at || null,
+    status: entry.status,
+    createdAt: entry.requested_at,
+    reviewedAt: entry.resolved_at,
+    reviewedBy: entry.resolved_by,
+    source: entry.source || "app",
+  }));
 }
 
 async function readEmailEvents() {
-  const events = await getSupabaseSetting('email_events_data', []);
-  return isArray(events) ? events : [];
-}
-
-async function writeEmailEvents(events) {
-  await setSupabaseSetting('email_events_data', events);
+  const { data, error } = await supabase
+    .from("email_events")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) return [];
+  return (data || []).map((entry) => ({
+    id: entry.id,
+    type: entry.type,
+    status: entry.status,
+    ...(entry.raw_payload && typeof entry.raw_payload === "object" ? entry.raw_payload : {}),
+    createdAt: entry.created_at,
+  }));
 }
 
 async function readNotifications() {
-  const records = await getSupabaseSetting('notification_history', []);
-  return isArray(records) ? records : [];
-}
-
-async function writeNotifications(records) {
-  await setSupabaseSetting('notification_history', records);
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) return [];
+  return (data || []).map((entry) => ({
+    id: entry.id,
+    eventType: entry.event_type || null,
+    title: entry.title,
+    body: entry.body,
+    severity: entry.severity || "info",
+    channels: isArray(entry.channels) ? entry.channels : [],
+    statusByChannel: entry.status_by_channel && typeof entry.status_by_channel === "object" ? entry.status_by_channel : {},
+    metadata: entry.metadata && typeof entry.metadata === "object" ? entry.metadata : {},
+    createdAt: entry.created_at,
+  }));
 }
 
 async function persistNotification(notification) {
-  const records = await readNotifications();
-  records.push(notification);
-  await writeNotifications(records);
+  await supabase.from("notifications").insert({
+    event_type: notification.eventType || null,
+    title: notification.title,
+    body: notification.body,
+    severity: notification.severity || "info",
+    channels: isArray(notification.channels) ? notification.channels : [],
+    status_by_channel: notification.statusByChannel && typeof notification.statusByChannel === "object" ? notification.statusByChannel : {},
+    metadata: notification.metadata && typeof notification.metadata === "object" ? notification.metadata : {},
+  });
   return notification;
 }
 
@@ -402,7 +437,6 @@ async function queueScheduleChangeEmails(previousState, nextState) {
 
   if (notificationsByProvider.size === 0) return [];
 
-  const existingEvents = await readEmailEvents();
   const now = new Date().toISOString();
   const queued = [];
 
@@ -421,7 +455,22 @@ async function queueScheduleChangeEmails(previousState, nextState) {
     });
   }
 
-  await writeEmailEvents([...existingEvents, ...queued]);
+  if (queued.length > 0) {
+    await supabase.from("email_events").insert(
+      queued.map((event) => ({
+        type: event.type,
+        status: event.status,
+        raw_payload: {
+          providerId: event.providerId,
+          providerName: event.providerName,
+          to: event.to,
+          subject: event.subject,
+          body: event.body,
+          changes: event.changes,
+        },
+      })),
+    );
+  }
   return queued;
 }
 
@@ -583,22 +632,37 @@ app.post("/api/shift-requests", async (req, res) => {
     return res.status(400).json({ error: validationError });
   }
 
-  const requests = await readShiftRequests();
+  const { data, error } = await supabase
+    .from("shift_requests")
+    .insert({
+      provider_name: req.body.providerName.trim(),
+      provider_email: typeof req.body.providerEmail === "string" ? req.body.providerEmail.trim().toLowerCase() : null,
+      date: req.body.date,
+      type: req.body.type.toLowerCase(),
+      notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
+      deadline_at: typeof req.body.deadlineAt === "string" ? req.body.deadlineAt : null,
+      source: req.body.source === "email" ? "email" : "app",
+      status: "pending",
+    })
+    .select()
+    .single();
+  if (error || !data) {
+    return res.status(500).json({ error: "Failed to create shift request." });
+  }
   const requestRecord = {
-    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    providerName: req.body.providerName.trim(),
-    date: req.body.date,
-    type: req.body.type.toLowerCase(),
-    notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
-    deadlineAt: typeof req.body.deadlineAt === "string" ? req.body.deadlineAt : null,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    reviewedAt: null,
-    reviewedBy: null,
-    source: req.body.source === "email" ? "email" : "app",
+    id: data.id,
+    providerName: data.provider_name,
+    providerEmail: data.provider_email,
+    date: data.date,
+    type: data.type,
+    notes: data.notes || "",
+    deadlineAt: data.deadline_at,
+    status: data.status,
+    createdAt: data.requested_at,
+    reviewedAt: data.resolved_at,
+    reviewedBy: data.resolved_by,
+    source: data.source || "app",
   };
-  requests.push(requestRecord);
-  await writeShiftRequests(requests);
 
   const notification = await dispatchNotification({
     eventType: "shift_request_submitted",
@@ -630,24 +694,38 @@ app.patch("/api/shift-requests/:id", async (req, res) => {
     return res.status(400).json({ error: 'Field "reviewedBy" is required when changing status.' });
   }
 
-  const requests = await readShiftRequests();
-  const requestIndex = requests.findIndex((entry) => entry.id === requestId);
-  if (requestIndex < 0) {
+  const { data, error } = await supabase
+    .from("shift_requests")
+    .update({
+      status,
+      resolved_by: reviewedBy,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq("id", requestId)
+    .select()
+    .single();
+  if (error || !data) {
     return res.status(404).json({ error: `Request not found for id ${requestId}.` });
   }
-
-  requests[requestIndex] = {
-    ...requests[requestIndex],
-    status,
-    reviewedBy,
-    reviewedAt: new Date().toISOString(),
+  const requestRecord = {
+    id: data.id,
+    providerName: data.provider_name,
+    providerEmail: data.provider_email,
+    date: data.date,
+    type: data.type,
+    notes: data.notes || "",
+    deadlineAt: data.deadline_at,
+    status: data.status,
+    createdAt: data.requested_at,
+    reviewedAt: data.resolved_at,
+    reviewedBy: data.resolved_by,
+    source: data.source || "app",
   };
-  await writeShiftRequests(requests);
 
   const notification = await dispatchNotification({
     eventType: "shift_request_reviewed",
     title: "Shift request reviewed",
-    body: `${requests[requestIndex].providerName} request for ${requests[requestIndex].date} was ${status}.`,
+    body: `${requestRecord.providerName} request for ${requestRecord.date} was ${status}.`,
     severity: status === "denied" ? "warning" : "info",
     channels: ["log"],
     metadata: {
@@ -658,7 +736,7 @@ app.patch("/api/shift-requests/:id", async (req, res) => {
   });
   await persistNotification(notification);
 
-  return res.json({ request: requests[requestIndex], notification, updatedAt: new Date().toISOString() });
+  return res.json({ request: requestRecord, notification, updatedAt: new Date().toISOString() });
 });
 
 app.get("/api/notifications/channels", (_req, res) => {
@@ -697,7 +775,7 @@ app.get("/api/notifications/history", async (req, res) => {
   const limit = Math.min(250, toPositiveInt(req.query?.limit, 50));
   const records = await readNotifications();
   return res.json({
-    records: [...records].reverse().slice(0, limit),
+    records: records.slice(0, limit),
     total: records.length,
     limit,
     updatedAt: new Date().toISOString(),
@@ -775,35 +853,47 @@ app.post("/api/email/inbound", async (req, res) => {
     return res.status(400).json({ error: `Could not triage inbound email. ${validationError}` });
   }
 
-  const requests = await readShiftRequests();
+  const { data: createdRequest, error: requestError } = await supabase
+    .from("shift_requests")
+    .insert({
+      provider_id: provider.id,
+      provider_name: provider.name,
+      provider_email: provider.email || from,
+      date: requestPayload.date,
+      type: requestPayload.type.toLowerCase(),
+      notes: requestPayload.notes,
+      status: "pending",
+      source: "email",
+    })
+    .select()
+    .single();
+  if (requestError || !createdRequest) {
+    return res.status(500).json({ error: "Failed to create shift request from inbound email." });
+  }
   const requestRecord = {
-    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    providerName: provider.name,
-    providerEmail: provider.email || from,
-    date: requestPayload.date,
-    type: requestPayload.type.toLowerCase(),
-    notes: requestPayload.notes,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    reviewedAt: null,
-    reviewedBy: null,
-    source: "email",
+    id: createdRequest.id,
+    providerName: createdRequest.provider_name,
+    providerEmail: createdRequest.provider_email,
+    date: createdRequest.date,
+    type: createdRequest.type,
+    notes: createdRequest.notes || "",
+    deadlineAt: createdRequest.deadline_at,
+    status: createdRequest.status,
+    createdAt: createdRequest.requested_at,
+    reviewedAt: createdRequest.resolved_at,
+    reviewedBy: createdRequest.resolved_by,
+    source: createdRequest.source || "email",
   };
 
-  requests.push(requestRecord);
-  await writeShiftRequests(requests);
-
-  const emailEvents = await readEmailEvents();
-  emailEvents.push({
-    id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  await supabase.from("email_events").insert({
     type: "inbound_request",
     status: "processed",
-    from,
-    subject,
-    requestId: requestRecord.id,
-    createdAt: new Date().toISOString(),
+    raw_payload: {
+      from,
+      subject,
+      requestId: requestRecord.id,
+    },
   });
-  await writeEmailEvents(emailEvents);
 
   return res.status(201).json({ request: requestRecord, updatedAt: new Date().toISOString() });
 });
