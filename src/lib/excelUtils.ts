@@ -596,7 +596,12 @@ const readWorkbookRows = (data: ArrayBuffer): WorksheetRow[] => {
     return [];
   }
 
-  return XLSX.utils.sheet_to_json<WorksheetRow>(worksheet, { defval: "" });
+  const rawRows = XLSX.utils.sheet_to_json<WorksheetRow>(worksheet, { defval: "" });
+  // Normalize all row keys by trimming whitespace so header matching and row lookups
+  // use consistent keys regardless of trailing spaces in Excel column headers.
+  return rawRows.map((row) =>
+    Object.fromEntries(Object.entries(row).map(([k, v]) => [k.trim(), v]))
+  );
 };
 
 const buildImportPreviewFromRows = (
@@ -618,11 +623,10 @@ const buildImportPreviewFromRows = (
     ]);
   }
 
-  // Use original (untrimmed) headers so row[mapping.field] lookups work correctly.
-  // resolveHeaderMapping normalizes headers internally for comparison.
-  const originalHeaders = Object.keys(rows[0]);
-  const availableHeaders = originalHeaders.map((h) => h.trim()); // trimmed for display only
-  const { mapping, issues: mappingIssues } = resolveHeaderMapping(originalHeaders, manualMapping);
+  // Row keys are already normalized (trimmed) by readWorkbookRows, so trimmed headers
+  // correctly match row lookups.
+  const availableHeaders = Object.keys(rows[0]);
+  const { mapping, issues: mappingIssues } = resolveHeaderMapping(availableHeaders, manualMapping);
   const previewRows: ImportPreviewRow[] = new Array(rows.length);
   const rowIssues: ImportIssue[] = [];
   let rowErrors = 0;
