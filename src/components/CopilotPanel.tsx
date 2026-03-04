@@ -6,6 +6,7 @@ import { useCopilotKeyboard, useMobileDetect } from "@/hooks/useKeyboardShortcut
 import { MobileCopilotSheet } from "./MobileCopilotSheet";
 import { KeyboardHelpOverlay } from "./KeyboardHelpOverlay";
 import { ConversationExportDialog } from "./ConversationExportDialog";
+import type { SpeechRecognition, SpeechRecognitionEvent } from "@/types/speechRecognition";
 import { 
   Bot, 
   Send, 
@@ -42,7 +43,7 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const recognitionRef = useRef<any | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   
   // Mobile detection
   const { isMobile } = useMobileDetect();
@@ -85,13 +86,13 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
 
   // Initialize speech recognition
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
+    const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognitionConstructor) {
+      recognitionRef.current = new SpeechRecognitionConstructor();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = true;
       
-      recognitionRef.current.onresult = (event: any) => {
+      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
         let finalTranscript = '';
         
         for (let i = event.resultIndex; i < event.results.length; i++) {

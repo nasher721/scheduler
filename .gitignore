@@ -30,3 +30,4 @@ data/ai-apply-history.json
 
 # TypeScript build info
 tsconfig.tsbuildinfo
+supabase/.temp/

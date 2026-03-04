@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useScheduleStore } from "@/store";
 import type { CopilotMessage } from "@/store";
 import {
@@ -30,6 +30,16 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
   const [isTyping, setIsTyping] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
+  // Use refs for callbacks to avoid dependency issues
+  const optionsRef = useRef(options);
+  const storeRef = useRef(store);
+  
+  // Keep refs up to date
+  useEffect(() => {
+    optionsRef.current = options;
+    storeRef.current = store;
+  });
+
   // Get current conversation messages from store
   const currentConversation = store.copilotConversations.find(
     c => c.id === store.currentConversationId
@@ -41,10 +51,14 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
     if (!store.currentConversationId) {
       store.createConversation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentConversationId]);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!store.currentConversationId) return;
+    const currentStore = storeRef.current;
+    const currentOptions = optionsRef.current;
+    
+    if (!currentStore.currentConversationId) return;
 
     setIsLoading(true);
     setIsTyping(true);
@@ -57,13 +71,13 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
       timestamp: new Date().toISOString(),
     };
 
-    store.addMessageToConversation(store.currentConversationId, userMessage);
+    currentStore.addMessageToConversation(currentStore.currentConversationId, userMessage);
 
     try {
       const response = await sendCopilotMessage(
         content,
-        options.context,
-        messages
+        currentOptions.context,
+        currentStore.copilotConversations.find(c => c.id === currentStore.currentConversationId)?.messages || []
       );
 
       const assistantMessage: CopilotMessage = {
@@ -78,9 +92,9 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
         actions: response.result.actions,
       };
 
-      store.addMessageToConversation(store.currentConversationId, assistantMessage);
+      currentStore.addMessageToConversation(currentStore.currentConversationId, assistantMessage);
       setSuggestions(response.result.suggestions || []);
-      options.onMessageReceived?.(assistantMessage);
+      currentOptions.onMessageReceived?.(assistantMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
@@ -92,30 +106,32 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
         suggestions: ["Try again", "Show help"],
       };
 
-      store.addMessageToConversation(store.currentConversationId, assistantMessage);
-      options.onError?.(error instanceof Error ? error : new Error(errorMessage));
+      currentStore.addMessageToConversation(currentStore.currentConversationId, assistantMessage);
+      currentOptions.onError?.(error instanceof Error ? error : new Error(errorMessage));
     } finally {
       setIsLoading(false);
       setIsTyping(false);
     }
-  }, [store, store.currentConversationId, messages, options.context, options.onMessageReceived, options.onError]);
+  }, []); // No dependencies needed since we use refs
 
   const clearMessages = useCallback(() => {
-    if (store.currentConversationId) {
-      store.deleteConversation(store.currentConversationId);
-      store.createConversation();
+    const currentStore = storeRef.current;
+    if (currentStore.currentConversationId) {
+      currentStore.deleteConversation(currentStore.currentConversationId);
+      currentStore.createConversation();
     }
-  }, [store]);
+  }, []);
 
   const refreshSuggestions = useCallback(async () => {
+    const currentOptions = optionsRef.current;
     try {
-      const response = await getCopilotSuggestions(options.context);
+      const response = await getCopilotSuggestions(currentOptions.context);
       const recs = response.result.recommendations || [];
       setSuggestions(recs.map((r) => r.title));
     } catch (error) {
       console.error("Failed to refresh suggestions:", error);
     }
-  }, [options.context]);
+  }, []);
 
   return {
     messages,

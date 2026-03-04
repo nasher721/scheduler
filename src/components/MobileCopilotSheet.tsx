@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useScheduleStore } from "@/store";
+import type { SpeechRecognition, SpeechRecognitionEvent } from "@/types/speechRecognition";
 import { 
   Bot, 
   Send, 
@@ -27,7 +28,7 @@ export function MobileCopilotSheet({ isOpen, onToggle }: MobileCopilotSheetProps
   const [isListening, setIsListening] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [dragY, setDragY] = useState(0);
 
   // Get current conversation
@@ -38,13 +39,13 @@ export function MobileCopilotSheet({ isOpen, onToggle }: MobileCopilotSheetProps
 
   // Initialize speech recognition
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
+    const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognitionConstructor) {
+      recognitionRef.current = new SpeechRecognitionConstructor();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = true;
       
-      recognitionRef.current.onresult = (event: any) => {
+      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
         let finalTranscript = '';
         
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -71,7 +72,7 @@ export function MobileCopilotSheet({ isOpen, onToggle }: MobileCopilotSheetProps
     }
   }, [isOpen]);
 
-  const handleDragEnd = (_: any, info: PanInfo) => {
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.y > 150 || info.velocity.y > 500) {
       onToggle();
     }

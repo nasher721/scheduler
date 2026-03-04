@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useScheduleStore, type CopilotMessage, type CopilotConversation } from "@/store";
+import type { SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent } from "@/types/speechRecognition";
 import {
   sendCopilotMessage,
   parseCopilotIntent,
@@ -54,6 +55,16 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
   const [transcript, setTranscript] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  // Use refs for store and options to avoid dependency issues
+  const storeRef = useRef(store);
+  const optionsRef = useRef(options);
+  
+  // Keep refs up to date
+  useEffect(() => {
+    storeRef.current = store;
+    optionsRef.current = options;
+  });
+
   // Get current conversation messages
   const currentConversation = store.copilotConversations.find(
     c => c.id === store.currentConversationId
@@ -62,13 +73,13 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
 
   // Initialize speech recognition
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
+    const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognitionConstructor) {
+      const recognition = new SpeechRecognitionConstructor();
+      recognition.continuous = true;
+      recognition.interimResults = true;
 
-      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         let finalTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -83,14 +94,16 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
         }
       };
 
-      recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
       };
 
-      recognitionRef.current.onend = () => {
+      recognition.onend = () => {
         setIsListening(false);
       };
+      
+      recognitionRef.current = recognition;
     }
 
     return () => {
@@ -103,10 +116,14 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
     if (!store.currentConversationId) {
       store.createConversation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentConversationId]);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!store.currentConversationId) return;
+    const currentStore = storeRef.current;
+    const currentOptions = optionsRef.current;
+    
+    if (!currentStore.currentConversationId) return;
 
     setIsLoading(true);
     setIsTyping(true);
@@ -119,13 +136,17 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
       timestamp: new Date().toISOString(),
     };
 
-    store.addMessageToConversation(store.currentConversationId, userMessage);
+    currentStore.addMessageToConversation(currentStore.currentConversationId, userMessage);
 
     try {
+      const currentMessages = currentStore.copilotConversations.find(
+        c => c.id === currentStore.currentConversationId
+      )?.messages || [];
+      
       const response = await sendCopilotMessage(
         content,
-        options.context,
-        messages
+        currentOptions.context,
+        currentMessages
       );
 
       const assistantMessage: CopilotMessage = {
@@ -140,9 +161,9 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
         actions: response.result.actions,
       };
 
-      store.addMessageToConversation(store.currentConversationId, assistantMessage);
+      currentStore.addMessageToConversation(currentStore.currentConversationId, assistantMessage);
       setSuggestions(response.result.suggestions || []);
-      options.onMessageReceived?.(assistantMessage);
+      currentOptions.onMessageReceived?.(assistantMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
@@ -154,59 +175,66 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
         suggestions: ["Try again", "Show help"],
       };
 
-      store.addMessageToConversation(store.currentConversationId, assistantMessage);
-      options.onError?.(error instanceof Error ? error : new Error(errorMessage));
+      currentStore.addMessageToConversation(currentStore.currentConversationId, assistantMessage);
+      currentOptions.onError?.(error instanceof Error ? error : new Error(errorMessage));
     } finally {
       setIsLoading(false);
       setIsTyping(false);
     }
-  }, [store.currentConversationId, messages, options.context, options.onMessageReceived, options.onError]);
+  }, []); // No dependencies since we use refs
 
   const createNewConversation = useCallback(() => {
-    store.createConversation();
-  }, [store]);
+    storeRef.current.createConversation();
+  }, []);
 
   const loadConversation = useCallback((id: string) => {
-    store.loadConversation(id);
-  }, [store]);
+    storeRef.current.loadConversation(id);
+  }, []);
 
   const deleteConversation = useCallback((id: string) => {
-    store.deleteConversation(id);
-  }, [store]);
+    storeRef.current.deleteConversation(id);
+  }, []);
 
   const clearCurrentConversation = useCallback(() => {
-    if (store.currentConversationId) {
+    const currentStore = storeRef.current;
+    if (currentStore.currentConversationId) {
       // Delete and create new
-      store.deleteConversation(store.currentConversationId);
-      store.createConversation();
+      currentStore.deleteConversation(currentStore.currentConversationId);
+      currentStore.createConversation();
     }
-  }, [store]);
+  }, []);
 
   const recordFeedback = useCallback((messageId: string, action: 'accepted' | 'rejected' | 'modified' | 'ignored') => {
-    const message = messages.find(m => m.id === messageId);
+    const currentStore = storeRef.current;
+    const currentMessages = currentStore.copilotConversations.find(
+      c => c.id === currentStore.currentConversationId
+    )?.messages || [];
+    const message = currentMessages.find(m => m.id === messageId);
+    
     if (message?.intent) {
-      store.recordCopilotFeedback({
-        conversationId: store.currentConversationId || '',
+      currentStore.recordCopilotFeedback({
+        conversationId: currentStore.currentConversationId || '',
         messageId,
         intent: message.intent,
         action,
       });
     }
-  }, [messages, store.currentConversationId, store]);
+  }, []);
 
   const getIntentScore = useCallback((intent: string) => {
-    return store.getCopilotPreferenceScore(intent);
-  }, [store]);
+    return storeRef.current.getCopilotPreferenceScore(intent);
+  }, []);
 
   const refreshSuggestions = useCallback(async () => {
+    const currentOptions = optionsRef.current;
     try {
-      const response = await getCopilotSuggestions(options.context);
+      const response = await getCopilotSuggestions(currentOptions.context);
       const recs = response.result.recommendations || [];
       setSuggestions(recs.map((r) => r.title));
     } catch (error) {
       console.error("Failed to refresh suggestions:", error);
     }
-  }, [options.context]);
+  }, []);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current) {
@@ -214,13 +242,13 @@ export function useCopilotEnhanced(options: UseCopilotEnhancedOptions): UseCopil
       setIsListening(true);
       recognitionRef.current.start();
     } else {
-      store.showToast({
+      storeRef.current.showToast({
         type: 'error',
         title: 'Voice Not Supported',
         message: 'Your browser does not support voice input'
       });
     }
-  }, [store]);
+  }, []);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
@@ -276,43 +304,4 @@ export function useCopilotIntent() {
   return { parseIntent, isParsing };
 }
 
-// TypeScript declarations for Web Speech API
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
 
-  interface SpeechRecognition extends EventTarget {
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    onresult: (event: SpeechRecognitionEvent) => void;
-    onerror: (event: SpeechRecognitionErrorEvent) => void;
-    onend: () => void;
-    start: () => void;
-    stop: () => void;
-  }
-
-  interface SpeechRecognitionEvent extends Event {
-    resultIndex: number;
-    results: {
-      length: number;
-      [index: number]: {
-        isFinal: boolean;
-        [index: number]: {
-          transcript: string;
-        };
-      };
-    };
-  }
-
-  interface SpeechRecognitionErrorEvent extends Event {
-    error: string;
-  }
-
-  var SpeechRecognition: {
-    prototype: SpeechRecognition;
-    new(): SpeechRecognition;
-  };
-}

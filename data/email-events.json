@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "id": "email-1772638607143-x9i8ao",
+    "type": "schedule_update",
+    "status": "queued",
+    "providerId": "p1",
+    "providerName": "Dr. Inbox",
+    "to": "inbox@hospital.org",
+    "subject": "Schedule updated for Dr. Inbox",
+    "body": "Your schedule changed in 1 shift(s).",
+    "changes": [
+      {
+        "slotId": "2026-01-05-DAY-0",
+        "date": "2026-01-05",
+        "shiftType": "DAY",
+        "previousProviderId": null,
+        "nextProviderId": "p1"
+      }
+    ],
+    "createdAt": "2026-03-04T15:36:47.143Z"
+  },
+  {
+    "id": "email-1772638607151-lx9vq6",
+    "type": "schedule_update",
+    "status": "queued",
+    "providerId": "p1",
+    "providerName": "Dr. Inbox",
+    "to": "inbox@hospital.org",
+    "subject": "Schedule updated for Dr. Inbox",
+    "body": "Your schedule changed in 1 shift(s).",
+    "changes": [
+      {
+        "slotId": "2026-01-05-DAY-0",
+        "date": "2026-01-05",
+        "shiftType": "DAY",
+        "previousProviderId": "p1",
+        "nextProviderId": null
+      }
+    ],
+    "createdAt": "2026-03-04T15:36:47.151Z"
+  }
+]

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useScheduleStore, type ShiftSlot, type Provider, type ShiftType } from "../store";
+import { useScheduleStore, type ShiftSlot, type Provider, type ShiftType, type Conflict } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday, addDays, isWeekend } from "date-fns";
 import { 
@@ -245,7 +245,7 @@ function TimelineView({
 }: { 
   slots: ShiftSlot[]; 
   providers: Provider[];
-  conflicts: any[];
+  conflicts: Conflict[];
 }) {
   const dates = Array.from(new Set(slots.map(s => s.date))).sort();
   const hours = Array.from({ length: 24 }, (_, i) => i);

@@ -1,4 +1,5 @@
 import { ProviderManager } from "./components/ProviderManager";
+import { LandingPage } from "./components/LandingPage";
 import { CopilotPanel } from "./components/CopilotPanel";
 import { ScheduleChangePreview, type OptimizationPreview } from "./components/ScheduleChangePreview";
 import { SparkAnnotation } from "spark-banana";
@@ -18,7 +19,8 @@ import { ConflictDashboard } from "./components/ConflictDashboard";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { PredictiveInsights } from "./components/PredictiveInsights";
 import { ScheduleTemplates } from "./components/ScheduleTemplates";
-import { InstallPrompt, useNetworkStatus } from "./components/InstallPrompt";
+import { InstallPrompt } from "./components/InstallPrompt";
+import { useNetworkStatus } from "./hooks/usePWA";
 import { EnhancedCalendar } from "./components/EnhancedCalendar";
 import { ExcelGridView } from "./components/ExcelGridView";
 import {
@@ -86,6 +88,7 @@ export default function App() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
   const [isAiMapping, setIsAiMapping] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
   const isOnline = useNetworkStatus();
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
@@ -228,6 +231,9 @@ export default function App() {
 
 
   if (!currentUser) {
+    if (showLanding) {
+      return <LandingPage onLogin={() => setShowLanding(false)} />;
+    }
     return (
       <>
         <Login />

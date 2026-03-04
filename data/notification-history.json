@@ -1,1 +1,93 @@
-[]
+[
+  {
+    "id": "notif-1772638607149-f6967l",
+    "eventType": "manual",
+    "title": "Coverage risk",
+    "body": "Night shift is uncovered.",
+    "severity": "critical",
+    "channels": [
+      "log"
+    ],
+    "statusByChannel": {
+      "log": "sent"
+    },
+    "metadata": {},
+    "createdAt": "2026-03-04T15:36:47.149Z"
+  },
+  {
+    "id": "notif-1772638607165-diaehd",
+    "eventType": "shift_request_submitted",
+    "title": "New shift request submitted",
+    "body": "Dr. Adams submitted a time_off request for 2026-01-15.",
+    "severity": "info",
+    "channels": [
+      "log"
+    ],
+    "statusByChannel": {
+      "log": "sent"
+    },
+    "metadata": {
+      "requestId": "req-1772638607164-zytxzp",
+      "requestType": "time_off",
+      "status": "pending"
+    },
+    "createdAt": "2026-03-04T15:36:47.165Z"
+  },
+  {
+    "id": "notif-1772638607174-gaho9w",
+    "eventType": "shift_request_reviewed",
+    "title": "Shift request reviewed",
+    "body": "Dr. Adams request for 2026-01-15 was approved.",
+    "severity": "info",
+    "channels": [
+      "log"
+    ],
+    "statusByChannel": {
+      "log": "sent"
+    },
+    "metadata": {
+      "requestId": "req-1772638607164-zytxzp",
+      "reviewedBy": "ops-lead",
+      "status": "approved"
+    },
+    "createdAt": "2026-03-04T15:36:47.174Z"
+  },
+  {
+    "id": "notif-1772638737928-76nikr",
+    "eventType": "shift_request_submitted",
+    "title": "New shift request submitted",
+    "body": "Dr. Adams submitted a time_off request for 2026-01-15.",
+    "severity": "info",
+    "channels": [
+      "log"
+    ],
+    "statusByChannel": {
+      "log": "sent"
+    },
+    "metadata": {
+      "requestId": "req-1772638737928-qfn8vm",
+      "requestType": "time_off",
+      "status": "pending"
+    },
+    "createdAt": "2026-03-04T15:38:57.928Z"
+  },
+  {
+    "id": "notif-1772638737934-j8n621",
+    "eventType": "shift_request_reviewed",
+    "title": "Shift request reviewed",
+    "body": "Dr. Adams request for 2026-01-15 was approved.",
+    "severity": "info",
+    "channels": [
+      "log"
+    ],
+    "statusByChannel": {
+      "log": "sent"
+    },
+    "metadata": {
+      "requestId": "req-1772638737928-qfn8vm",
+      "reviewedBy": "ops-lead",
+      "status": "approved"
+    },
+    "createdAt": "2026-03-04T15:38:57.934Z"
+  }
+]

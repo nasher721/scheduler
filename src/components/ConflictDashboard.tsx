@@ -150,12 +150,19 @@ export function ConflictDashboard() {
 
   // Auto-detect conflicts on mount and periodically
   useEffect(() => {
-    detectConflicts();
-    setLastScan(new Date());
+    // Use a ref to track initial mount
+    const detectAndUpdate = () => {
+      detectConflicts();
+      // Use requestAnimationFrame to avoid synchronous setState
+      requestAnimationFrame(() => {
+        setLastScan(new Date());
+      });
+    };
+    
+    detectAndUpdate();
     
     const interval = setInterval(() => {
-      detectConflicts();
-      setLastScan(new Date());
+      detectAndUpdate();
     }, 30000); // Scan every 30 seconds
     
     return () => clearInterval(interval);

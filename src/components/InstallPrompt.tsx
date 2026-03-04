@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, X, Smartphone } from "lucide-react";
 
@@ -13,12 +13,24 @@ export function InstallPrompt() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  useEffect(() => {
-    // Check if already installed
+  // Check if already installed using useCallback to avoid dependency issues
+  const checkInstalled = useCallback(() => {
     if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
-      return;
+      return true;
     }
+    return false;
+  }, []);
+
+  useEffect(() => {
+    // Check installation status in a microtask to avoid synchronous setState
+    const checkStatus = () => {
+      Promise.resolve().then(() => {
+        checkInstalled();
+      });
+    };
+    
+    checkStatus();
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
@@ -31,7 +43,7 @@ export function InstallPrompt() {
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     };
-  }, []);
+  }, [checkInstalled]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -94,43 +106,4 @@ export function InstallPrompt() {
       </motion.div>
     </AnimatePresence>
   );
-}
-
-// Hook to check if running as installed PWA
-export function useIsPWA() {
-  const [isPWA, setIsPWA] = useState(false);
-
-  useEffect(() => {
-    const checkPWA = () => {
-      const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-      const isIOSStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-      setIsPWA(isStandalone || isIOSStandalone);
-    };
-
-    checkPWA();
-    window.addEventListener("resize", checkPWA);
-    return () => window.removeEventListener("resize", checkPWA);
-  }, []);
-
-  return isPWA;
-}
-
-// Hook for online/offline status
-export function useNetworkStatus() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  return isOnline;
 }
