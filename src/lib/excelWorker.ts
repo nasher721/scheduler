@@ -8,14 +8,17 @@ import type {
   ImportPreviewRow,
   ParseImportWorkerRequest,
   ParseImportWorkerResponse,
+  ParsedAssignment,
 } from "./excelUtils";
 
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
 
-const IMPORT_FIELDS = ["date", "dayG20", "dayH22", "dayAkron", "night", "consults", "nmet", "jeopardy", "recovery", "vacation"] as const;
+// IMPORTANT: Must match excelUtils.ts exactly
+const IMPORT_FIELDS = ["date", "dayG20", "dayH22", "dayAkron", "night", "consults", "dayAmet", "dayNmet", "jeopardy", "recovery", "vacation"] as const;
 type AssignmentImportFieldKey = Exclude<ImportFieldKey, "date">;
 const ASSIGNMENT_IMPORT_FIELDS: AssignmentImportFieldKey[] = IMPORT_FIELDS.filter((field): field is AssignmentImportFieldKey => field !== "date");
 
+// IMPORTANT: Must match excelUtils.ts exactly
 const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
   date: ["month / date", "month", "date", "schedule date", "month / date ", "month "],
   dayG20: ["g20", "g20 unit", "day g20", "g20 "],
@@ -23,7 +26,8 @@ const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
   dayAkron: ["akron", "akron unit", "day akron", "akron "],
   night: ["nights", "night", "overnight", "nights "],
   consults: ["consults", "consult", "consult service", "consults "],
-  nmet: ["amet / nmet", "nmet", "amet", "airway", "amet ", "amet / nmet "],
+  dayAmet: ["amet", "amet ", "day amet"],
+  dayNmet: ["nmet", "nmet ", "day nmet"],
   jeopardy: ["jeopardy", "backup", "backup jeopardy"],
   recovery: ["recovery", "post call", "post-call"],
   vacation: ["vacations", "vacation", "time off", "pto", "vacations "],
@@ -37,8 +41,8 @@ const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
   "Akron": "dayAkron",
   "Nights": "night",
   "Consults": "consults",
-  "AMET": "nmet",
-  "NMET": "nmet",
+  "AMET": "dayAmet",
+  "NMET": "dayNmet",
   "Jeopardy": "jeopardy",
   "Recovery": "recovery",
   "Vacations": "vacation",
@@ -65,16 +69,88 @@ const postProgress = (percent: number) => {
 
 const normalizeHeader = (header: unknown): string => String(header ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
-const parseProviderCell = (value: unknown): string[] => {
-  if (typeof value !== "string") {
-    return [];
+// Common name corrections for Neuro ICU team - must match excelUtils.ts
+const NAME_CORRECTIONS: Record<string, string> = {
+  // Exact matches (lowercase keys)
+  'lynch': 'Lynch',
+  'hasset': 'Hassett',
+  'hassett': 'Hassett',
+  'sabarwhal': 'Sabharwal',
+  'sabharwal': 'Sabharwal',
+  'villamizar rosales': 'Villamizar Rosales',
+  'rosales': 'Villamizar Rosales',
+  'barron': 'Barron',
+  'bates': 'Bates',
+  'bolt': 'Bolt',
+  'dani': 'Dani',
+  'gomes': 'Gomes',
+  'goswami': 'Goswami',
+  'asher': 'Asher',
+  'new': 'New', // Placeholder for new hires
+  'nn': 'NN',
+  'aa': 'AA',
+  'bb': 'BB',
+  'cc': 'CC',
+};
+
+/**
+ * Normalize provider names to handle common typos and inconsistencies
+ * Must match excelUtils.ts implementation
+ */
+const normalizeProviderName = (name: string): string => {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+
+  // Check for exact match in corrections (case-insensitive)
+  const lowerName = trimmed.toLowerCase();
+  if (NAME_CORRECTIONS[lowerName]) {
+    return NAME_CORRECTIONS[lowerName];
   }
 
-  return value
-    .split(/[,&/]/)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((name) => name.replace(/\s+/g, " "));
+  // Check for partial matches (e.g., "Rosales" -> "Villamizar Rosales")
+  for (const [key, value] of Object.entries(NAME_CORRECTIONS)) {
+    if (lowerName.includes(key) && key.length > 3) {
+      return value;
+    }
+  }
+
+  // Capitalize first letter of each word
+  return trimmed
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
+/**
+ * Parse provider cell with support for multi-provider assignments
+ * Must match excelUtils.ts implementation
+ */
+const parseProviderCell = (value: unknown): ParsedAssignment | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const rawValue = value.trim();
+  if (!rawValue) {
+    return null;
+  }
+
+  // Split on common separators: &, and, /, +
+  const providers = rawValue
+    .split(/(?:\s*&\s*|\s+and\+|\s*\/\s*|\s*\+\s*)/i)
+    .map((entry) => normalizeProviderName(entry.trim()))
+    .filter(Boolean);
+
+  if (providers.length === 0) {
+    return null;
+  }
+
+  return {
+    providers,
+    primaryProvider: providers[0],
+    isShared: providers.length > 1,
+    rawValue,
+  };
 };
 
 const formatDateParts = (year: number, month: number, day: number): string => {
@@ -88,9 +164,15 @@ const normalizeExcelDateSerial = (serialDate: number): string | null => {
     return null;
   }
 
+  // Excel's epoch starts at December 30, 1899
   const wholeDays = Math.trunc(serialDate);
   const epoch = Date.UTC(1899, 11, 30);
-  const dateValue = new Date(epoch + wholeDays * 86_400_000);
+  
+  // Handle Excel's leap year bug (Excel thinks 1900 was a leap year)
+  // For dates after February 28, 1900, we need to subtract 1 day
+  const adjustedDays = serialDate > 60 ? wholeDays - 1 : wholeDays;
+  
+  const dateValue = new Date(epoch + adjustedDays * 86_400_000);
   if (Number.isNaN(dateValue.getTime())) {
     return null;
   }
@@ -302,6 +384,7 @@ const buildImportPreviewFromRows = (
         previewRows[idx] = {
           date: "",
           assignments: {},
+          parsedAssignments: {},
           issues: [],
         };
         continue;
@@ -318,6 +401,7 @@ const buildImportPreviewFromRows = (
     }
 
     const assignments: Partial<Record<ImportFieldKey, string[]>> = {};
+    const parsedAssignments: Partial<Record<ImportFieldKey, ParsedAssignment>> = {};
 
     ASSIGNMENT_IMPORT_FIELDS.forEach((field) => {
       const sourceColumn = mapping[field];
@@ -325,29 +409,44 @@ const buildImportPreviewFromRows = (
         return;
       }
 
-      const providers = parseProviderCell(row[sourceColumn]);
-      assignments[field] = providers;
+      const parsed = parseProviderCell(row[sourceColumn]);
+      if (parsed) {
+        assignments[field] = parsed.providers;
+        parsedAssignments[field] = parsed;
 
-      const seenNames = new Set<string>();
-      const hasDuplicateName = providers.some((providerName) => {
-        const normalizedName = providerName.toLowerCase();
-        if (seenNames.has(normalizedName)) {
-          return true;
+        // Warn about shared assignments (multi-provider cells)
+        if (parsed.isShared) {
+          issues.push({
+            type: "warning",
+            code: "SHARED_ASSIGNMENT",
+            rowIndex: idx + 2,
+            column: sourceColumn,
+            message: `Row ${idx + 2}: Shared assignment detected - ${parsed.providers.join(', ')}. Primary: ${parsed.primaryProvider}`,
+            action: "Review shared assignment. Both providers will be tracked.",
+          });
         }
 
-        seenNames.add(normalizedName);
-        return false;
-      });
-
-      if (hasDuplicateName) {
-        issues.push({
-          type: "warning",
-          code: "DUPLICATE_PROVIDER_IN_CELL",
-          rowIndex: idx + 2,
-          column: sourceColumn,
-          message: `Row ${idx + 2}: Duplicate provider in ${sourceColumn}.`,
-          action: "Remove duplicate names to avoid ambiguous assignments.",
+        // Check for duplicates within the cell
+        const namesSeen = new Set<string>();
+        const hasDuplicateName = parsed.providers.some((providerName) => {
+          const normalizedProviderName = providerName.toLowerCase();
+          if (namesSeen.has(normalizedProviderName)) {
+            return true;
+          }
+          namesSeen.add(normalizedProviderName);
+          return false;
         });
+
+        if (hasDuplicateName) {
+          issues.push({
+            type: "warning",
+            code: "DUPLICATE_PROVIDER_IN_CELL",
+            rowIndex: idx + 2,
+            column: sourceColumn,
+            message: `Row ${idx + 2}: Duplicate provider in ${sourceColumn}.`,
+            action: "Remove duplicate names to avoid ambiguous assignments.",
+          });
+        }
       }
     });
 
@@ -359,6 +458,7 @@ const buildImportPreviewFromRows = (
     previewRows[idx] = {
       date: date ?? "",
       assignments,
+      parsedAssignments,
       issues,
     };
 
