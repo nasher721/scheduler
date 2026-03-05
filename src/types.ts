@@ -128,6 +128,14 @@ export interface AuditLogEntry {
     user?: string;
 }
 
+/** Day-level handoff notes for charge nurses */
+export interface DayHandoff {
+    date: string;
+    notes: string;
+    updatedAt: string;
+    updatedBy?: string;
+}
+
 export interface PersistedScheduleState {
     providers: Provider[];
     startDate: string;
@@ -136,4 +144,5 @@ export interface PersistedScheduleState {
     scenarios: ScenarioSnapshot[];
     customRules: CustomRule[];
     auditLog: AuditLogEntry[];
+    dayHandoffs?: DayHandoff[];
 }

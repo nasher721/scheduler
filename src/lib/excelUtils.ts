@@ -1100,7 +1100,7 @@ export const hasImportRollback = (): boolean => {
 
 export const exportScheduleToExcel = (): ExcelOperationResult => {
   try {
-    const { slots, startDate, providers, swapRequests, holidayAssignments } = useScheduleStore.getState();
+    const { slots, startDate, providers, swapRequests, holidayAssignments, dayHandoffs } = useScheduleStore.getState();
 
     const providerNamesById = new Map<string, string>();
     providers.forEach((p) => providerNamesById.set(p.id, p.name));
@@ -1357,6 +1357,24 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     const notesSheet = XLSX.utils.aoa_to_sheet(notesRows);
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SHEET 6: Daily Handoffs
+    // ═══════════════════════════════════════════════════════════════════════════
+    const handoffHeaders = ["Date", "Notes", "Updated At", "Updated By"];
+    const handoffRows: (string | null)[][] = [handoffHeaders];
+    
+    const sortedHandoffs = [...(dayHandoffs || [])].sort((a, b) => a.date.localeCompare(b.date));
+    sortedHandoffs.forEach((handoff) => {
+      handoffRows.push([
+        handoff.date,
+        handoff.notes,
+        handoff.updatedAt ? format(new Date(handoff.updatedAt), "yyyy-MM-dd HH:mm") : "",
+        handoff.updatedBy || "",
+      ]);
+    });
+    
+    const handoffSheet = XLSX.utils.aoa_to_sheet(handoffRows);
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Assemble workbook with master-matching sheet names
     // ═══════════════════════════════════════════════════════════════════════════
     const workbook = XLSX.utils.book_new();
@@ -1368,6 +1386,11 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     // Only add notes sheet if there are notes
     if (slotsWithNotes.length > 0) {
       XLSX.utils.book_append_sheet(workbook, notesSheet, "Shift Notes");
+    }
+    
+    // Only add handoff sheet if there are handoff notes
+    if (sortedHandoffs.length > 0) {
+      XLSX.utils.book_append_sheet(workbook, handoffSheet, "Daily Handoffs");
     }
 
     const excelBuffer = XLSX.write(workbook, {

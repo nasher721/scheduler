@@ -21,11 +21,22 @@ import {
   List,
   CalendarDays,
   Clock4,
-  StickyNote
+  StickyNote,
+  ArrowRightLeft,
+  CheckSquare,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShiftEditModal } from './ShiftEditModal';
 import { useScheduleViewport } from './schedule/useScheduleViewport';
+import { DayHandoffCard, DayHandoffIndicator } from './DayHandoffCard';
+import { SmartQuickAssign, ProviderWorkloadBadge, WorkloadHeatmapToggle } from './SmartQuickAssign';
+import { ShiftSwapBoard } from './ShiftSwapBoard';
+import { ProviderAvailabilityPanel } from './ProviderAvailabilityPanel';
+import { BulkAssignmentMode } from './BulkAssignmentMode';
+import { CoverageAlertDashboard, AlertBadge } from './CoverageAlertDashboard';
+import { ShiftHistoryView } from './ShiftHistoryView';
+import { PrintScheduleView, PrintButton } from './PrintScheduleView';
 
 // Service priority configuration
 const servicePriorityConfig: Record<ServicePriority, {
@@ -153,9 +164,10 @@ interface ShiftCardProps {
   hasConflict?: boolean;
   onClick: (slot: ShiftSlot) => void;
   compact?: boolean;
+  showWorkload?: boolean;
 }
 
-function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: ShiftCardProps) {
+function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, showWorkload = false }: ShiftCardProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: slot.id,
     data: { slotId: slot.id }
@@ -187,11 +199,17 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
               <span className={`text-[10px] font-bold ${config.colorClass}`}>{slot.serviceLocation}</span>
             </div>
             {provider ? (
-              <span className="text-xs font-medium text-slate-700 truncate block">{provider.name}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-slate-700 truncate">{provider.name}</span>
+                {showWorkload && <ProviderWorkloadBadge providerId={provider.id} slot={slot} />}
+              </div>
             ) : (
-              <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-500' : 'text-slate-400'}`}>
-                {isCriticalUnfilled ? 'Required' : 'Empty'}
-              </span>
+              <div className="flex items-center gap-1">
+                <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {isCriticalUnfilled ? 'Required' : 'Empty'}
+                </span>
+                {!provider && <SmartQuickAssign slot={slot} />}
+              </div>
             )}
           </div>
         </div>
@@ -242,6 +260,7 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
           <>
             <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
             <span className="text-sm font-medium text-slate-700 truncate">{provider.name}</span>
+            {showWorkload && <ProviderWorkloadBadge providerId={provider.id} slot={slot} />}
             {slot.isSharedAssignment && slot.secondaryProviderIds && slot.secondaryProviderIds.length > 0 && (
               <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[8px] rounded-full">
                 +{slot.secondaryProviderIds.length}
@@ -250,6 +269,7 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
           </>
         ) : (
           <div className="flex items-center gap-2 text-slate-400">
+            <SmartQuickAssign slot={slot} />
             <div className={`w-6 h-6 rounded-full border-2 border-dashed flex items-center justify-center ${isCriticalUnfilled ? 'border-rose-300' : 'border-slate-300'
               }`}>
               <User className="w-3 h-3" />
@@ -272,13 +292,15 @@ function GridView({
   providers,
   conflicts,
   weekDates,
-  onShiftClick
+  onShiftClick,
+  showWorkload = false,
 }: {
   slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
   onShiftClick: (slot: ShiftSlot) => void;
+  showWorkload?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -325,10 +347,16 @@ function GridView({
                   </span>
                 )}
               </div>
-              <div className="ml-auto text-xs text-slate-400">
-                {daySlots.filter(s => s.providerId).length} / {daySlots.length} filled
+              <div className="ml-auto flex items-center gap-2">
+                <DayHandoffIndicator date={date} onClick={() => {}} />
+                <span className="text-xs text-slate-400">
+                  {daySlots.filter(s => s.providerId).length} / {daySlots.length} filled
+                </span>
               </div>
             </div>
+
+            {/* Daily Handoff Card */}
+            <DayHandoffCard date={date} />
 
             <div className="space-y-4">
               {(Object.entries(slotsByPriority) as [ServicePriority, ShiftSlot[]][]).map(([priority, prioritySlots]) => {
@@ -359,6 +387,7 @@ function GridView({
                             provider={provider}
                             hasConflict={hasConflict}
                             onClick={onShiftClick}
+                            showWorkload={showWorkload}
                           />
                         );
                       })}
@@ -379,12 +408,14 @@ function ListView({
   slots,
   providers,
   conflicts,
-  onShiftClick
+  onShiftClick,
+  showWorkload = false,
 }: {
   slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   onShiftClick: (slot: ShiftSlot) => void;
+  showWorkload?: boolean;
 }) {
   const sortedSlots = [...slots].sort((a, b) => {
     // Sort by date, then by priority
@@ -432,6 +463,7 @@ function ListView({
                 <div className="flex items-center gap-2 mt-1">
                   <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
                   <span className="text-sm font-medium text-slate-700">{provider.name}</span>
+                  {showWorkload && <ProviderWorkloadBadge providerId={provider.id} slot={slot} />}
                 </div>
               ) : (
                 <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
@@ -458,7 +490,7 @@ function BarView({
   providers,
   conflicts,
   weekDates,
-  onShiftClick
+  onShiftClick,
 }: {
   slots: ShiftSlot[];
   providers: Provider[];
@@ -603,13 +635,15 @@ function WeekView({
   providers,
   conflicts,
   weekDates,
-  onShiftClick
+  onShiftClick,
+  showWorkload = false,
 }: {
   slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
   onShiftClick: (slot: ShiftSlot) => void;
+  showWorkload?: boolean;
 }) {
   return (
     <div className="grid grid-cols-7 gap-3">
@@ -643,6 +677,12 @@ function WeekView({
               <div className="text-[10px] text-slate-400">
                 {daySlots.filter(s => s.providerId).length}/{daySlots.length}
               </div>
+              {daySlots.length > 0 && <DayHandoffIndicator date={date} />}
+            </div>
+
+            {/* Daily Handoff Card */}
+            <div className="mb-3">
+              <DayHandoffCard date={date} />
             </div>
 
             {/* Shifts */}
@@ -661,6 +701,7 @@ function WeekView({
                       hasConflict={hasConflict}
                       onClick={onShiftClick}
                       compact
+                      showWorkload={showWorkload}
                     />
                   );
                 })}
@@ -679,6 +720,7 @@ function WeekView({
                       hasConflict={hasConflict}
                       onClick={onShiftClick}
                       compact
+                      showWorkload={showWorkload}
                     />
                   );
                 })}
@@ -697,6 +739,7 @@ function WeekView({
                       hasConflict={hasConflict}
                       onClick={onShiftClick}
                       compact
+                      showWorkload={showWorkload}
                     />
                   );
                 })}
@@ -995,6 +1038,19 @@ export function EnhancedCalendar() {
   // Edit modal state
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  // Workload heatmap toggle
+  const [showWorkload, setShowWorkload] = useState(false);
+  
+  // New feature modals
+  const [isSwapBoardOpen, setIsSwapBoardOpen] = useState(false);
+  const [isAvailabilityPanelOpen, setIsAvailabilityPanelOpen] = useState(false);
+  const [selectedSlotForAvailability, _setSelectedSlotForAvailability] = useState<ShiftSlot | null>(null);
+  const [isBulkModeOpen, setIsBulkModeOpen] = useState(false);
+  const [isAlertDashboardOpen, setIsAlertDashboardOpen] = useState(false);
+  const [isHistoryViewOpen, setIsHistoryViewOpen] = useState(false);
+  const [selectedSlotForHistory, _setSelectedSlotForHistory] = useState<string | null>(null);
+  const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
 
   // Filter slots for current view
   const visibleSlots = useMemo(() => {
@@ -1054,12 +1110,55 @@ export function EnhancedCalendar() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Alert Badge */}
+            <button
+              onClick={() => setIsAlertDashboardOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <AlertBadge count={conflicts.filter(c => !c.acknowledged && c.severity === 'CRITICAL').length} />
+            </button>
+            
+            {/* Workload Heatmap Toggle */}
+            <WorkloadHeatmapToggle 
+              isActive={showWorkload} 
+              onToggle={() => setShowWorkload(!showWorkload)} 
+            />
+            
             {/* View Selector */}
             <ViewSelector
               currentMode={scheduleViewport.calendarPresentationMode}
               onChange={setCalendarPresentationMode}
             />
+            
+            {/* Feature Buttons */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setIsSwapBoardOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
+                title="Shift Swap Board"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Swaps</span>
+              </button>
+              <button
+                onClick={() => setIsBulkModeOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
+                title="Bulk Assignment"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Bulk</span>
+              </button>
+              <button
+                onClick={() => setIsHistoryViewOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
+                title="History"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">History</span>
+              </button>
+              <PrintButton onClick={() => setIsPrintViewOpen(true)} />
+            </div>
 
             {/* AI Assistant Button */}
             <button
@@ -1095,6 +1194,7 @@ export function EnhancedCalendar() {
                 conflicts={conflicts}
                 weekDates={weekDates}
                 onShiftClick={handleShiftClick}
+                showWorkload={showWorkload}
               />
             )}
 
@@ -1104,6 +1204,7 @@ export function EnhancedCalendar() {
                 providers={providers}
                 conflicts={conflicts}
                 onShiftClick={handleShiftClick}
+                showWorkload={showWorkload}
               />
             )}
 
@@ -1124,6 +1225,7 @@ export function EnhancedCalendar() {
                 conflicts={conflicts}
                 weekDates={weekDates}
                 onShiftClick={handleShiftClick}
+                showWorkload={showWorkload}
               />
             )}
 
@@ -1153,6 +1255,40 @@ export function EnhancedCalendar() {
         slotId={editingSlotId}
         isOpen={isEditModalOpen}
         onClose={handleCloseModal}
+      />
+      
+      {/* Feature Modals */}
+      <ShiftSwapBoard
+        isOpen={isSwapBoardOpen}
+        onClose={() => setIsSwapBoardOpen(false)}
+      />
+      
+      <ProviderAvailabilityPanel
+        isOpen={isAvailabilityPanelOpen}
+        onClose={() => setIsAvailabilityPanelOpen(false)}
+        selectedSlot={selectedSlotForAvailability}
+      />
+      
+      <BulkAssignmentMode
+        isOpen={isBulkModeOpen}
+        onClose={() => setIsBulkModeOpen(false)}
+        slots={slots}
+      />
+      
+      <CoverageAlertDashboard
+        isOpen={isAlertDashboardOpen}
+        onClose={() => setIsAlertDashboardOpen(false)}
+      />
+      
+      <ShiftHistoryView
+        isOpen={isHistoryViewOpen}
+        onClose={() => setIsHistoryViewOpen(false)}
+        selectedSlotId={selectedSlotForHistory}
+      />
+      
+      <PrintScheduleView
+        isOpen={isPrintViewOpen}
+        onClose={() => setIsPrintViewOpen(false)}
       />
     </motion.div>
   );

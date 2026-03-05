@@ -236,6 +236,7 @@ interface HistoryState {
   assignmentLogs?: string[];
   customRules: CustomRule[];
   auditLog: AuditLogEntry[];
+  dayHandoffs?: import("./types").DayHandoff[];
 }
 
 // Copilot Conversation Types
@@ -311,6 +312,8 @@ interface ScheduleState {
   mlSuggestions: MLSuggestion[];
   /** Saved schedule templates */
   scheduleTemplates: ScheduleTemplate[];
+  /** Day-level handoff notes */
+  dayHandoffs: import("./types").DayHandoff[];
   addProvider: (provider: Omit<Provider, "id">) => void;
   updateProvider: (id: string, provider: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
@@ -425,6 +428,10 @@ interface ScheduleState {
   copilotFeedback: CopilotFeedbackEntry[];
   recordCopilotFeedback: (feedback: Omit<CopilotFeedbackEntry, 'id' | 'timestamp'>) => void;
   getCopilotPreferenceScore: (intent: string) => number;
+  // Day Handoff Notes
+  setDayHandoff: (date: string, notes: string) => void;
+  getDayHandoff: (date: string) => import("./types").DayHandoff | undefined;
+  clearDayHandoff: (date: string) => void;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -879,6 +886,7 @@ export const useScheduleStore = create<ScheduleState>()(
       preferenceProfiles: {},
       mlSuggestions: [],
       scheduleTemplates: [],
+      dayHandoffs: [],
       isCopilotOpen: false,
       selectedDate: null,
       selectedProviderId: null,
@@ -917,6 +925,7 @@ export const useScheduleStore = create<ScheduleState>()(
               numWeeks: state.numWeeks,
               customRules: state.customRules,
               auditLog: state.auditLog,
+              dayHandoffs: state.dayHandoffs || [],
             });
           }
         } catch (error) {
@@ -1032,6 +1041,7 @@ export const useScheduleStore = create<ScheduleState>()(
             startDate: state.startDate,
             numWeeks: state.numWeeks,
             customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
             auditLog: state.auditLog,
           };
           const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1113,6 +1123,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1142,6 +1153,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1244,6 +1256,7 @@ export const useScheduleStore = create<ScheduleState>()(
             startDate: state.startDate,
             numWeeks: state.numWeeks,
             customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
             auditLog: nextAuditLog, // Use nextAuditLog for history
           };
           const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1265,6 +1278,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1297,6 +1311,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1331,6 +1346,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1364,6 +1380,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1388,6 +1405,7 @@ export const useScheduleStore = create<ScheduleState>()(
             numWeeks: state.numWeeks,
             assignmentLogs: state.assignmentLogs || [],
             customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
             auditLog: state.auditLog, // Add auditLog to historyState
           };
           const prevHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1514,6 +1532,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
           customRules: state.customRules,
+            dayHandoffs: state.dayHandoffs,
           auditLog: state.auditLog,
         };
         const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
@@ -1577,6 +1596,7 @@ export const useScheduleStore = create<ScheduleState>()(
           slots: previousState?.slots ?? historyState.slots,
           startDate: previousState?.startDate ?? historyState.startDate,
           numWeeks: previousState?.numWeeks ?? historyState.numWeeks,
+          dayHandoffs: previousState?.dayHandoffs ?? historyState.dayHandoffs ?? [],
           historyIndex: previousIndex,
           lastActionMessage: "Undo applied.",
         });
@@ -1597,6 +1617,7 @@ export const useScheduleStore = create<ScheduleState>()(
           slots: nextState.slots,
           startDate: nextState.startDate,
           numWeeks: nextState.numWeeks,
+          dayHandoffs: nextState.dayHandoffs ?? [],
           historyIndex: nextIndex,
           lastActionMessage: "Redo applied.",
         });
@@ -2523,6 +2544,58 @@ export const useScheduleStore = create<ScheduleState>()(
 
         return accepted / (accepted + rejected);
       },
+
+      // Day Handoff Notes Actions
+      setDayHandoff: (date, notes) => {
+        const state = get();
+        const trimmedNotes = notes.trim();
+        
+        if (!trimmedNotes) {
+          // If empty, remove the handoff
+          set({
+            dayHandoffs: state.dayHandoffs.filter(h => h.date !== date),
+            lastActionMessage: `Cleared handoff notes for ${date}`,
+          });
+          return;
+        }
+
+        const existingIndex = state.dayHandoffs.findIndex(h => h.date === date);
+        const newHandoff: import("./types").DayHandoff = {
+          date,
+          notes: trimmedNotes,
+          updatedAt: new Date().toISOString(),
+          updatedBy: state.currentUser?.name || 'Unknown',
+        };
+
+        if (existingIndex >= 0) {
+          // Update existing
+          const updatedHandoffs = [...state.dayHandoffs];
+          updatedHandoffs[existingIndex] = newHandoff;
+          set({
+            dayHandoffs: updatedHandoffs,
+            lastActionMessage: `Updated handoff notes for ${date}`,
+          });
+        } else {
+          // Add new
+          set({
+            dayHandoffs: [...state.dayHandoffs, newHandoff],
+            lastActionMessage: `Added handoff notes for ${date}`,
+          });
+        }
+      },
+
+      getDayHandoff: (date) => {
+        const state = get();
+        return state.dayHandoffs.find(h => h.date === date);
+      },
+
+      clearDayHandoff: (date) => {
+        const state = get();
+        set({
+          dayHandoffs: state.dayHandoffs.filter(h => h.date !== date),
+          lastActionMessage: `Cleared handoff notes for ${date}`,
+        });
+      },
     }),
     {
       name: "nicu-schedule-store-v4",
@@ -2542,6 +2615,7 @@ export const useScheduleStore = create<ScheduleState>()(
         preferenceProfiles: state.preferenceProfiles,
         mlSuggestions: state.mlSuggestions,
         scheduleTemplates: state.scheduleTemplates,
+        dayHandoffs: state.dayHandoffs,
         scheduleViewport: state.scheduleViewport,
         copilotConversations: state.copilotConversations,
         copilotFeedback: state.copilotFeedback,
