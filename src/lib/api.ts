@@ -126,6 +126,9 @@ export async function saveScheduleState(state: PersistedScheduleState) {
       required_skill: s.requiredSkill,
       priority: s.priority,
       location: s.location,
+      location_group: s.locationGroup,
+      service_priority: s.servicePriority,
+      service_location: s.serviceLocation,
       secondary_provider_ids: s.secondaryProviderIds || [],
       is_shared_assignment: s.isSharedAssignment || false,
     }));

@@ -247,13 +247,21 @@ export default function App() {
   const handleApplyImport = () => {
     if (!importPreview) return;
     const result = applyScheduleImport(importPreview);
-    showToast({
-      type: "success",
-      title: "Import applied",
-      message: `Applied ${result.appliedAssignments} assignments. Skipped ${result.skippedRows} invalid rows.`,
-    });
-    setCanRollbackImport(hasImportRollback());
-    setIsImportOpen(false);
+    if (result.success) {
+      showToast({
+        type: "success",
+        title: "Import applied",
+        message: `Applied ${result.appliedAssignments} assignments. Skipped ${result.skippedRows} invalid rows.`,
+      });
+      setCanRollbackImport(hasImportRollback());
+      setIsImportOpen(false);
+    } else {
+      showToast({
+        type: "error",
+        title: "Import failed",
+        message: result.error?.message || "An unexpected error occurred during import.",
+      });
+    }
   };
 
   const handleRollbackImport = () => {
@@ -399,10 +407,10 @@ export default function App() {
                   {/* Autosave status chip */}
                   {autoSaveStatus !== "idle" && (
                     <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full ${autoSaveStatus === "saving" || autoSaveStatus === "pending"
-                        ? "bg-blue-100 text-blue-600 animate-pulse"
-                        : autoSaveStatus === "saved"
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-rose-100 text-rose-600"
+                      ? "bg-blue-100 text-blue-600 animate-pulse"
+                      : autoSaveStatus === "saved"
+                        ? "bg-emerald-100 text-emerald-600"
+                        : "bg-rose-100 text-rose-600"
                       }`}>
                       {autoSaveStatus === "pending" ? "Pending…" : autoSaveStatus === "saving" ? "Saving…" : autoSaveStatus === "saved" ? "✓ Saved" : "Save Failed"}
                     </span>

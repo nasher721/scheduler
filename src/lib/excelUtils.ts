@@ -15,15 +15,15 @@ const EXCEL_MASTER_COLUMNS: Record<string, ImportFieldKey> = {
   "Akron": "dayAkron",
   "Nights": "night",
   "Consults": "consults",
-  "AMET": "nmet",
-  "NMET": "nmet",
+  "AMET": "dayAmet",
+  "NMET": "dayNmet",
   "Jeopardy": "jeopardy",
   "Recovery": "recovery",
   "Vacations": "vacation",
 };
 
 
-const IMPORT_FIELDS = ["date", "dayG20", "dayH22", "dayAkron", "night", "consults", "nmet", "jeopardy", "recovery", "vacation"] as const;
+const IMPORT_FIELDS = ["date", "dayG20", "dayH22", "dayAkron", "night", "consults", "dayAmet", "dayNmet", "jeopardy", "recovery", "vacation"] as const;
 type AssignmentImportFieldKey = Exclude<ImportFieldKey, "date">;
 const ASSIGNMENT_IMPORT_FIELDS: AssignmentImportFieldKey[] = IMPORT_FIELDS.filter((field): field is AssignmentImportFieldKey => field !== "date");
 
@@ -171,7 +171,8 @@ const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
   dayAkron: ["akron", "akron unit", "day akron", "akron "],
   night: ["nights", "night", "overnight", "nights "],
   consults: ["consults", "consult", "consult service", "consults "],
-  nmet: ["amet / nmet", "nmet", "amet", "airway", "amet ", "amet / nmet "],
+  dayAmet: ["amet", "amet ", "day amet"],
+  dayNmet: ["nmet", "nmet ", "day nmet"],
   jeopardy: ["jeopardy", "backup", "backup jeopardy"],
   recovery: ["recovery", "post call", "post-call"],
   vacation: ["vacations", "vacation", "time off", "pto", "vacations "],
@@ -199,7 +200,8 @@ const fieldToSlotSpec: Partial<Record<ImportFieldKey, {
   dayAkron: { type: "DAY", locationIncludes: "Akron", serviceLocation: "Akron" },
   night: { type: "NIGHT", locationIncludes: "Nights", serviceLocation: "Nights" },
   consults: { type: "CONSULTS", locationIncludes: "Consults", serviceLocation: "Consults" },
-  nmet: { type: "NMET", locationIncludes: "AMET", serviceLocation: "AMET" },
+  dayAmet: { type: "NMET", locationIncludes: "AMET", serviceLocation: "AMET" },
+  dayNmet: { type: "NMET", locationIncludes: "NMET", serviceLocation: "NMET" },
   jeopardy: { type: "JEOPARDY", locationIncludes: "Jeopardy", serviceLocation: "Jeopardy" },
   recovery: { type: "RECOVERY", locationIncludes: "Recovery", serviceLocation: "Recovery" },
   vacation: { type: "VACATION", locationIncludes: "Vacation", serviceLocation: "Vacation" },
