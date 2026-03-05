@@ -652,7 +652,7 @@ export default function App() {
                 <div className="mb-5 border rounded-xl p-4 bg-amber-50/50 border-amber-200">
                   <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 mb-3">Column Mapping Required</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(["date", "night", "dayG20", "dayH22", "dayAkron", "consults", "nmet", "jeopardy", "recovery", "vacation"] as ImportFieldKey[]).map((field) => (
+                    {(["date", "night", "dayG20", "dayH22", "dayAkron", "consults", "dayAmet", "dayNmet", "jeopardy", "recovery", "vacation"] as ImportFieldKey[]).map((field) => (
                       <label key={field} className="flex flex-col gap-1 text-xs text-slate-700">
                         <span className="font-semibold">{field}</span>
                         <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="border rounded-lg px-2 py-1.5">
