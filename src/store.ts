@@ -450,7 +450,7 @@ function isDuplicateRegistrationError(message: string): boolean {
 function shouldUseLocalAuthBypass() {
   const isDevMode = import.meta.env.DEV || window.location.hostname === "localhost";
   const bypassByEnv = isDevMode && !import.meta.env.VITE_REQUIRE_SUPABASE_AUTH;
-  return bypassByEnv || supabaseStatus.isPlaceholder;
+  return isDevMode && (bypassByEnv || supabaseStatus.isPlaceholder);
 }
 
 

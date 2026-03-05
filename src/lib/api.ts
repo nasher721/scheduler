@@ -2,6 +2,58 @@ import { supabase } from "./supabase";
 import { type PersistedScheduleState, type Provider } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:4000");
+const API_TIMEOUT_MS = 15_000;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function extractErrorMessage(payload: unknown): string | null {
+  if (!isRecord(payload)) return null;
+
+  const candidates = ["error", "message", "details"];
+  for (const key of candidates) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+async function requestJson<T>(path: string, init: RequestInit, actionLabel: string): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      signal: controller.signal,
+    });
+
+    const contentType = response.headers.get("content-type") ?? "";
+    const isJson = contentType.includes("application/json");
+    const payload = isJson ? ((await response.json()) as unknown) : await response.text();
+
+    if (!response.ok) {
+      const details =
+        (typeof payload === "string" && payload.trim().length > 0)
+          ? payload
+          : extractErrorMessage(payload) ?? `HTTP ${response.status}`;
+      throw new Error(`${actionLabel} failed: ${details}`);
+    }
+
+    return payload as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`${actionLabel} timed out after ${API_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export type ShiftRequestType = "time_off" | "swap" | "availability";
 export type ShiftRequestStatus = "pending" | "approved" | "denied";
@@ -292,34 +344,27 @@ export async function listEmailEvents(type?: string) {
 }
 
 export async function updateEmailEvent(id: string, payload: { status: string }) {
-  const response = await fetch(`${API_BASE}/api/email-events/${id}`, {
+  return requestJson<{ event: EmailEvent; updatedAt: string }>(
+    `/api/email-events/${id}`,
+    {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to update email event (${response.status})`);
-  }
-
-  return response.json() as Promise<{ event: EmailEvent; updatedAt: string }>;
+    },
+    "Update email event"
+  );
 }
 
 export async function deleteEmailEvent(id: string) {
-  const response = await fetch(`${API_BASE}/api/email-events/${id}`, {
+  return requestJson<{ ok: boolean; deletedId: string; updatedAt: string }>(
+    `/api/email-events/${id}`,
+    {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
     },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete email event (${response.status})`);
-  }
-
-  return response.json() as Promise<{ ok: boolean; deletedId: string; updatedAt: string }>;
+    "Delete email event"
+  );
 }
 
 export async function submitInboundEmail(payload: {
@@ -331,11 +376,14 @@ export async function submitInboundEmail(payload: {
   type?: ShiftRequestType;
 }) {
   // 1. Log the email event
-  await supabase.from("email_events").insert({
+  const { error: emailEventError } = await supabase.from("email_events").insert({
     type: "inbound",
     status: "received",
     raw_payload: payload,
   });
+  if (emailEventError) {
+    throw new Error(`Failed to log inbound email event: ${emailEventError.message}`);
+  }
 
   // 2. Create a shift request if possible
   if (payload.providerName && payload.date && payload.type) {
@@ -386,18 +434,13 @@ export async function reviewShiftRequest(id: string, payload: { status: "approve
 }
 
 export async function deleteShiftRequest(id: string) {
-  const response = await fetch(`${API_BASE}/api/shift-requests/${id}`, {
+  return requestJson<{ ok: boolean; deletedId: string; updatedAt: string }>(
+    `/api/shift-requests/${id}`,
+    {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
     },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete shift request (${response.status})`);
-  }
-
-  return response.json() as Promise<{ ok: boolean; deletedId: string; updatedAt: string }>;
+    "Delete shift request"
+  );
 }
 
 export type NotificationSeverity = "info" | "warning" | "critical";
@@ -489,50 +532,41 @@ export async function updateNotification(id: string, payload: {
   statusByChannel?: Record<string, string>;
   metadata?: Record<string, unknown>;
 }) {
-  const response = await fetch(`${API_BASE}/api/notifications/${id}`, {
+  return requestJson<{ notification: NotificationRecord; updatedAt: string }>(
+    `/api/notifications/${id}`,
+    {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to update notification (${response.status})`);
-  }
-
-  return response.json() as Promise<{ notification: NotificationRecord; updatedAt: string }>;
+    },
+    "Update notification"
+  );
 }
 
 export async function deleteNotification(id: string) {
-  const response = await fetch(`${API_BASE}/api/notifications/${id}`, {
+  return requestJson<{ ok: boolean; deletedId: string; updatedAt: string }>(
+    `/api/notifications/${id}`,
+    {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
     },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete notification (${response.status})`);
-  }
-
-  return response.json() as Promise<{ ok: boolean; deletedId: string; updatedAt: string }>;
+    "Delete notification"
+  );
 }
 
 export async function optimizeWithSolver(payload: PersistedScheduleState | { state: PersistedScheduleState; solverProfile?: string }) {
-  const response = await fetch(`${API_BASE}/api/solver/optimize`, {
+  return requestJson<{ result: unknown }>(
+    "/api/solver/optimize",
+    {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to optimize with solver (${response.status})`);
-  }
-
-  return response.json() as Promise<{ result: unknown }>;
+    },
+    "Optimize with solver"
+  );
 }
 
 // ==================== COPILOT API ====================
@@ -578,19 +612,17 @@ export async function sendCopilotMessage(
   context: CopilotContext,
   conversationHistory: CopilotMessage[] = []
 ): Promise<CopilotChatResponse> {
-  const response = await fetch(`${API_BASE}/api/copilot/chat`, {
+  return requestJson<CopilotChatResponse>(
+    "/api/copilot/chat",
+    {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ message, context, conversationHistory }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to send copilot message (${response.status})`);
-  }
-
-  return response.json() as Promise<CopilotChatResponse>;
+    },
+    "Send copilot message"
+  );
 }
 
 export interface CopilotIntentResponse {
@@ -614,19 +646,17 @@ export async function parseCopilotIntent(
   text: string,
   context: CopilotContext
 ): Promise<CopilotIntentResponse> {
-  const response = await fetch(`${API_BASE}/api/copilot/intent`, {
+  return requestJson<CopilotIntentResponse>(
+    "/api/copilot/intent",
+    {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text, context }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to parse intent (${response.status})`);
-  }
-
-  return response.json() as Promise<CopilotIntentResponse>;
+    },
+    "Parse copilot intent"
+  );
 }
 
 export interface CopilotSuggestionsResponse {
@@ -655,6 +685,15 @@ export interface CopilotCapabilitiesResponse {
   updatedAt: string;
 }
 
+function generateEphemeralPassword(): string {
+  const randomBytes = new Uint8Array(24);
+  crypto.getRandomValues(randomBytes);
+  const randomPart = Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+  // Ensure common provider password complexity checks pass.
+  return `Tmp-${randomPart}-Aa1!`;
+}
+
 export async function getCopilotSuggestions(
   context: CopilotContext
 ): Promise<CopilotSuggestionsResponse> {
@@ -663,42 +702,39 @@ export async function getCopilotSuggestions(
   if (context.selectedDate) params.append('selectedDate', context.selectedDate);
   if (context.selectedProviderId) params.append('selectedProviderId', context.selectedProviderId);
   if (context.userRole) params.append('userRole', context.userRole);
-  if (context.visibleProviderCount) params.append('visibleProviderCount', context.visibleProviderCount.toString());
+  if (context.visibleProviderCount !== undefined) params.append('visibleProviderCount', context.visibleProviderCount.toString());
 
-  const response = await fetch(`${API_BASE}/api/copilot/suggestions?${params}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
+  return requestJson<CopilotSuggestionsResponse>(
+    `/api/copilot/suggestions?${params.toString()}`,
+    {
+      method: "GET",
     },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get suggestions (${response.status})`);
-  }
-
-  return response.json() as Promise<CopilotSuggestionsResponse>;
+    "Get copilot suggestions"
+  );
 }
 
 export async function getCopilotCapabilities(): Promise<CopilotCapabilitiesResponse> {
-  const response = await fetch(`${API_BASE}/api/copilot/capabilities`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
+  return requestJson<CopilotCapabilitiesResponse>(
+    "/api/copilot/capabilities",
+    {
+      method: "GET",
     },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to load copilot capabilities (${response.status})`);
-  }
-
-  return response.json() as Promise<CopilotCapabilitiesResponse>;
+    "Load copilot capabilities"
+  );
 }
 export async function registerProvider(provider: Omit<Provider, "id">) {
   try {
+    const email = provider.email?.trim();
+    if (!email || !email.includes("@")) {
+      throw new Error("Registration requires a valid provider email address.");
+    }
+
+    const ephemeralPassword = generateEphemeralPassword();
+
     // 1. Sign up the user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: provider.email || "",
-      password: "password123", // Default password for migration simplicity
+      email,
+      password: ephemeralPassword,
       options: {
         data: {
           name: provider.name,
