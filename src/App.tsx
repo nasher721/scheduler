@@ -336,7 +336,7 @@ export default function App() {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="min-h-screen p-6 md:p-8 lg:p-10 flex flex-col gap-10 relative z-10">
+      <div className="min-h-screen px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 lg:px-10 lg:py-10 flex flex-col gap-6 md:gap-10 relative z-10">
         {/* Header Section */}
         <motion.header
           initial={{ opacity: 0, y: -20 }}
@@ -345,24 +345,24 @@ export default function App() {
           className="flex flex-col gap-10"
         >
           {/* Institutional Branding & Action Row */}
-          <div className="flex flex-col gap-8">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-10 border-b border-slate-200/60 pb-10">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className="w-10 h-[1px] bg-primary opacity-40" />
-                  <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary/80">Department of Neurology</span>
+          <div className="flex flex-col gap-4 sm:gap-8">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 lg:gap-10 border-b border-slate-200/60 pb-4 sm:pb-6 lg:pb-10">
+              <div className="flex flex-col gap-1 sm:gap-2">
+                <div className="flex items-center gap-3 mb-0.5 sm:mb-1">
+                  <div className="w-8 sm:w-10 h-[1px] bg-primary opacity-40" />
+                  <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] sm:tracking-[0.3em] font-bold text-primary/80">Department of Neurology</span>
                 </div>
-                <h1 className="text-6xl lg:text-7xl tracking-tighter text-slate-900 leading-[0.85]">
+                <h1 className="text-3xl sm:text-5xl lg:text-7xl tracking-tighter text-slate-900 leading-[0.9] sm:leading-[0.85]">
                   Neuro <span className="font-serif italic text-primary">ICU</span> <span className="text-slate-300 font-extralight">Staffing</span>
                 </h1>
-                <p className="text-sm text-slate-500 mt-4 max-w-md font-medium leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-500 mt-2 sm:mt-4 max-w-md font-medium leading-relaxed hidden sm:block">
                   High-fidelity orchestration for clinical environments.
                   Synchronizing coverage, fatigue logic, and risk-mitigated assignment.
                 </p>
               </div>
 
               {/* Action Toolbar */}
-              <div className="flex items-center gap-2 flex-wrap bg-slate-100/40 p-1.5 rounded-2xl border border-slate-200/50 backdrop-blur-sm">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap bg-slate-100/40 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200/50 backdrop-blur-sm overflow-x-auto">
                 <input
                   title="Import"
                   type="file"
@@ -428,27 +428,28 @@ export default function App() {
           </div>
 
           {/* Situational Awareness Bar */}
-          <div className="flex flex-col xl:flex-row gap-6 no-print">
-            <div className="flex-1 stone-panel p-8 flex items-center justify-between gap-10">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Tactical Coverage</span>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-5xl font-extralight tracking-tighter text-slate-900">{coverage}%</span>
-                  <div className={`w-2.5 h-2.5 rounded-full ${coverage >= 95 ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-amber-500'}`} />
+          <div className="flex flex-col xl:flex-row gap-3 sm:gap-6 no-print">
+            {/* Coverage + Allocation + Network — compact row on mobile */}
+            <div className="flex-1 stone-panel px-4 py-4 sm:p-8 flex items-center justify-between gap-4 sm:gap-10 overflow-x-auto scrollbar-hide">
+              <div className="flex flex-col gap-0.5 sm:gap-1 shrink-0">
+                <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Coverage</span>
+                <div className="flex items-baseline gap-2 sm:gap-3">
+                  <span className="text-3xl sm:text-5xl font-extralight tracking-tighter text-slate-900">{coverage}%</span>
+                  <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${coverage >= 95 ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-amber-500'}`} />
                 </div>
               </div>
 
-              <div className="h-12 w-[1px] bg-slate-100" />
+              <div className="h-10 sm:h-12 w-[1px] bg-slate-100 shrink-0" />
 
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Unit Allocation</span>
+              <div className="flex flex-col gap-0.5 sm:gap-1 shrink-0">
+                <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Assigned</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-medium text-slate-800">{assigned}</span>
+                  <span className="text-xl sm:text-3xl font-medium text-slate-800">{assigned}</span>
                   <span className="text-xs text-slate-400">/ {slots.length}</span>
                 </div>
               </div>
 
-              <div className="flex-1 max-w-[240px] h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div className="flex-1 max-w-[120px] sm:max-w-[240px] h-1 bg-slate-100 rounded-full overflow-hidden shrink-0">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${coverage}%` }}
@@ -458,50 +459,52 @@ export default function App() {
                 </motion.div>
               </div>
 
-              <div className="h-12 w-[1px] bg-slate-100" />
+              <div className="h-10 sm:h-12 w-[1px] bg-slate-100 shrink-0" />
 
               {/* Network Status */}
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Connection</span>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-rose-500'}`} />
-                  <span className={`text-xs font-bold ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <div className="flex flex-col gap-0.5 sm:gap-1 shrink-0">
+                <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Network</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-rose-500'}`} />
+                  <span className={`text-[10px] sm:text-xs font-bold ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {isOnline ? 'Online' : 'Offline'}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="stone-panel p-8 flex items-center gap-16">
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100/50">
-                  <AlertCircle className="w-6 h-6 text-rose-500" />
+            {/* Critical Gaps + Skill Risk */}
+            <div className="stone-panel px-4 py-4 sm:p-8 flex items-center gap-6 sm:gap-16">
+              <div className="flex items-center gap-3 sm:gap-5">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100/50 shrink-0">
+                  <AlertCircle className="w-4 h-4 sm:w-6 sm:h-6 text-rose-500" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold text-rose-600 tracking-tighter leading-none">{criticalUnfilled}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Critical Gaps</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-rose-600 tracking-tighter leading-none">{criticalUnfilled}</p>
+                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1 sm:mt-1.5">Critical Gaps</p>
                 </div>
               </div>
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-100/50">
-                  <Zap className="w-6 h-6 text-amber-500" />
+              <div className="flex items-center gap-3 sm:gap-5">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-100/50 shrink-0">
+                  <Zap className="w-4 h-4 sm:w-6 sm:h-6 text-amber-500" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold text-amber-600 tracking-tighter leading-none">{skillMismatchRisk}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Skill Risk</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-amber-600 tracking-tighter leading-none">{skillMismatchRisk}</p>
+                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1 sm:mt-1.5">Skill Risk</p>
                 </div>
               </div>
             </div>
 
-            <div className="satin-panel p-6 flex flex-col justify-center gap-4">
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Deployment</span>
+            {/* Date Range Config */}
+            <div className="satin-panel px-4 py-3 sm:p-6 flex flex-col justify-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-4 sm:gap-6">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">Deployment</span>
                   <input type="date" title="Start Date" aria-label="Start Date" value={startDate} onChange={(e) => setScheduleRange(e.target.value, numWeeks)} className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 focus:ring-0" />
                 </div>
                 <div className="w-[1px] h-6 bg-slate-200" />
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Horizon</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">Horizon</span>
                   <div className="flex items-center gap-1">
                     <input type="number" min={1} max={12} title="Number of Weeks" aria-label="Number of Weeks" value={numWeeks} onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} className="bg-transparent border-none p-0 w-6 text-xs font-bold text-slate-900 focus:ring-0" />
                     <span className="text-[9px] font-medium text-slate-400 uppercase">wks</span>
@@ -569,14 +572,14 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="flex flex-col xl:flex-row gap-10 items-start flex-1"
+          className="flex flex-col xl:flex-row gap-6 sm:gap-10 items-start flex-1"
         >
           <div className="w-full xl:w-80 shrink-0">
             <ProviderManager />
           </div>
 
           <div className="flex-1 w-full flex flex-col min-w-0">
-            <div className="satin-panel p-4 rounded-2xl border border-slate-200/50 mb-6">
+            <div className="satin-panel p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/50 mb-4 sm:mb-6">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Navigation</p>

@@ -182,8 +182,9 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, show
       <motion.div
         ref={setNodeRef}
         whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.97 }}
         onClick={() => onClick(slot)}
-        className={`p-2 rounded-lg border cursor-pointer transition-all ${isOver ? 'border-primary bg-primary/5' : ''
+        className={`px-2 py-2.5 rounded-lg border cursor-pointer transition-all min-h-[52px] ${isOver ? 'border-primary bg-primary/5' : ''
           } ${provider
             ? `${config.bgClass} ${config.borderClass}`
             : isCriticalUnfilled
@@ -191,21 +192,21 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, show
               : 'bg-white border-slate-200'
           } ${hasConflict ? 'ring-1 ring-error' : ''}`}
       >
-        <div className="flex items-center gap-2">
-          <span className={`w-1 h-6 rounded-full ${priorityConfig.indicatorColor}`} />
+        <div className="flex items-center gap-2 h-full">
+          <span className={`w-1 h-7 rounded-full shrink-0 ${priorityConfig.indicatorColor}`} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1">
               {config.icon}
-              <span className={`text-[10px] font-bold ${config.colorClass}`}>{slot.serviceLocation}</span>
+              <span className={`text-[10px] font-bold ${config.colorClass} truncate`}>{slot.serviceLocation}</span>
             </div>
             {provider ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 mt-0.5">
                 <span className="text-xs font-medium text-slate-700 truncate">{provider.name}</span>
                 {showWorkload && <ProviderWorkloadBadge providerId={provider.id} slot={slot} />}
               </div>
             ) : (
-              <div className="flex items-center gap-1">
-                <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-500' : 'text-slate-400'}`}>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`text-[10px] italic ${isCriticalUnfilled ? 'text-rose-500' : 'text-slate-400'}`}>
                   {isCriticalUnfilled ? 'Required' : 'Empty'}
                 </span>
                 {!provider && <SmartQuickAssign slot={slot} />}
@@ -222,8 +223,9 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, show
       ref={setNodeRef}
       layout
       whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.98 }}
       onClick={() => onClick(slot)}
-      className={`relative p-3 rounded-2xl border-2 transition-all cursor-pointer ${isOver ? 'border-primary bg-primary/5 scale-105' : ''
+      className={`relative p-3 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer min-h-[72px] ${isOver ? 'border-primary bg-primary/5 scale-105' : ''
         } ${provider
           ? `${config.bgClass} ${config.borderClass}`
           : isCriticalUnfilled
@@ -325,8 +327,8 @@ function GridView({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.05 }}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg ${isTodayDay
+            <div className="flex items-center gap-2 sm:gap-3 mb-3">
+              <div className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl font-bold text-base sm:text-lg shrink-0 ${isTodayDay
                 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg'
                 : isWeekendDay
                   ? 'bg-amber-100 text-amber-700'
@@ -334,12 +336,13 @@ function GridView({
                 }`}>
                 {format(date, "d")}
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-800">
-                  {format(date, "EEEE, MMMM d")}
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-lg font-semibold text-slate-800 truncate">
+                  <span className="hidden sm:inline">{format(date, "EEEE, MMMM d")}</span>
+                  <span className="sm:hidden">{format(date, "EEE, MMM d")}</span>
                 </h3>
                 {(isTodayDay || isWeekendDay) && (
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isTodayDay ? 'text-primary' : 'text-amber-600'
+                  <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${isTodayDay ? 'text-primary' : 'text-amber-600'
                     }`}>
                     {isTodayDay && 'Today'}
                     {isTodayDay && isWeekendDay && ' • '}
@@ -347,10 +350,10 @@ function GridView({
                   </span>
                 )}
               </div>
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <DayHandoffIndicator date={date} onClick={() => {}} />
-                <span className="text-xs text-slate-400">
-                  {daySlots.filter(s => s.providerId).length} / {daySlots.length} filled
+                <span className="text-[10px] sm:text-xs text-slate-400 whitespace-nowrap">
+                  {daySlots.filter(s => s.providerId).length}/{daySlots.length}
                 </span>
               </div>
             </div>
@@ -375,7 +378,7 @@ function GridView({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3">
                       {prioritySlots.map((slot) => {
                         const provider = providers.find(p => p.id === slot.providerId);
                         const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
@@ -442,17 +445,17 @@ function ListView({
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             onClick={() => onShiftClick(slot)}
-            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${isCriticalUnfilled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200'
+            className={`flex items-center gap-2 sm:gap-3 px-3 py-3 sm:p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md active:scale-[0.99] min-h-[56px] ${isCriticalUnfilled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200'
               } ${hasConflict ? 'ring-1 ring-error' : ''}`}
           >
-            <div className={`w-1 h-10 rounded-full ${priorityConfig.indicatorColor}`} />
+            <div className={`w-1 h-10 rounded-full shrink-0 ${priorityConfig.indicatorColor}`} />
 
-            <div className={`p-2 rounded-lg ${config.bgClass} ${config.colorClass}`}>
+            <div className={`p-1.5 sm:p-2 rounded-lg shrink-0 ${config.bgClass} ${config.colorClass}`}>
               {config.icon}
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className={`text-xs font-bold ${config.colorClass}`}>{slot.serviceLocation}</span>
                 <PriorityBadge priority={slot.servicePriority} />
                 <span className="text-[10px] text-slate-400">
@@ -460,20 +463,20 @@ function ListView({
                 </span>
               </div>
               {provider ? (
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
                   <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
-                  <span className="text-sm font-medium text-slate-700">{provider.name}</span>
+                  <span className="text-sm font-medium text-slate-700 truncate">{provider.name}</span>
                   {showWorkload && <ProviderWorkloadBadge providerId={provider.id} slot={slot} />}
                 </div>
               ) : (
                 <span className={`text-xs italic ${isCriticalUnfilled ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
-                  {isCriticalUnfilled ? '⚠ Required shift unfilled' : 'Click to assign'}
+                  {isCriticalUnfilled ? '⚠ Required shift unfilled' : 'Tap to assign'}
                 </span>
               )}
             </div>
 
             {isCriticalUnfilled && (
-              <span className="px-2 py-1 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full">
+              <span className="px-2 py-1 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full shrink-0">
                 Critical
               </span>
             )}
@@ -646,7 +649,7 @@ function WeekView({
   showWorkload?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-7 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
       {weekDates.map((date) => {
         const dateStr = format(date, "yyyy-MM-dd");
         const daySlots = slots.filter(s => s.date === dateStr);
@@ -658,7 +661,7 @@ function WeekView({
             key={dateStr}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`min-h-[300px] rounded-2xl border-2 p-3 ${isTodayDay
+            className={`min-h-[200px] sm:min-h-[300px] rounded-xl sm:rounded-2xl border-2 p-2 sm:p-3 ${isTodayDay
               ? 'border-primary bg-primary/5'
               : isWeekendDay
                 ? 'border-amber-200 bg-amber-50/30'
@@ -666,15 +669,15 @@ function WeekView({
               }`}
           >
             {/* Day Header */}
-            <div className={`text-center pb-3 mb-3 border-b ${isTodayDay ? 'border-primary/20' : 'border-slate-100'
+            <div className={`text-center pb-2 sm:pb-3 mb-2 sm:mb-3 border-b ${isTodayDay ? 'border-primary/20' : 'border-slate-100'
               }`}>
-              <div className={`text-xs font-bold uppercase ${isWeekendDay ? 'text-amber-600' : 'text-slate-500'}`}>
+              <div className={`text-[10px] sm:text-xs font-bold uppercase ${isWeekendDay ? 'text-amber-600' : 'text-slate-500'}`}>
                 {format(date, "EEE")}
               </div>
-              <div className={`text-2xl font-bold ${isTodayDay ? 'text-primary' : 'text-slate-800'}`}>
+              <div className={`text-xl sm:text-2xl font-bold ${isTodayDay ? 'text-primary' : 'text-slate-800'}`}>
                 {format(date, "d")}
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[9px] sm:text-[10px] text-slate-400">
                 {daySlots.filter(s => s.providerId).length}/{daySlots.length}
               </div>
               {daySlots.length > 0 && <DayHandoffIndicator date={date} />}
@@ -778,28 +781,29 @@ function MonthView({
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
           title="Previous month"
-          className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+          className="p-2.5 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h3 className="text-xl font-bold text-slate-800">
+        <h3 className="text-base sm:text-xl font-bold text-slate-800">
           {format(currentMonth, "MMMM yyyy")}
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
           title="Next month"
-          className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+          className="p-2.5 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {/* Week Day Headers */}
         {weekDays.map(day => (
-          <div key={day} className="p-2 text-center text-xs font-bold text-slate-500 uppercase">
-            {day}
+          <div key={day} className="py-1.5 sm:p-2 text-center text-[9px] sm:text-xs font-bold text-slate-500 uppercase">
+            <span className="sm:hidden">{day.slice(0, 1)}</span>
+            <span className="hidden sm:inline">{day}</span>
           </div>
         ))}
 
@@ -824,7 +828,7 @@ function MonthView({
                   onShiftClick(daySlots[0]);
                 }
               }}
-              className={`min-h-[100px] p-2 rounded-xl border cursor-pointer transition-all ${!isCurrentMonth
+              className={`min-h-[72px] sm:min-h-[100px] p-1.5 sm:p-2 rounded-lg sm:rounded-xl border cursor-pointer transition-all active:scale-95 ${!isCurrentMonth
                 ? 'bg-slate-50 border-slate-100 opacity-50'
                 : isTodayDay
                   ? 'bg-primary/5 border-primary'
@@ -833,42 +837,43 @@ function MonthView({
                     : 'bg-white border-slate-200 hover:border-slate-300'
                 }`}
             >
-              <div className={`text-sm font-bold mb-1 ${isTodayDay ? 'text-primary' : isCurrentMonth ? 'text-slate-700' : 'text-slate-400'
-                }`}>
+              <div className={`text-xs sm:text-sm font-bold mb-1 ${
+                isTodayDay
+                  ? 'inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary text-white'
+                  : isCurrentMonth ? 'text-slate-700' : 'text-slate-400'
+              }`}>
                 {format(date, "d")}
               </div>
 
               {daySlots.length > 0 && (
-                <div className="space-y-1">
+                <div className="space-y-0.5 sm:space-y-1">
                   {/* Indicators */}
                   <div className="flex flex-wrap gap-0.5">
-                    {daySlots.slice(0, 6).map((slot, idx) => {
+                    {daySlots.slice(0, 5).map((slot, idx) => {
                       const config = servicePriorityConfig[slot.servicePriority];
                       const isFilled = !!slot.providerId;
                       return (
                         <div
                           key={idx}
-                          className={`w-2 h-2 rounded-full ${isFilled ? config.indicatorColor : 'bg-slate-200'
+                          className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isFilled ? config.indicatorColor : 'bg-slate-200'
                             }`}
                           title={slot.serviceLocation}
                         />
                       );
                     })}
-                    {daySlots.length > 6 && (
-                      <div className="w-2 h-2 rounded-full bg-slate-300 text-[6px] flex items-center justify-center">
-                        +
-                      </div>
+                    {daySlots.length > 5 && (
+                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-slate-300 text-[6px] flex items-center justify-center" />
                     )}
                   </div>
 
                   {/* Stats */}
-                  <div className="text-[9px] text-slate-500">
+                  <div className="text-[8px] sm:text-[9px] text-slate-500">
                     {totalFilled}/{totalSlots}
                   </div>
 
                   {criticalUnfilled > 0 && (
-                    <div className="text-[9px] text-rose-600 font-bold">
-                      {criticalUnfilled} critical
+                    <div className="text-[8px] sm:text-[9px] text-rose-600 font-bold">
+                      {criticalUnfilled}⚠
                     </div>
                   )}
                 </div>
@@ -975,18 +980,18 @@ function CoverageSummary({ slots }: { slots: ShiftSlot[] }) {
   }, [slots]);
 
   return (
-    <div className="flex flex-wrap gap-3 mb-4">
+    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:gap-3 sm:mb-0">
       {(Object.entries(stats) as [ServicePriority, { total: number; filled: number }][]).map(([priority, stat]) => {
         const percentage = stat.total > 0 ? Math.round((stat.filled / stat.total) * 100) : 0;
         const config = servicePriorityConfig[priority];
         return (
-          <div key={priority} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${config.badgeColor}`}>
-            <span className={`w-2 h-2 rounded-full ${config.indicatorColor}`} />
-            <span className="text-xs font-bold">{config.label}</span>
-            <span className="text-sm font-bold">
+          <div key={priority} className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border shrink-0 ${config.badgeColor}`}>
+            <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${config.indicatorColor}`} />
+            <span className="text-[10px] sm:text-xs font-bold">{config.label}</span>
+            <span className="text-xs sm:text-sm font-bold">
               {stat.filled}/{stat.total}
             </span>
-            <span className="text-xs opacity-75">({percentage}%)</span>
+            <span className="text-[10px] sm:text-xs opacity-75 hidden sm:inline">({percentage}%)</span>
           </div>
         );
       })}
@@ -1012,12 +1017,12 @@ function ViewSelector({
   ];
 
   return (
-    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+    <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl shrink-0">
       {views.map(({ mode, label, icon }) => (
         <button
           key={mode}
           onClick={() => onChange(mode)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentMode === mode
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 min-h-[36px] ${currentMode === mode
             ? 'bg-white text-slate-900 shadow-sm'
             : 'text-slate-500 hover:text-slate-700'
             }`}
@@ -1093,92 +1098,97 @@ export function EnhancedCalendar() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="satin-panel bg-white/60 rounded-[2rem] border border-slate-200/40 overflow-hidden"
+      className="satin-panel bg-white/60 rounded-2xl sm:rounded-[2rem] border border-slate-200/40 overflow-hidden"
     >
       {/* Header */}
-      <div className="p-6 border-b border-slate-100">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-primary/5 rounded-2xl text-primary">
-              <CalendarIcon className="w-5 h-5" />
+      <div className="px-4 py-3 sm:p-6 border-b border-slate-100">
+        {/* Title row + action controls */}
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            <div className="p-2 sm:p-2.5 bg-primary/5 rounded-xl sm:rounded-2xl text-primary">
+              <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-serif text-slate-900">Calendar</h2>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+              <h2 className="text-base sm:text-xl font-serif text-slate-900">Calendar</h2>
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
                 {visibleSlots.length} shifts
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Right-side quick actions — always visible, compact on mobile */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Alert Badge */}
             <button
               onClick={() => setIsAlertDashboardOpen(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 min-h-[44px] min-w-[44px] justify-center sm:min-h-0 sm:min-w-0"
             >
               <AlertBadge count={conflicts.filter(c => !c.acknowledged && c.severity === 'CRITICAL').length} />
             </button>
-            
+
             {/* Workload Heatmap Toggle */}
-            <WorkloadHeatmapToggle 
-              isActive={showWorkload} 
-              onToggle={() => setShowWorkload(!showWorkload)} 
+            <WorkloadHeatmapToggle
+              isActive={showWorkload}
+              onToggle={() => setShowWorkload(!showWorkload)}
             />
-            
-            {/* View Selector */}
-            <ViewSelector
-              currentMode={scheduleViewport.calendarPresentationMode}
-              onChange={setCalendarPresentationMode}
-            />
-            
-            {/* Feature Buttons */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-              <button
-                onClick={() => setIsSwapBoardOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
-                title="Shift Swap Board"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Swaps</span>
-              </button>
-              <button
-                onClick={() => setIsBulkModeOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
-                title="Bulk Assignment"
-              >
-                <CheckSquare className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Bulk</span>
-              </button>
-              <button
-                onClick={() => setIsHistoryViewOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
-                title="History"
-              >
-                <History className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">History</span>
-              </button>
-              <PrintButton onClick={() => setIsPrintViewOpen(true)} />
-            </div>
 
             {/* AI Assistant Button */}
             <button
               onClick={() => useScheduleStore.getState().toggleCopilot()}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:shadow-lg hover:scale-105 transition-all"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:shadow-lg active:scale-95 transition-all min-h-[44px] sm:min-h-0"
             >
-              <Bot className="w-4 h-4" />
+              <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">AI Assistant</span>
             </button>
           </div>
         </div>
 
+        {/* View Selector + Feature Buttons — horizontally scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 sm:flex-wrap">
+          {/* View Selector */}
+          <ViewSelector
+            currentMode={scheduleViewport.calendarPresentationMode}
+            onChange={setCalendarPresentationMode}
+          />
+
+          {/* Feature Buttons */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
+            <button
+              onClick={() => setIsSwapBoardOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm active:scale-95 transition-all min-h-[36px]"
+              title="Shift Swap Board"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Swaps</span>
+            </button>
+            <button
+              onClick={() => setIsBulkModeOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm active:scale-95 transition-all min-h-[36px]"
+              title="Bulk Assignment"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bulk</span>
+            </button>
+            <button
+              onClick={() => setIsHistoryViewOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm active:scale-95 transition-all min-h-[36px]"
+              title="History"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            <PrintButton onClick={() => setIsPrintViewOpen(true)} />
+          </div>
+        </div>
+
         {/* Coverage Summary */}
-        <div className="mt-4">
+        <div className="mt-3 sm:mt-4">
           <CoverageSummary slots={visibleSlots} />
         </div>
       </div>
 
       {/* Calendar Content */}
-      <div className="p-6 overflow-auto max-h-[calc(100vh-350px)]">
+      <div className="px-3 py-4 sm:p-6 overflow-auto max-h-[calc(100dvh-320px)] sm:max-h-[calc(100vh-350px)]">
         <AnimatePresence mode="wait">
           <motion.div
             key={scheduleViewport.calendarPresentationMode}

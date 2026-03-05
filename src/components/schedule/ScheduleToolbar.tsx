@@ -26,8 +26,9 @@ export function ScheduleToolbar() {
   const { setScheduleSurfaceView, setCalendarPresentationMode } = useScheduleStore();
 
   return (
-    <section className="satin-panel p-4 rounded-2xl border border-slate-200/50 mb-5">
-      <div className="flex items-start justify-between gap-4 mb-3">
+    <section className="satin-panel px-3 py-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/50 mb-4 sm:mb-5">
+      {/* Compact title row — hidden on mobile to save space */}
+      <div className="hidden sm:flex items-start justify-between gap-4 mb-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Schedule Workspace</p>
           <p className="text-xs text-slate-500 mt-1">Use one control plane for both calendar and table editing.</p>
@@ -35,47 +36,49 @@ export function ScheduleToolbar() {
         <p className="hidden lg:block text-[10px] text-slate-400">Shortcuts: Alt+1 Calendar, Alt+2 Table, Alt+Left/Right Week</p>
       </div>
 
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+      <div className="flex flex-col gap-2 sm:gap-3">
+        {/* Row 1: Surface view + week navigation */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setScheduleSurfaceView("calendar")}
-              className={`nav-chip px-3 py-1.5 rounded-lg ${
+              className={`nav-chip px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg min-h-[36px] ${
                 scheduleViewport.surfaceView === "calendar" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-800"
               }`}
             >
               <CalendarDays className="w-3.5 h-3.5" />
-              Calendar
+              <span className="hidden xs:inline">Calendar</span>
             </button>
             <button
               onClick={() => setScheduleSurfaceView("excel")}
-              className={`nav-chip px-3 py-1.5 rounded-lg ${
+              className={`nav-chip px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg min-h-[36px] ${
                 scheduleViewport.surfaceView === "excel" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-800"
               }`}
             >
               <Table2 className="w-3.5 h-3.5" />
-              Table
+              <span className="hidden xs:inline">Table</span>
             </button>
           </div>
 
-          <button onClick={() => shiftWeekOffset(-1)} className="soft-icon-btn" aria-label="Previous week">
+          {/* Week navigation */}
+          <button onClick={() => shiftWeekOffset(-1)} className="soft-icon-btn min-h-[36px] min-w-[36px] shrink-0" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="px-3 py-1.5 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200/60">
-            {format(weekDates[0], "MMM d")} - {format(weekDates[6], "MMM d, yyyy")}
+          <div className="px-2.5 sm:px-3 py-1.5 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200/60 whitespace-nowrap shrink-0">
+            <span className="hidden sm:inline">{format(weekDates[0], "MMM d")} – {format(weekDates[6], "MMM d, yyyy")}</span>
+            <span className="sm:hidden">{format(weekDates[0], "M/d")} – {format(weekDates[6], "M/d")}</span>
           </div>
-          <button onClick={() => shiftWeekOffset(1)} className="soft-icon-btn" aria-label="Next week">
+          <button onClick={() => shiftWeekOffset(1)} className="soft-icon-btn min-h-[36px] min-w-[36px] shrink-0" aria-label="Next week">
             <ChevronRight className="w-4 h-4" />
           </button>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto">
+          {/* Calendar mode selector — scrollable */}
+          <div className="flex items-center gap-0.5 bg-slate-100/80 p-1 rounded-xl overflow-x-auto scrollbar-hide shrink-0">
             {CALENDAR_MODES.map(({ mode, icon, label }) => (
               <button
                 key={mode}
                 onClick={() => setCalendarPresentationMode(mode)}
-                className={`nav-chip px-2.5 py-1.5 rounded-lg whitespace-nowrap ${
+                className={`nav-chip px-2 sm:px-2.5 py-2 sm:py-1.5 rounded-lg whitespace-nowrap min-h-[36px] ${
                   scheduleViewport.calendarPresentationMode === mode
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-800"
@@ -87,11 +90,14 @@ export function ScheduleToolbar() {
               </button>
             ))}
           </div>
+        </div>
 
+        {/* Row 2: Filters — scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
           <select
             value={scheduleViewport.shiftTypeFilter}
             onChange={(event) => setShiftTypeFilter(event.target.value as ShiftTypeFilter)}
-            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20"
+            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20 shrink-0 min-h-[36px]"
           >
             <option value="all">All shifts</option>
             <option value="DAY">Day</option>
@@ -103,7 +109,7 @@ export function ScheduleToolbar() {
             <option value="VACATION">Vacation</option>
           </select>
 
-          <label className="soft-control flex items-center gap-1.5 px-2.5 py-2 cursor-pointer text-slate-600">
+          <label className="soft-control flex items-center gap-1.5 px-2.5 py-2 cursor-pointer text-slate-600 shrink-0 min-h-[36px] whitespace-nowrap">
             <input
               type="checkbox"
               checked={scheduleViewport.showConflictsOnly}
@@ -113,7 +119,7 @@ export function ScheduleToolbar() {
             Conflicts
           </label>
 
-          <label className="soft-control flex items-center gap-1.5 px-2.5 py-2 cursor-pointer text-slate-600">
+          <label className="soft-control flex items-center gap-1.5 px-2.5 py-2 cursor-pointer text-slate-600 shrink-0 min-h-[36px] whitespace-nowrap">
             <input
               type="checkbox"
               checked={scheduleViewport.showUnfilledOnly}
@@ -127,17 +133,17 @@ export function ScheduleToolbar() {
             type="text"
             value={scheduleViewport.providerSearchTerm}
             onChange={(event) => setProviderSearchTerm(event.target.value)}
-            placeholder="Search provider..."
-            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20 w-40"
+            placeholder="Provider…"
+            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20 w-32 sm:w-40 shrink-0 min-h-[36px]"
           />
 
           <button
             onClick={resetScheduleViewportFilters}
-            className="px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200 bg-white"
+            className="px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200 bg-white shrink-0 min-h-[36px]"
           >
             <span className="inline-flex items-center gap-1">
               <TimerReset className="w-3 h-3" />
-              Reset
+              <span className="hidden xs:inline">Reset</span>
             </span>
           </button>
         </div>
