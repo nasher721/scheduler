@@ -347,11 +347,11 @@ export async function updateEmailEvent(id: string, payload: { status: string }) 
   return requestJson<{ event: EmailEvent; updatedAt: string }>(
     `/api/email-events/${id}`,
     {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
     "Update email event"
   );
@@ -361,7 +361,7 @@ export async function deleteEmailEvent(id: string) {
   return requestJson<{ ok: boolean; deletedId: string; updatedAt: string }>(
     `/api/email-events/${id}`,
     {
-    method: "DELETE",
+      method: "DELETE",
     },
     "Delete email event"
   );
@@ -385,7 +385,7 @@ export async function submitInboundEmail(payload: {
     throw new Error(`Failed to log inbound email event: ${emailEventError.message}`);
   }
 
-  // 2. Create a shift request if possible
+  // 2. Create a shift request if the required fields are present
   if (payload.providerName && payload.date && payload.type) {
     return createShiftRequest({
       providerName: payload.providerName,
@@ -397,7 +397,9 @@ export async function submitInboundEmail(payload: {
     });
   }
 
-  throw new Error("Missing required fields for inbound email processing");
+  // Email was logged successfully but not enough information to create a shift request
+  console.warn("[submitInboundEmail] Email logged but missing providerName/date/type — skipping shift request creation.");
+  return { ok: true };
 }
 
 export async function reviewShiftRequest(id: string, payload: { status: "approved" | "denied"; reviewedBy: string }) {
@@ -437,7 +439,7 @@ export async function deleteShiftRequest(id: string) {
   return requestJson<{ ok: boolean; deletedId: string; updatedAt: string }>(
     `/api/shift-requests/${id}`,
     {
-    method: "DELETE",
+      method: "DELETE",
     },
     "Delete shift request"
   );
@@ -535,11 +537,11 @@ export async function updateNotification(id: string, payload: {
   return requestJson<{ notification: NotificationRecord; updatedAt: string }>(
     `/api/notifications/${id}`,
     {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
     "Update notification"
   );
@@ -549,7 +551,7 @@ export async function deleteNotification(id: string) {
   return requestJson<{ ok: boolean; deletedId: string; updatedAt: string }>(
     `/api/notifications/${id}`,
     {
-    method: "DELETE",
+      method: "DELETE",
     },
     "Delete notification"
   );
@@ -559,11 +561,11 @@ export async function optimizeWithSolver(payload: PersistedScheduleState | { sta
   return requestJson<{ result: unknown }>(
     "/api/solver/optimize",
     {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
     "Optimize with solver"
   );
@@ -615,11 +617,11 @@ export async function sendCopilotMessage(
   return requestJson<CopilotChatResponse>(
     "/api/copilot/chat",
     {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ message, context, conversationHistory }),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message, context, conversationHistory }),
     },
     "Send copilot message"
   );
@@ -649,11 +651,11 @@ export async function parseCopilotIntent(
   return requestJson<CopilotIntentResponse>(
     "/api/copilot/intent",
     {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text, context }),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text, context }),
     },
     "Parse copilot intent"
   );

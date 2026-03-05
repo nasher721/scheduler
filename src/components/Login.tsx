@@ -11,7 +11,7 @@ export function Login() {
         if (typeof window === "undefined") return "login";
         const hash = window.location.hash;
         if (hash === "#register") return "register";
-        if (hash === "#admin") return "admin_register";
+        // Note: #admin is handled by App.tsx for auto-login, not here
         return "login";
     });
 

@@ -249,6 +249,8 @@ export interface CopilotMessage {
   confidence?: number;
   suggestions?: string[];
   requiresConfirmation?: boolean;
+  /** Preview data returned by copilot action (e.g. schedule diff) */
+  preview?: unknown;
   actions?: unknown[];
 }
 
@@ -735,7 +737,14 @@ const violatesPostNightRecovery = (slots: ShiftSlot[], providerId: string, slot:
   });
 };
 
-const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, slot: ShiftSlot, customRules: CustomRule[], currentSlotId?: string) => {
+const canAssignProvider = (
+  slots: ShiftSlot[],
+  provider: Provider | undefined,
+  slot: ShiftSlot,
+  customRules: CustomRule[],
+  currentSlotId?: string,
+  holidayDates?: Set<string>,
+) => {
   if (!provider) return { canAssign: false, reason: "No provider" };
 
   if (provider.timeOffRequests.some(r => r.date === slot.date)) return { canAssign: false, reason: "Time off" };
@@ -754,6 +763,11 @@ const canAssignProvider = (slots: ShiftSlot[], provider: Provider | undefined, s
     // Check noWeekends restriction
     if (restrictions.noWeekends && slot.isWeekendLayout) {
       return { canAssign: false, reason: "Provider restricted from weekends" };
+    }
+
+    // Check noHolidays restriction
+    if (restrictions.noHolidays && holidayDates?.has(slot.date)) {
+      return { canAssign: false, reason: "Provider restricted from holidays" };
     }
 
     // Check maxShiftsPerWeek restriction
@@ -863,6 +877,52 @@ const computeDeficitScore = (slot: ShiftSlot, provider: Provider, count: Provide
 const initialStart = getWeekStart();
 const MAX_HISTORY = 50;
 
+// ---------------------------------------------------------------------------
+// History helpers — eliminate boilerplate repeated across store actions
+// ---------------------------------------------------------------------------
+
+/** Captures current mutable schedule state as a history snapshot. */
+function captureHistory(state: ScheduleState): HistoryState {
+  return {
+    providers: state.providers,
+    slots: state.slots,
+    startDate: state.startDate,
+    numWeeks: state.numWeeks,
+    customRules: state.customRules,
+    dayHandoffs: state.dayHandoffs,
+    auditLog: state.auditLog,
+  };
+}
+
+/** Appends snapshot to history array, enforcing MAX_HISTORY cap. */
+function pushHistory(
+  state: ScheduleState,
+  snapshot: HistoryState,
+): { history: HistoryState[]; historyIndex: number } {
+  const newHistory = [...state.history.slice(0, state.historyIndex + 1), snapshot].slice(-MAX_HISTORY);
+  return { history: newHistory, historyIndex: newHistory.length - 1 };
+}
+
+// ---------------------------------------------------------------------------
+// Auto-assign priority helpers (hoisted from inside autoAssign closure)
+// ---------------------------------------------------------------------------
+
+const getServicePriority = (slot: ShiftSlot): number => {
+  if (slot.servicePriority === "CRITICAL") return 0;
+  if (slot.servicePriority === "STANDARD") return 1;
+  return 2;
+};
+
+const getLocationPriority = (slot: ShiftSlot): number => {
+  const serviceOrder = getServicePriority(slot);
+  if (serviceOrder !== 0) return serviceOrder;
+  const loc = slot.location.toLowerCase();
+  if (loc.includes("g20")) return 0;
+  if (loc.includes("h22")) return 1;
+  if (loc.includes("akron")) return 2;
+  return 3;
+};
+
 export const useScheduleStore = create<ScheduleState>()(
   persist(
     (set, get) => ({
@@ -954,11 +1014,12 @@ export const useScheduleStore = create<ScheduleState>()(
             });
           } else {
             // Auto-create a provider for unknown emails in dev mode
+            const isAdminEmail = normalizedEmail === 'admin@neuroicu.com';
             const newProvider: Provider = {
               id: crypto.randomUUID(),
-              name: normalizedEmail.split('@')[0],
+              name: isAdminEmail ? 'Admin User' : normalizedEmail.split('@')[0],
               email: normalizedEmail,
-              role: "CLINICIAN",
+              role: isAdminEmail ? "ADMIN" : "CLINICIAN",
               targetWeekDays: 10,
               targetWeekendDays: 4,
               targetWeekNights: 3,
@@ -1117,21 +1178,11 @@ export const useScheduleStore = create<ScheduleState>()(
 
       addProvider: (provider) => {
         const state = get();
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           providers: [...state.providers, { ...provider, id: crypto.randomUUID() }],
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: `Added ${provider.name} to roster.`,
         });
 
@@ -1147,22 +1198,12 @@ export const useScheduleStore = create<ScheduleState>()(
       removeProvider: (id) => {
         const state = get();
         const provider = state.providers.find(p => p.id === id);
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           providers: state.providers.filter((p) => p.id !== id),
           slots: state.slots.map((s) => (s.providerId === id ? { ...s, providerId: null } : s)),
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: "Provider removed and related assignments cleared.",
         });
 
@@ -1201,7 +1242,7 @@ export const useScheduleStore = create<ScheduleState>()(
               timestamp: new Date().toISOString(),
               action: "RULE_CHANGE" as const,
               details: `Removed custom rule: ${ruleToRemove?.type || id}`,
-              user: "Current User"
+              user: state.currentUser?.name ?? "System",
             },
             ...state.auditLog
           ]
@@ -1242,7 +1283,7 @@ export const useScheduleStore = create<ScheduleState>()(
             details,
             slotId,
             providerId: providerId || undefined,
-            user: "Current User"
+            user: state.currentUser?.name ?? "System",
           };
 
           const nextSlots = state.slots.map((s) =>
@@ -1250,43 +1291,34 @@ export const useScheduleStore = create<ScheduleState>()(
           );
           const nextAuditLog = [newAuditEntry, ...state.auditLog];
 
-          const historyState: HistoryState = {
+          // Use the post-update state for this history entry so undo restores correctly
+          const postUpdateSnapshot: HistoryState = {
             providers: state.providers,
-            slots: nextSlots, // Use nextSlots for history
+            slots: nextSlots,
             startDate: state.startDate,
             numWeeks: state.numWeeks,
             customRules: state.customRules,
             dayHandoffs: state.dayHandoffs,
-            auditLog: nextAuditLog, // Use nextAuditLog for history
+            auditLog: nextAuditLog,
           };
-          const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+          const { history: newHistory, historyIndex: newHistoryIndex } = pushHistory(state, postUpdateSnapshot);
 
           return {
             slots: nextSlots,
             auditLog: nextAuditLog,
             history: newHistory,
-            historyIndex: newHistory.length - 1,
-            lastActionMessage: details
+            historyIndex: newHistoryIndex,
+            lastActionMessage: details,
           };
         }),
 
       clearAssignments: () => {
         const state = get();
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           slots: state.slots.map((s) => ({ ...s, providerId: null })),
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: "All assignments cleared.",
           auditLog: [
             {
@@ -1294,7 +1326,7 @@ export const useScheduleStore = create<ScheduleState>()(
               timestamp: new Date().toISOString(),
               action: "UNASSIGN" as const,
               details: "Cleared all assignments",
-              user: "Current User"
+              user: state.currentUser?.name ?? "System",
             },
             ...state.auditLog
           ]
@@ -1305,23 +1337,13 @@ export const useScheduleStore = create<ScheduleState>()(
 
       clearStaff: () => {
         const state = get();
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           providers: [],
           slots: state.slots.map((s) => ({ ...s, providerId: null })),
           customRules: [],
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: "All staff profiles cleared.",
           auditLog: [
             {
@@ -1329,7 +1351,7 @@ export const useScheduleStore = create<ScheduleState>()(
               timestamp: new Date().toISOString(),
               action: "CLEAR" as const,
               details: "Cleared all staff profiles and related assignments",
-              user: "Current User"
+              user: state.currentUser?.name ?? "System",
             },
             ...state.auditLog
           ]
@@ -1340,22 +1362,12 @@ export const useScheduleStore = create<ScheduleState>()(
 
       clearSchedule: () => {
         const state = get();
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           slots: generateInitialSlots(state.startDate, state.numWeeks),
           scenarios: [],
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: "Schedule reset to an empty planning window.",
           auditLog: [
             {
@@ -1363,7 +1375,7 @@ export const useScheduleStore = create<ScheduleState>()(
               timestamp: new Date().toISOString(),
               action: "CLEAR" as const,
               details: "Cleared schedule assignments and saved scenarios",
-              user: "Current User"
+              user: state.currentUser?.name ?? "System",
             },
             ...state.auditLog
           ]
@@ -1374,22 +1386,12 @@ export const useScheduleStore = create<ScheduleState>()(
 
       applyImportedSnapshot: (providers, slots, appliedAssignments, skippedRows) => {
         const state = get();
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           providers,
           slots,
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: `Import applied: ${appliedAssignments} assignments updated (${skippedRows} rows skipped).`,
         });
 
@@ -1398,44 +1400,16 @@ export const useScheduleStore = create<ScheduleState>()(
 
       autoAssign: () => {
         set((state) => {
-          const historyState: HistoryState = {
-            providers: state.providers,
-            slots: state.slots,
-            startDate: state.startDate,
-            numWeeks: state.numWeeks,
-            assignmentLogs: state.assignmentLogs || [],
-            customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-            auditLog: state.auditLog, // Add auditLog to historyState
-          };
-          const prevHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+          const snapshot = captureHistory(state);
+          const { history: prevHistory, historyIndex: prevHistoryIndex } = pushHistory(state, snapshot);
 
-          const getServicePriority = (slot: ShiftSlot): number => {
-            // Priority 1: Critical units (G20, H22, Akron)
-            if (slot.servicePriority === "CRITICAL") return 0;
-            // Priority 2: Standard services (Nights, Consults)
-            if (slot.servicePriority === "STANDARD") return 1;
-            // Priority 3: Flexible services (Jeopardy, Recovery, NMET)
-            return 2;
-          };
-
-          const getLocationPriority = (slot: ShiftSlot) => {
-            const serviceOrder = getServicePriority(slot);
-            if (serviceOrder !== 0) return serviceOrder;
-
-            // Within critical services, prioritize by location
-            const loc = slot.location.toLowerCase();
-            if (loc.includes("g20")) return 0;
-            if (loc.includes("h22")) return 1;
-            if (loc.includes("akron")) return 2;
-            return 3;
-          };
+          // Build a set of holiday dates for fast lookup
+          const holidayDates = new Set(state.holidayAssignments.map(h => h.date));
 
           const newSlots = [...state.slots].sort((a, b) => {
             const prioA = getLocationPriority(a);
             const prioB = getLocationPriority(b);
             if (prioA !== prioB) return prioA - prioB;
-            // Secondary sort by date to keep it chronological within priority
             return a.date.localeCompare(b.date);
           });
           const counts = getProviderCounts(newSlots, state.providers);
@@ -1448,10 +1422,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
             const candidates = state.providers
               .filter((provider) => {
-                const result = canAssignProvider(newSlots, provider, slot, state.customRules, slot.id);
-                if (!result.canAssign) {
-                  // If we need strict logs here we could extract the reason from canAssignProvider
-                }
+                const result = canAssignProvider(newSlots, provider, slot, state.customRules, slot.id, holidayDates);
                 return result.canAssign;
               })
               .map((provider) => ({ provider, score: computeDeficitScore(slot, provider, counts[provider.id]) }))
@@ -1475,7 +1446,7 @@ export const useScheduleStore = create<ScheduleState>()(
               details: `Auto-assigned: ${chosen.name} to ${slot.type} on ${slot.date}`,
               slotId: slot.id,
               providerId: chosen.id,
-              user: "Auto Engine"
+              user: "Auto Engine",
             });
 
             const cc = counts[chosen.id];
@@ -1491,7 +1462,7 @@ export const useScheduleStore = create<ScheduleState>()(
           return {
             slots: newSlots,
             history: prevHistory,
-            historyIndex: prevHistory.length - 1,
+            historyIndex: prevHistoryIndex,
             assignmentLogs: logs,
             auditLog: [...newAuditEntries, ...state.auditLog],
             lastActionMessage: `Auto-assigned ${assignedCount} shifts using constraints: skills, fatigue, fairness, and preferences.`,
@@ -1526,24 +1497,14 @@ export const useScheduleStore = create<ScheduleState>()(
         const found = state.scenarios.find((scenario) => scenario.id === id);
         if (!found) return;
 
-        const historyState: HistoryState = {
-          providers: state.providers,
-          slots: state.slots,
-          startDate: state.startDate,
-          numWeeks: state.numWeeks,
-          customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-          auditLog: state.auditLog,
-        };
-        const newHistory = [...state.history.slice(0, state.historyIndex + 1), historyState].slice(-MAX_HISTORY);
+        const hist = pushHistory(state, captureHistory(state));
 
         set({
           providers: structuredClone(found.providers),
           slots: structuredClone(found.slots),
           startDate: found.startDate,
           numWeeks: found.numWeeks,
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
+          ...hist,
           lastActionMessage: `Loaded scenario: ${found.name}`,
         });
 
@@ -2549,7 +2510,7 @@ export const useScheduleStore = create<ScheduleState>()(
       setDayHandoff: (date, notes) => {
         const state = get();
         const trimmedNotes = notes.trim();
-        
+
         if (!trimmedNotes) {
           // If empty, remove the handoff
           set({

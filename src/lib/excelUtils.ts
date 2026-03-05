@@ -298,19 +298,6 @@ const NAME_CORRECTIONS: Record<string, string> = {
   'aa': 'AA',
   'bb': 'BB',
   'cc': 'CC',
-  // With trailing spaces
-  'hassett ': 'Hassett',
-  'sabharwal ': 'Sabharwal',
-  'barron ': 'Barron',
-  'bates ': 'Bates',
-  'bolt ': 'Bolt',
-  'dani ': 'Dani',
-  'gomes ': 'Gomes',
-  'goswami ': 'Goswami',
-  'asher ': 'Asher',
-  // Typos and variations
-  'lynch ': 'Lynch',
-  'rosales ': 'Villamizar Rosales',
 };
 
 /**
@@ -1350,10 +1337,10 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         slot.notes || "",
       ]);
     });
-    
+
     // Add rows for dates with day-level notes (if any providers have notes for that day)
     // This can be extended later for day-level notes
-    
+
     const notesSheet = XLSX.utils.aoa_to_sheet(notesRows);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1361,7 +1348,7 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     // ═══════════════════════════════════════════════════════════════════════════
     const handoffHeaders = ["Date", "Notes", "Updated At", "Updated By"];
     const handoffRows: (string | null)[][] = [handoffHeaders];
-    
+
     const sortedHandoffs = [...(dayHandoffs || [])].sort((a, b) => a.date.localeCompare(b.date));
     sortedHandoffs.forEach((handoff) => {
       handoffRows.push([
@@ -1371,7 +1358,7 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         handoff.updatedBy || "",
       ]);
     });
-    
+
     const handoffSheet = XLSX.utils.aoa_to_sheet(handoffRows);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1382,12 +1369,12 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     XLSX.utils.book_append_sheet(workbook, fteSheet, "Staff 2026 #s");
     XLSX.utils.book_append_sheet(workbook, swapSheet, "Swap Tracker");
     XLSX.utils.book_append_sheet(workbook, holSheet, "Holiday Summary");
-    
+
     // Only add notes sheet if there are notes
     if (slotsWithNotes.length > 0) {
       XLSX.utils.book_append_sheet(workbook, notesSheet, "Shift Notes");
     }
-    
+
     // Only add handoff sheet if there are handoff notes
     if (sortedHandoffs.length > 0) {
       XLSX.utils.book_append_sheet(workbook, handoffSheet, "Daily Handoffs");

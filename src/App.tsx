@@ -80,6 +80,22 @@ export default function App() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Handle hash-based routing for admin access - auto-login for #admin
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash === '#admin' && !currentUser) {
+      // Auto-login as admin for development/demo purposes
+      const adminLogin = async () => {
+        try {
+          await useScheduleStore.getState().login('admin@neuroicu.com');
+        } catch {
+          // If login fails, user stays on Login screen
+        }
+      };
+      adminLogin();
+    }
+  }, [currentUser]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("schedule");
   const [scenarioName, setScenarioName] = useState("");
@@ -296,7 +312,9 @@ export default function App() {
 
 
   if (!currentUser) {
-    if (showLanding) {
+    // Skip landing page for #admin hash - auto-login will handle it
+    const isAdminHash = window.location.hash === '#admin';
+    if (showLanding && !isAdminHash) {
       return <LandingPage onLogin={() => setShowLanding(false)} />;
     }
     return (

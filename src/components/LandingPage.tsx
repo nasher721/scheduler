@@ -28,18 +28,22 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onLogin }: LandingPageProps) {
-    const [showLoginOverlay, setShowLoginOverlay] = useState(false);
+    const isAdminHash = window.location.hash === '#admin';
+    const [showLoginOverlay, setShowLoginOverlay] = useState(isAdminHash);
     const [email, setEmail] = useState('');
     const login = useScheduleStore((state) => state.login);
 
     useEffect(() => {
+        // If admin hash, login overlay is already shown via useState initializer
+        if (isAdminHash) return;
+
         // Trigger login overlay around 22 seconds into the 24s animation cycle
         const timer = setTimeout(() => {
             setShowLoginOverlay(true);
         }, 21000);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [isAdminHash]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
