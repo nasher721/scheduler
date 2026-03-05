@@ -961,14 +961,25 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       initialize: async () => {
+        // Helper: given a Supabase session, find+set the matching provider as currentUser.
+        // This is used both by the auth state listener and the post-load reconciliation step.
+        const reconcileUser = (sessionEmail: string | undefined) => {
+          if (!sessionEmail) return;
+          const { providers } = get();
+          const user = providers.find(
+            (p) => p.email?.toLowerCase() === sessionEmail.toLowerCase()
+          );
+          if (user && get().currentUser?.id !== user.id) {
+            set({ currentUser: user });
+          }
+        };
+
         // 1. Set up session listener
         supabase.auth.onAuthStateChange(async (event, session) => {
           if (event === "SIGNED_IN" && session?.user) {
-            const { providers } = get();
-            const user = providers.find(p => p.email?.toLowerCase() === session.user.email?.toLowerCase());
-            if (user) {
-              set({ currentUser: user });
-            }
+            // Try immediate lookup. If providers haven't loaded yet (race condition),
+            // wait for loadScheduleState() below to finish — it will call reconcileUser().
+            reconcileUser(session.user.email);
           } else if (event === "SIGNED_OUT") {
             set({ currentUser: null });
           }
@@ -990,6 +1001,18 @@ export const useScheduleStore = create<ScheduleState>()(
           }
         } catch (error) {
           console.error("Failed to load initial state:", error);
+        }
+
+        // 3. After providers are populated, reconcile currentUser against the active
+        //    Supabase session. This fixes the race where SIGNED_IN fires before step 2
+        //    finishes, leaving currentUser null and showing a blank page.
+        if (!get().currentUser) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            reconcileUser(session?.user?.email);
+          } catch {
+            // Non-fatal: user will see the login screen and can sign in manually.
+          }
         }
       },
 
