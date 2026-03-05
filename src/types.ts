@@ -104,6 +104,8 @@ export interface ShiftSlot {
     servicePriority: ServicePriority;
     /** Specific service location identifier */
     serviceLocation: ServiceLocation;
+    /** Notes for this shift (e.g., special instructions, handoff notes) */
+    notes?: string;
 }
 
 export interface ScenarioSnapshot {

@@ -13,7 +13,9 @@ import {
   Stethoscope,
   Clock,
   Users,
-  MapPin
+  MapPin,
+  StickyNote,
+  MessageSquare
 } from "lucide-react";
 import { format, isWeekend, isToday } from "date-fns";
 import { useScheduleViewport } from "./schedule/useScheduleViewport";
@@ -97,6 +99,11 @@ interface CellEditState {
   value: string;
 }
 
+interface NotesEditState {
+  slotId: string;
+  notes: string;
+}
+
 // Group columns by service priority
 interface GroupedColumn {
   priority: ServicePriority;
@@ -114,6 +121,7 @@ export function ExcelGridView() {
   const { slots, providers, assignShift, detectConflicts, conflicts } = useScheduleStore();
   const { scheduleViewport, weekDates, setShiftTypeFilter, setProviderSearchTerm, setShowUnfilledOnly } = useScheduleViewport();
   const [editingCell, setEditingCell] = useState<CellEditState | null>(null);
+  const [editingNotes, setEditingNotes] = useState<NotesEditState | null>(null);
 
   // Get unique shift types and locations for columns, grouped by priority
   const groupedColumns = useMemo((): GroupedColumn[] => {
@@ -198,6 +206,16 @@ export function ExcelGridView() {
       detectConflicts();
     }
     setEditingCell(null);
+  };
+
+  // Handle notes edit
+  const handleNotesEdit = (slotId: string, notes: string) => {
+    useScheduleStore.setState((state) => ({
+      slots: state.slots.map((s) =>
+        s.id === slotId ? { ...s, notes: notes.trim() || undefined } : s
+      ),
+    }));
+    setEditingNotes(null);
   };
 
   // Filter columns based on search
@@ -502,6 +520,18 @@ export function ExcelGridView() {
                                       +{slot.secondaryProviderIds.length}
                                     </span>
                                   )}
+                                  {slot.notes && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingNotes({ slotId: slot.id, notes: slot.notes || "" });
+                                      }}
+                                      className="p-1 hover:bg-amber-100 rounded transition-colors"
+                                      title={slot.notes}
+                                    >
+                                      <StickyNote className="w-3.5 h-3.5 text-amber-500" />
+                                    </button>
+                                  )}
                                   {conflict && (
                                     <div className="relative group" title={conflict.title}>
                                       <AlertCircle className="w-3.5 h-3.5 text-error" />
@@ -523,6 +553,19 @@ export function ExcelGridView() {
                                   )}
                                 </div>
                               )}
+                              {/* Notes indicator for empty slots with notes */}
+                              {!provider && slot.notes && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingNotes({ slotId: slot.id, notes: slot.notes || "" });
+                                  }}
+                                  className="ml-2 p-1 hover:bg-amber-100 rounded transition-colors"
+                                  title={slot.notes}
+                                >
+                                  <StickyNote className="w-3.5 h-3.5 text-amber-500" />
+                                </button>
+                              )}
                             </div>
                           )}
                         </td>
@@ -535,6 +578,67 @@ export function ExcelGridView() {
           </tbody>
         </table>
       </div>
+
+      {/* Notes Editing Modal */}
+      {editingNotes && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 rounded-xl">
+                  <MessageSquare className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900">Shift Notes</h3>
+                  <p className="text-xs text-slate-500">
+                    {(() => {
+                      const slot = slots.find(s => s.id === editingNotes.slotId);
+                      return slot ? `${slot.serviceLocation} - ${format(new Date(slot.date), "MMM d")}` : "";
+                    })()}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingNotes(null)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4">
+              <textarea
+                value={editingNotes.notes}
+                onChange={(e) => setEditingNotes({ ...editingNotes, notes: e.target.value })}
+                placeholder="Add notes for this shift..."
+                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                onClick={() => setEditingNotes(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleNotesEdit(editingNotes.slotId, editingNotes.notes)}
+                className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors"
+              >
+                Save Notes
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Footer Legend */}
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
@@ -570,6 +674,10 @@ export function ExcelGridView() {
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3 text-amber-500" />
             Standard (Flexible)
+          </span>
+          <span className="flex items-center gap-1">
+            <StickyNote className="w-3 h-3 text-amber-500" />
+            Has Notes
           </span>
           <span className="ml-auto">Double-click any cell to edit</span>
         </div>

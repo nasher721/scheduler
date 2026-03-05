@@ -20,7 +20,8 @@ import {
   Grid3X3,
   List,
   CalendarDays,
-  Clock4
+  Clock4,
+  StickyNote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShiftEditModal } from './ShiftEditModal';
@@ -222,6 +223,11 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false }: Sh
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {slot.notes && (
+            <span className="p-1 bg-amber-100 text-amber-600 rounded-full" title={slot.notes}>
+              <StickyNote className="w-3 h-3" />
+            </span>
+          )}
           {isCriticalUnfilled && (
             <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full">
               Required

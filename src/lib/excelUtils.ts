@@ -1333,6 +1333,30 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     const holSheet = XLSX.utils.aoa_to_sheet(holRows);
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SHEET 5: Shift Notes
+    // ═══════════════════════════════════════════════════════════════════════════
+    const notesHeaders = ["Date", "Service Location", "Shift Type", "Provider", "Notes"];
+    const notesRows: (string | null)[][] = [notesHeaders];
+
+    // Get slots that have notes
+    const slotsWithNotes = slots.filter(s => s.notes && s.notes.trim());
+    slotsWithNotes.forEach((slot) => {
+      const providerName = slot.providerId ? (providerNamesById.get(slot.providerId) || "Unassigned") : "Unassigned";
+      notesRows.push([
+        slot.date,
+        slot.serviceLocation,
+        slot.type,
+        providerName,
+        slot.notes || "",
+      ]);
+    });
+    
+    // Add rows for dates with day-level notes (if any providers have notes for that day)
+    // This can be extended later for day-level notes
+    
+    const notesSheet = XLSX.utils.aoa_to_sheet(notesRows);
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Assemble workbook with master-matching sheet names
     // ═══════════════════════════════════════════════════════════════════════════
     const workbook = XLSX.utils.book_new();
@@ -1340,6 +1364,11 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     XLSX.utils.book_append_sheet(workbook, fteSheet, "Staff 2026 #s");
     XLSX.utils.book_append_sheet(workbook, swapSheet, "Swap Tracker");
     XLSX.utils.book_append_sheet(workbook, holSheet, "Holiday Summary");
+    
+    // Only add notes sheet if there are notes
+    if (slotsWithNotes.length > 0) {
+      XLSX.utils.book_append_sheet(workbook, notesSheet, "Shift Notes");
+    }
 
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",

@@ -13,6 +13,8 @@ import {
   Trash2,
   Plus,
   ChevronDown,
+  StickyNote,
+  Save,
 } from "lucide-react";
 
 interface ShiftEditModalProps {
@@ -31,8 +33,27 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
   const [searchTerm, setSearchTerm] = useState("");
   const [showConfirmRemove, setShowConfirmRemove] = useState(false);
   const [listExpanded, setListExpanded] = useState(true);
+  const [notes, setNotes] = useState(slot?.notes || "");
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
   if (!isOpen || !slot) return null;
+
+  // Update local notes when slot changes
+  const handleNotesChange = (newNotes: string) => {
+    setNotes(newNotes);
+  };
+
+  const saveNotes = () => {
+    useScheduleStore.setState((state) => ({
+      slots: state.slots.map((s) =>
+        s.id === slot.id ? { ...s, notes: notes.trim() || undefined } : s
+      ),
+    }));
+    setIsEditingNotes(false);
+    setNotesSaved(true);
+    setTimeout(() => setNotesSaved(false), 2000);
+  };
 
   const currentProvider = providers.find((p) => p.id === slot.providerId);
   const secondaryProviders = (slot.secondaryProviderIds ?? [])
@@ -161,6 +182,76 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
                     <Clock className="w-4 h-4" />
                     {slot.type === "NIGHT" ? "7:00 PM – 7:00 AM" : "7:00 AM – 7:00 PM"}
                   </div>
+                </div>
+
+                {/* Notes Section */}
+                <div className="mt-4 pt-4 border-t border-slate-200/60">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <StickyNote className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-medium text-slate-700">Shift Notes</span>
+                    </div>
+                    {!isEditingNotes && (
+                      <button
+                        onClick={() => setIsEditingNotes(true)}
+                        className="text-xs text-primary hover:text-primary/80 font-medium"
+                      >
+                        {slot.notes ? "Edit" : "Add Notes"}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {isEditingNotes ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={notes}
+                        onChange={(e) => handleNotesChange(e.target.value)}
+                        placeholder="Add notes for this shift..."
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                        rows={3}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={saveNotes}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/90 transition-colors"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          Save Notes
+                        </button>
+                        <button
+                          onClick={() => {
+                            setNotes(slot.notes || "");
+                            setIsEditingNotes(false);
+                          }}
+                          className="px-3 py-1.5 text-slate-500 text-xs font-medium hover:text-slate-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      onClick={() => setIsEditingNotes(true)}
+                      className={`text-sm p-3 rounded-xl border cursor-pointer transition-all ${
+                        slot.notes 
+                          ? 'bg-amber-50/50 border-amber-200 text-slate-700' 
+                          : 'bg-slate-50 border-slate-200 text-slate-400 italic'
+                      } hover:border-primary/30`}
+                    >
+                      {slot.notes || "Click to add notes for this shift..."}
+                    </div>
+                  )}
+                  
+                  {notesSaved && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-xs text-emerald-600 mt-2"
+                    >
+                      Notes saved successfully!
+                    </motion.p>
+                  )}
                 </div>
               </div>
 
