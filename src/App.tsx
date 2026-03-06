@@ -520,8 +520,6 @@ export default function App() {
           </div>
 
 
-          <ShiftRequestBoard />
-
           {/* Scenario Ledger */}
           <div className="flex items-center gap-4 no-print overflow-x-auto pb-2 scrollbar-hide">
             <div className="flex items-center gap-2 mr-4">
@@ -588,7 +586,7 @@ export default function App() {
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Navigation</p>
-                  <p className="text-xs text-slate-500 mt-1">Switch between scheduling and supporting modules.</p>
+                  <p className="text-xs text-slate-500 mt-1">Use top tabs for core workflow and dropdowns for supporting modules.</p>
                 </div>
                 <ExportMenu />
               </div>
@@ -610,6 +608,8 @@ export default function App() {
                     <AnalyticsDashboard />
                   ) : viewMode === "schedule" ? (
                     <ScheduleWorkspace />
+                  ) : viewMode === "shift-requests" ? (
+                    <ShiftRequestBoard />
                   ) : viewMode === "rules" ? (
                     <RuleBuilder />
                   ) : viewMode === "strategy" ? (
