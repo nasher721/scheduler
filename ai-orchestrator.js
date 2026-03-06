@@ -825,6 +825,7 @@ const SUPPORTED_INTENTS = [
   "get_recommendations",
   "show_conflicts",
   "resolve_conflicts",
+  "adjust_parameters",
   "adjust_preferences",
   "greeting",
   "unknown"
@@ -844,12 +845,14 @@ const SUPPORTED_COPILOT_ACTIONS = [
   "load_scenario",
   "delete_scenario",
   "explain_assignments",
+  "adjust_parameters",
 ];
 
 const COPILOT_EXAMPLE_PROMPTS = [
   "Optimize schedule",
   "Show conflicts",
   "Assign day shift on selected date",
+  "Show nights only for next week",
   "Save scenario Weekend Plan",
   "Explain my assignments",
 ];
@@ -862,6 +865,7 @@ const INTENT_PATTERNS = {
   check_coverage: /(who|coverage|covering|working|on call|oncall).*(weekend|night|day|shift)/i,
   assign_shift: /(assign|schedule|put).*(day|night|nmet|jeopardy|recovery|consult|shift).*(to|for)?/i,
   unassign_shift: /(unassign|remove|clear).*(shift|assignment|coverage)/i,
+  adjust_parameters: /(show|filter|focus|switch|change|set|adjust).*(view|calendar|week|month|conflict|unfilled|provider|shift type|day|night|date)/i,
   save_scenario: /(save|create).*(scenario|snapshot)/i,
   load_scenario: /(load|open|restore).*(scenario|snapshot)/i,
   delete_scenario: /(delete|remove).*(scenario|snapshot)/i,
@@ -920,6 +924,9 @@ function extractEntitiesRuleBased(text) {
     shiftType: null,
     targetProvider: null,
     scenarioName: null,
+    surfaceView: null,
+    showConflictsOnly: null,
+    showUnfilledOnly: null,
   };
 
   // Extract provider names (Dr. X or simple names)
@@ -962,7 +969,42 @@ function extractEntitiesRuleBased(text) {
     entities.scenarioName = scenarioMatch[1].trim();
   }
 
+  if (/\bmonth\b/i.test(text)) {
+    entities.surfaceView = "month";
+  } else if (/\bweek\b/i.test(text)) {
+    entities.surfaceView = "week";
+  }
+
+  if (/\bconflicts?\s+only\b|\bonly\s+conflicts?\b/i.test(text)) {
+    entities.showConflictsOnly = true;
+  } else if (/\bhide\s+conflicts?\b|\bshow\s+all\b/i.test(text)) {
+    entities.showConflictsOnly = false;
+  }
+
+  if (/\bunfilled\s+only\b|\bonly\s+unfilled\b|\bunassigned\s+only\b/i.test(text)) {
+    entities.showUnfilledOnly = true;
+  } else if (/\bhide\s+unfilled\b|\bshow\s+all\b/i.test(text)) {
+    entities.showUnfilledOnly = false;
+  }
+
   return entities;
+}
+
+function buildRuleGuardrailWarning(text, context) {
+  const normalized = String(text || "").toLowerCase();
+  if (!normalized) return null;
+
+  const asksToBypassRules = /(ignore|bypass|break|override|violate).*(rule|restriction|policy|constraint|conflict)/i.test(normalized)
+    || /(force|assign).*(even if|despite).*(conflict|violation|time off|double[- ]?book|credential|restriction)/i.test(normalized);
+
+  if (!asksToBypassRules) return null;
+
+  const selectedDate = context?.selectedDate ? ` on ${context.selectedDate}` : "";
+  return {
+    warning: `⚠️ I can't intentionally break scheduling rules${selectedDate}. I can suggest safe alternatives that preserve coverage and fairness.`,
+    suggestions: ["Show blocking rules", "Find a compliant alternative", "Show conflicts"],
+    actions: [{ type: "detect_conflicts" }],
+  };
 }
 
 function buildIntentPrompt(text, context) {
@@ -977,6 +1019,7 @@ Available intents:
 - simulate_scenario: User wants to simulate what would happen in a scenario
 - get_recommendations: User wants general scheduling advice/recommendations
 - show_conflicts: User wants to see scheduling conflicts or problems
+- adjust_parameters: User wants to adjust calendar view/filter parameters
 - adjust_preferences: User wants to change their scheduling preferences
 - greeting: Simple greeting/hello
 - unknown: None of the above
@@ -1088,6 +1131,21 @@ export async function getCopilotSuggestions(input) {
 
 export async function processCopilotMessage(input) {
   const { message, context, conversationHistory = [] } = input || {};
+
+  const guardrailWarning = buildRuleGuardrailWarning(message, context);
+  if (guardrailWarning) {
+    return {
+      messageId: generateMessageId(),
+      intent: "show_conflicts",
+      confidence: 1,
+      entities: {},
+      response: guardrailWarning.warning,
+      suggestions: guardrailWarning.suggestions,
+      requiresConfirmation: false,
+      preview: null,
+      actions: guardrailWarning.actions,
+    };
+  }
   
   // Step 1: Parse intent
   const intentResult = await parseIntent({ text: message, context });
@@ -1197,6 +1255,20 @@ async function buildCopilotResponse(intentResult, context, history) {
       suggestions: ['Assign selected date', 'Assign night shift', 'Assign day shift'],
       requiresConfirmation: false,
       actions: [{ type: "assign_shift", date: entities.date, shiftType: entities.shiftType, providerName: entities.targetProvider || entities.providerName }]
+    },
+
+    adjust_parameters: {
+      message: "I can update calendar and scheduling filters based on your request.",
+      suggestions: ["Show conflicts only", "Show unfilled only", "Switch to month view", "Reset filters"],
+      requiresConfirmation: false,
+      actions: [{
+        type: "adjust_parameters",
+        date: entities.date,
+        shiftType: entities.shiftType,
+        surfaceView: entities.surfaceView,
+        showConflictsOnly: entities.showConflictsOnly,
+        showUnfilledOnly: entities.showUnfilledOnly,
+      }]
     },
 
     unassign_shift: {

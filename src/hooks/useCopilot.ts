@@ -51,8 +51,28 @@ function resolveScenarioIdByName(name: string, items: { id: string; name: string
   return partial ? partial.id : null;
 }
 
+function resolveProviderIdByName(name: string, providers: Provider[]): string | null {
+  const query = name.trim().toLowerCase();
+  if (!query) return null;
+
+  const exact = providers.find((provider) => provider.name.trim().toLowerCase() === query);
+  if (exact) return exact.id;
+
+  const simplifiedQuery = query.replace(/^dr\.?\s+/, "");
+  const partial = providers.find((provider) => {
+    const normalized = provider.name.trim().toLowerCase();
+    return normalized.includes(query) || normalized.includes(simplifiedQuery);
+  });
+
+  return partial ? partial.id : null;
+}
+
 function coerceActions(rawActions: unknown[]): CopilotAction[] {
   return rawActions.filter((action): action is CopilotAction => Boolean(action) && typeof action === "object" && typeof (action as CopilotAction).type === "string");
+}
+
+function toBooleanOrNull(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function buildAutoAssignPreview(store: ScheduleStore) {
@@ -184,10 +204,13 @@ function executeCopilotActions(params: {
       case "assign_shift":
       case "unassign_shift": {
         const slotIdFromAction = typeof action.slotId === "string" ? action.slotId : null;
+        const providerName = typeof action.providerName === "string" ? action.providerName : null;
         const providerId =
           typeof action.providerId === "string"
             ? action.providerId
-            : (context.selectedProviderId ?? store.selectedProviderId ?? null);
+            : providerName
+              ? resolveProviderIdByName(providerName, store.providers)
+              : (context.selectedProviderId ?? store.selectedProviderId ?? null);
         const candidateSlots = store.slots.filter((slot: ShiftSlot) => {
           if (slotIdFromAction) return slot.id === slotIdFromAction;
           if (selectedDate && slot.date !== selectedDate) return false;
@@ -257,6 +280,32 @@ function executeCopilotActions(params: {
           title: `Assignment Context: ${provider.name}`,
           message: `${providerSlots.length} total assignments (${dayCount} day, ${nightCount} night). Use Conflict Dashboard for constraint details.`,
         });
+        executed += 1;
+        break;
+      }
+      case "adjust_parameters": {
+        const selectedDateValue = typeof action.date === "string" ? action.date : null;
+        const selectedShift = normalizeShiftType(action.shiftType);
+        const surfaceView = action.surfaceView === "week" || action.surfaceView === "month" ? action.surfaceView : null;
+        const showConflictsOnly = toBooleanOrNull(action.showConflictsOnly);
+        const showUnfilledOnly = toBooleanOrNull(action.showUnfilledOnly);
+
+        if (selectedDateValue) {
+          store.setSelectedDate(selectedDateValue);
+        }
+        if (selectedShift) {
+          store.setShiftTypeFilter(selectedShift as ShiftTypeFilter);
+        }
+        if (surfaceView) {
+          store.setScheduleSurfaceView(surfaceView);
+        }
+        if (showConflictsOnly !== null) {
+          store.setShowConflictsOnly(showConflictsOnly);
+        }
+        if (showUnfilledOnly !== null) {
+          store.setShowUnfilledOnly(showUnfilledOnly);
+        }
+
         executed += 1;
         break;
       }
