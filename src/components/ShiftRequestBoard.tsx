@@ -40,6 +40,7 @@ export function ShiftRequestBoard() {
   const [notes, setNotes] = useState("");
   const [emailEventCount, setEmailEventCount] = useState(0);
   const [emailEvents, setEmailEvents] = useState<EmailEvent[]>([]);
+  const [activeTab, setActiveTab] = useState<"requests" | "email">("requests");
 
   const pendingCount = useMemo(() => requests.filter((request) => request.status === "pending").length, [requests]);
 
@@ -173,206 +174,229 @@ export function ShiftRequestBoard() {
         </div>
       </div>
 
-      <form onSubmit={submitRequest} className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-end">
-        <label className="text-xs text-slate-600 flex flex-col gap-1">
-          Provider
-          <select
-            value={providerName}
-            onChange={(event) => setProviderName(event.target.value)}
-            className="border rounded-lg px-3 py-2 bg-white"
-          >
-            <option value="">Select provider</option>
-            {providers.map((provider) => (
-              <option key={provider.id} value={provider.name}>
-                {provider.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-xs text-slate-600 flex flex-col gap-1">
-          Date
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
-        </label>
-
-        <label className="text-xs text-slate-600 flex flex-col gap-1">
-          Request Type
-          <select value={type} onChange={(event) => setType(event.target.value as ShiftRequestType)} className="border rounded-lg px-3 py-2 bg-white">
-            {Object.entries(REQUEST_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
-          Notes
-          <input
-            type="text"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Optional context"
-            className="border rounded-lg px-3 py-2 bg-white"
-          />
-        </label>
-
-        <button type="submit" className="lg:col-span-5 justify-self-end px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold">
-          Submit Request
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("requests")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            activeTab === "requests" ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-200 hover:text-slate-900"
+          }`}
+        >
+          Shift Requests
         </button>
-      </form>
-
-
-
-      <div className="flex justify-end">
-        <label className="text-xs text-slate-600 flex items-center gap-2">
-          Filter
-          <select
-            value={statusFilter}
-            onChange={async (event) => {
-              const nextStatus = event.target.value as ShiftRequestStatus | "all";
-              setStatusFilter(nextStatus);
-              await loadRequests(nextStatus);
-            }}
-            className="border rounded-lg px-2 py-1 bg-white"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <button
+          type="button"
+          onClick={() => setActiveTab("email")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            activeTab === "email" ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-200 hover:text-slate-900"
+          }`}
+        >
+          Email Triage
+        </button>
       </div>
 
-      <div className="border rounded-xl overflow-hidden bg-white">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
-            <tr>
-              <th className="px-3 py-2">Provider</th>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Source</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+      {activeTab === "requests" ? (
+        <>
+          <form onSubmit={submitRequest} className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-end">
+            <label className="text-xs text-slate-600 flex flex-col gap-1">
+              Provider
+              <select
+                value={providerName}
+                onChange={(event) => setProviderName(event.target.value)}
+                className="border rounded-lg px-3 py-2 bg-white"
+              >
+                <option value="">Select provider</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.name}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-xs text-slate-600 flex flex-col gap-1">
+              Date
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
+            </label>
+
+            <label className="text-xs text-slate-600 flex flex-col gap-1">
+              Request Type
+              <select value={type} onChange={(event) => setType(event.target.value as ShiftRequestType)} className="border rounded-lg px-3 py-2 bg-white">
+                {Object.entries(REQUEST_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-xs text-slate-600 flex flex-col gap-1 lg:col-span-2">
+              Notes
+              <input
+                type="text"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Optional context"
+                className="border rounded-lg px-3 py-2 bg-white"
+              />
+            </label>
+
+            <button type="submit" className="lg:col-span-5 justify-self-end px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold">
+              Submit Request
+            </button>
+          </form>
+
+          <div className="flex justify-end">
+            <label className="text-xs text-slate-600 flex items-center gap-2">
+              Filter
+              <select
+                value={statusFilter}
+                onChange={async (event) => {
+                  const nextStatus = event.target.value as ShiftRequestStatus | "all";
+                  setStatusFilter(nextStatus);
+                  await loadRequests(nextStatus);
+                }}
+                className="border rounded-lg px-2 py-1 bg-white"
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="border rounded-xl overflow-hidden bg-white">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-3 py-2">Provider</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Source</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
+                      Loading requests...
+                    </td>
+                  </tr>
+                ) : requests.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
+                      No requests found for this filter.
+                    </td>
+                  </tr>
+                ) : (
+                  requests.map((request) => (
+                    <tr key={request.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2">{request.providerName}</td>
+                      <td className="px-3 py-2">{request.date}</td>
+                      <td className="px-3 py-2">{REQUEST_TYPE_LABELS[request.type]}</td>
+                      <td className="px-3 py-2 uppercase text-[10px]">{request.source || "app"}</td>
+                      <td className="px-3 py-2 capitalize">{request.status}</td>
+                      <td className="px-3 py-2">
+                        {request.status === "pending" ? (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => reviewRequest(request.id, "approved")}
+                              className="px-2 py-1 rounded bg-emerald-50 text-emerald-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => reviewRequest(request.id, "denied")}
+                              className="px-2 py-1 rounded bg-rose-50 text-rose-700"
+                            >
+                              Deny
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeRequest(request.id)}
+                              className="px-2 py-1 rounded bg-slate-100 text-slate-700"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <span className="text-slate-400">Reviewed</span>
+                            <button
+                              type="button"
+                              onClick={() => removeRequest(request.id)}
+                              className="px-2 py-1 rounded bg-slate-100 text-slate-700"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="border rounded-xl overflow-hidden bg-white">
+          <div className="px-3 py-2 bg-slate-50 text-slate-500 uppercase tracking-wider text-xs font-semibold">
+            Recent Email Events
+          </div>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
-                  Loading requests...
-                </td>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Created</th>
+                <th className="px-3 py-2">Actions</th>
               </tr>
-            ) : requests.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
-                  No requests found for this filter.
-                </td>
-              </tr>
-            ) : (
-              requests.map((request) => (
-                <tr key={request.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{request.providerName}</td>
-                  <td className="px-3 py-2">{request.date}</td>
-                  <td className="px-3 py-2">{REQUEST_TYPE_LABELS[request.type]}</td>
-                  <td className="px-3 py-2 uppercase text-[10px]">{request.source || "app"}</td>
-                  <td className="px-3 py-2 capitalize">{request.status}</td>
-                  <td className="px-3 py-2">
-                    {request.status === "pending" ? (
+            </thead>
+            <tbody>
+              {emailEvents.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
+                    No email events yet.
+                  </td>
+                </tr>
+              ) : (
+                emailEvents.slice(0, 8).map((event) => (
+                  <tr key={event.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2">{event.type}</td>
+                    <td className="px-3 py-2">{event.status}</td>
+                    <td className="px-3 py-2">{new Date(event.createdAt).toLocaleString()}</td>
+                    <td className="px-3 py-2">
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => reviewRequest(request.id, "approved")}
+                          onClick={() => updateEventStatus(event.id, "sent")}
                           className="px-2 py-1 rounded bg-emerald-50 text-emerald-700"
                         >
-                          Approve
+                          Mark Sent
                         </button>
                         <button
                           type="button"
-                          onClick={() => reviewRequest(request.id, "denied")}
-                          className="px-2 py-1 rounded bg-rose-50 text-rose-700"
-                        >
-                          Deny
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeRequest(request.id)}
+                          onClick={() => removeEmailEvent(event.id)}
                           className="px-2 py-1 rounded bg-slate-100 text-slate-700"
                         >
                           Delete
                         </button>
                       </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <span className="text-slate-400">Reviewed</span>
-                        <button
-                          type="button"
-                          onClick={() => removeRequest(request.id)}
-                          className="px-2 py-1 rounded bg-slate-100 text-slate-700"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="border rounded-xl overflow-hidden bg-white">
-        <div className="px-3 py-2 bg-slate-50 text-slate-500 uppercase tracking-wider text-xs font-semibold">
-          Recent Email Events
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
-            <tr>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Created</th>
-              <th className="px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {emailEvents.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
-                  No email events yet.
-                </td>
-              </tr>
-            ) : (
-              emailEvents.slice(0, 8).map((event) => (
-                <tr key={event.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{event.type}</td>
-                  <td className="px-3 py-2">{event.status}</td>
-                  <td className="px-3 py-2">{new Date(event.createdAt).toLocaleString()}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateEventStatus(event.id, "sent")}
-                        className="px-2 py-1 rounded bg-emerald-50 text-emerald-700"
-                      >
-                        Mark Sent
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeEmailEvent(event.id)}
-                        className="px-2 py-1 rounded bg-slate-100 text-slate-700"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      )}
     </section>
   );
 }
