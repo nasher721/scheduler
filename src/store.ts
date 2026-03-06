@@ -629,8 +629,8 @@ export const generateInitialSlots = (startDateStr: string, numWeeks: number): Sh
       });
     });
 
-    // Priority 2: Nights, Consults - Important but can survive without
-    const priority2Services = ["Nights", "Consults"] as const;
+    // Priority 2: Nights
+    const priority2Services = ["Nights"] as const;
     priority2Services.forEach((serviceKey) => {
       const config = serviceLocationConfig[serviceKey];
       slots.push({
@@ -638,7 +638,7 @@ export const generateInitialSlots = (startDateStr: string, numWeeks: number): Sh
         date: dateStr,
         type: config.type,
         providerId: null,
-        isWeekendLayout: serviceKey === "Nights" ? isWeekendNight : isWeekendDay,
+        isWeekendLayout: isWeekendNight,
         requiredSkill: config.requiredSkill,
         priority: config.priority,
         isBackup: false,
@@ -649,9 +649,14 @@ export const generateInitialSlots = (startDateStr: string, numWeeks: number): Sh
       });
     });
 
-    // Priority 3: AMET/NMET, Jeopardy, Recovery - Flexible/as needed
-    const priority3Services = ["AMET", "Jeopardy", "Recovery"] as const;
+    // Priority 3: Consults/NMET (same service family) then support services.
+    // Consults/NMET are never generated on weekends.
+    const priority3Services = ["Consults", "NMET", "AMET", "Jeopardy", "Recovery"] as const;
     priority3Services.forEach((serviceKey) => {
+      if (isWeekendDay && (serviceKey === "Consults" || serviceKey === "NMET" || serviceKey === "AMET")) {
+        return;
+      }
+
       const config = serviceLocationConfig[serviceKey];
       slots.push({
         id: `${dateStr}-${config.type}-${serviceKey}`,
@@ -908,9 +913,19 @@ function pushHistory(
 // ---------------------------------------------------------------------------
 
 const getServicePriority = (slot: ShiftSlot): number => {
-  if (slot.servicePriority === "CRITICAL") return 0;
-  if (slot.servicePriority === "STANDARD") return 1;
-  return 2;
+  const location = slot.serviceLocation;
+
+  // Priority 1 (must cover): G20, H22, Akron
+  if (location === "G20" || location === "H22" || location === "Akron") return 0;
+
+  // Priority 2: nights
+  if (location === "Nights") return 1;
+
+  // Priority 3: consults/NMET service family
+  if (location === "Consults" || location === "NMET" || location === "AMET") return 2;
+
+  // Remaining support services
+  return 3;
 };
 
 const getLocationPriority = (slot: ShiftSlot): number => {
@@ -1442,6 +1457,11 @@ export const useScheduleStore = create<ScheduleState>()(
           let assignedCount = 0;
           newSlots.forEach((slot, index) => {
             if (slot.providerId) return;
+
+            if (slot.isWeekendLayout && (slot.type === "CONSULTS" || slot.type === "NMET")) {
+              logs.push(`Slot ${slot.date} (${slot.type}): Skipped weekend assignment per scheduling rules.`);
+              return;
+            }
 
             const candidates = state.providers
               .filter((provider) => {
