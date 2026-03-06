@@ -1,0 +1,207 @@
+{
+  "providerId": "dr-smith",
+  "lastUpdated": 1772815239013,
+  "shiftTypePreference": {
+    "preference": "neutral",
+    "strength": 0,
+    "dayRatio": 1,
+    "nightRatio": 0,
+    "dataPoints": 1
+  },
+  "dayOfWeekPreference": {
+    "byDay": [
+      {
+        "day": "Sun",
+        "count": 0,
+        "preference": "avoided",
+        "deviation": -100
+      },
+      {
+        "day": "Mon",
+        "count": 0,
+        "preference": "avoided",
+        "deviation": -100
+      },
+      {
+        "day": "Tue",
+        "count": 0,
+        "preference": "avoided",
+        "deviation": -100
+      },
+      {
+        "day": "Wed",
+        "count": 0,
+        "preference": "avoided",
+        "deviation": -100
+      },
+      {
+        "day": "Thu",
+        "count": 1,
+        "preference": "preferred",
+        "deviation": 600
+      },
+      {
+        "day": "Fri",
+        "count": 0,
+        "preference": "avoided",
+        "deviation": -100
+      },
+      {
+        "day": "Sat",
+        "count": 0,
+        "preference": "avoided",
+        "deviation": -100
+      }
+    ],
+    "preferredDays": [
+      "Thu"
+    ],
+    "avoidedDays": [
+      "Sun",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Fri",
+      "Sat"
+    ],
+    "dataPoints": 1
+  },
+  "seasonalVariation": {
+    "byMonth": [
+      {
+        "month": "Jan",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Feb",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Mar",
+        "count": 1,
+        "likelihood": 12
+      },
+      {
+        "month": "Apr",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "May",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Jun",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Jul",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Aug",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Sep",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Oct",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Nov",
+        "count": 0,
+        "likelihood": 0
+      },
+      {
+        "month": "Dec",
+        "count": 0,
+        "likelihood": 0
+      }
+    ],
+    "highSeason": [
+      "Mar"
+    ],
+    "lowSeason": [
+      "Jan",
+      "Feb",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ],
+    "dataPoints": 1
+  },
+  "pairingPreferences": {
+    "frequentPairs": [],
+    "totalPairings": 0,
+    "dataPoints": 1
+  },
+  "fatiguePattern": {
+    "maxConsecutiveShifts": 0,
+    "avgRestAfterLongStretch": 0,
+    "fatigueIndicators": "low",
+    "recommendedMaxConsecutive": 3,
+    "dataPoints": 1
+  },
+  "requestPatterns": {
+    "totalRequests": 0,
+    "byMonth": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "byDayOfWeek": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "highRequestMonths": [],
+    "preferredDaysOff": [
+      "Sun",
+      "Mon",
+      "Tue"
+    ],
+    "avgNoticeDays": 0,
+    "dataPoints": 0
+  },
+  "acceptancePatterns": {
+    "acceptanceRate": 0,
+    "dataPoints": 0
+  },
+  "confidence": {
+    "shiftTypePreference": 0.03333333333333333,
+    "dayOfWeekPreference": 0.03333333333333333,
+    "seasonalVariation": 0.03333333333333333,
+    "pairingPreferences": 0.03333333333333333,
+    "fatiguePattern": 0.03333333333333333
+  }
+}

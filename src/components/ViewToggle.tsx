@@ -1,7 +1,7 @@
 import { BarChart3, ShieldAlert, Workflow, ArrowRightLeft, Gift, AlertOctagon, Bell, Brain, FileText } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 
-export type ViewMode = "schedule" | "analytics" | "rules" | "strategy" | "swaps" | "holidays" | "conflicts" | "notifications" | "predictive" | "templates";
+export type ViewMode = "schedule" | "analytics" | "rules" | "strategy" | "swaps" | "holidays" | "conflicts" | "notifications" | "predictive" | "templates" | "ai-test";
 
 interface ViewToggleProps {
   view: ViewMode;
@@ -171,6 +171,21 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
         <FileText className="w-3.5 h-3.5 relative z-10" />
         <span className="relative z-10">Templates</span>
       </button>
-</div>
+
+      <button
+        onClick={() => onChange("ai-test")}
+        className={`nav-chip ${view === "ai-test" ? "nav-chip-active" : "text-slate-600 hover:text-slate-800"}
+          }`}
+      >
+        {view === "ai-test" && (
+          <motion.div
+            layoutId="view-toggle-indicator"
+            className="absolute inset-0 bg-white shadow-sm border border-slate-200/50 rounded-xl z-0"
+            transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 400, damping: 30 }}
+          />
+        )}
+        <span className="relative z-10 font-mono text-xs">AI</span>
+      </button>
+    </div>
   );
 }

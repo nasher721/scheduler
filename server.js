@@ -1591,6 +1591,19 @@ app.get("/api/copilot/stream", (req, res) => {
   });
 });
 
+// ============ AI SERVICES ROUTES ============
+// Import and register AI services routes
+import { registerAIServicesRoutes } from './server/ai-services-routes.js';
+import { registerSharedMemoryRoutes } from './server/shared-memory-routes.js';
+import { registerAgentsRoutes } from './server/agents-routes.js';
+
+// Register routes
+registerAIServicesRoutes(app);
+registerSharedMemoryRoutes(app);
+registerAgentsRoutes(app);
+
+console.log('[Server] AI services routes registered');
+
 export default app;
 
 if (process.env.NODE_ENV !== "production") {

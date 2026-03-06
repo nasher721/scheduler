@@ -1,0 +1,158 @@
+{
+  "namespace": "nicu-schedule",
+  "timestamp": 1772815374925,
+  "entries": [
+    {
+      "key": "forecast:2024-03-15:3",
+      "value": {
+        "generatedAt": 1772815104936,
+        "startDate": "2024-03-15",
+        "days": 3,
+        "forecast": [
+          {
+            "date": "2024-03-15",
+            "dayOfWeek": 4,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 3,
+              "optimal": 4,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 3,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "high",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-16",
+            "dayOfWeek": 5,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-17",
+            "dayOfWeek": 6,
+            "isWeekend": true,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": []
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": []
+            },
+            "nmEtShift": {
+              "required": 0,
+              "optimal": 0,
+              "skills": [
+                "general"
+              ],
+              "factors": []
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "low",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          }
+        ]
+      },
+      "version": 1,
+      "timestamp": 1772815104936,
+      "source": "server",
+      "ttl": null
+    }
+  ]
+}

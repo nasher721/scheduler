@@ -19,6 +19,7 @@ import { ConflictDashboard } from "./components/ConflictDashboard";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { PredictiveInsights } from "./components/PredictiveInsights";
 import { ScheduleTemplates } from "./components/ScheduleTemplates";
+import { AITestPanel } from "./components/AITestPanel";
 import { ScheduleWorkspace } from "./components/schedule/ScheduleWorkspace";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { useNetworkStatus } from "./hooks/usePWA";
@@ -625,6 +626,8 @@ export default function App() {
                     <PredictiveInsights />
                   ) : viewMode === "templates" ? (
                     <ScheduleTemplates />
+                  ) : viewMode === "ai-test" ? (
+                    <AITestPanel />
                   ) : (
                     <ScheduleWorkspace />
                   )}
