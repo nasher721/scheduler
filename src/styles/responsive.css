@@ -1,0 +1,308 @@
+/* =============================================================================
+   Mobile Responsiveness & Touch Optimizations
+   ============================================================================= */
+
+/* Mobile-first responsive utilities */
+@layer utilities {
+  /* Touch-friendly tap targets (minimum 44x44px) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .touch-target-sm {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Smooth scrolling for touch devices */
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   Mobile Layout Adjustments
+   ============================================================================= */
+
+@media (max-width: 767px) {
+  /* Stack layouts vertically on mobile */
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  /* Full width on mobile */
+  .mobile-full {
+    width: 100% !important;
+  }
+
+  /* Hide on mobile */
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  /* Show only on mobile */
+  .mobile-only {
+    display: block !important;
+  }
+
+  /* Reduce padding on mobile */
+  .mobile-compact {
+    padding: 0.5rem !important;
+  }
+
+  /* Smaller text on mobile */
+  .mobile-text-sm {
+    font-size: 0.875rem !important;
+  }
+
+  /* Touch-optimized buttons */
+  .mobile-btn {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+  }
+
+  /* Calendar adjustments for mobile */
+  .calendar-mobile .calendar-grid {
+    grid-template-columns: repeat(1, 1fr);
+  }
+
+  .calendar-mobile .calendar-day {
+    min-height: 80px;
+  }
+
+  /* Provider list on mobile */
+  .provider-list-mobile {
+    flex-direction: row;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .provider-list-mobile > * {
+    flex-shrink: 0;
+    min-width: 120px;
+  }
+
+  /* Shift slot mobile adjustments */
+  .shift-slot-mobile {
+    min-height: 60px;
+    padding: 0.5rem;
+  }
+
+  /* Bottom sheet style modal on mobile */
+  .modal-mobile {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    max-height: 90vh;
+    border-radius: 1rem 1rem 0 0;
+    margin: 0;
+    animation: slide-up 0.3s ease-out;
+  }
+
+  /* FAB (Floating Action Button) for mobile */
+  .fab-mobile {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 50;
+  }
+
+  /* Mobile navigation drawer */
+  .nav-drawer-mobile {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: hsl(var(--surface));
+    border-top: 1px solid hsl(var(--border));
+    padding: 0.5rem;
+    z-index: 40;
+    display: flex;
+    justify-content: space-around;
+  }
+
+  /* Safe area insets for notched devices */
+  .safe-area-inset {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+}
+
+/* =============================================================================
+   Tablet Layout Adjustments
+   ============================================================================= */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tablet-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tablet-hidden {
+    display: none !important;
+  }
+}
+
+/* =============================================================================
+   Desktop Layout Adjustments
+   ============================================================================= */
+
+@media (min-width: 1024px) {
+  .desktop-hidden {
+    display: none !important;
+  }
+
+  .desktop-only {
+    display: block !important;
+  }
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Larger touch targets on touch devices */
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  a {
+    min-height: 44px;
+  }
+
+  /* Disable hover effects on touch devices */
+  .hover\:scale-105:hover,
+  .hover\:shadow-lg:hover {
+    transform: none;
+  }
+
+  /* Enable momentum scrolling */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Remove focus outline on touch (keep for accessibility) */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* =============================================================================
+   Orientation Adjustments
+   ============================================================================= */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Landscape mode on small devices (phones) */
+  .landscape-compact {
+    padding: 0.25rem;
+  }
+
+  .landscape-hidden {
+    display: none !important;
+  }
+}
+
+/* =============================================================================
+   Print Styles
+   ============================================================================= */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Ensure backgrounds print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* =============================================================================
+   Reduced Motion Preferences
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-pop-in {
+    animation: none !important;
+  }
+}
+
+/* =============================================================================
+   Dark Mode Adjustments for Mobile
+   ============================================================================= */
+
+@media (prefers-color-scheme: dark) and (max-width: 767px) {
+  .mobile-dark-adjust {
+    background: hsl(var(--background));
+  }
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
