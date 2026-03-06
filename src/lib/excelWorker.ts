@@ -137,7 +137,7 @@ const parseProviderCell = (value: unknown): ParsedAssignment | null => {
 
   // Split on common separators: &, and, /, +
   const providers = rawValue
-    .split(/(?:\s*&\s*|\s+and\+|\s*\/\s*|\s*\+\s*)/i)
+    .split(/(?:\s*&\s*|\s+and\s+|\s*\/\s*|\s*\+\s*)/i)
     .map((entry) => normalizeProviderName(entry.trim()))
     .filter(Boolean);
 

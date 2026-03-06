@@ -55,6 +55,17 @@ const isArray = (value) => Array.isArray(value);
 
 const VALID_CREDENTIAL_STATUSES = new Set(["active", "expiring_soon", "expired", "pending_verification"]);
 
+// ISO 8601 date regex (YYYY-MM-DD format)
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDateString(dateStr) {
+  if (typeof dateStr !== "string" || !DATE_REGEX.test(dateStr)) {
+    return false;
+  }
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime());
+}
+
 function validateCredentials(payload) {
   const providers = isArray(payload?.providers) ? payload.providers : [];
 
@@ -68,15 +79,78 @@ function validateCredentials(payload) {
       if (typeof credential.credentialType !== "string" || credential.credentialType.trim() === "") {
         return `Provider ${provider.id || "unknown"} credentials require \"credentialType\".`;
       }
-      if (credential.issuedAt !== undefined && typeof credential.issuedAt !== "string") {
-        return `Provider ${provider.id || "unknown"} credential \"issuedAt\" must be a string.`;
+      
+      // Validate issuedAt date format if provided
+      if (credential.issuedAt !== undefined) {
+        if (typeof credential.issuedAt !== "string") {
+          return `Provider ${provider.id || "unknown"} credential \"issuedAt\" must be a string.`;
+        }
+        if (credential.issuedAt && !isValidDateString(credential.issuedAt)) {
+          return `Provider ${provider.id || "unknown"} credential \"issuedAt\" must be in YYYY-MM-DD format.`;
+        }
       }
-      if (credential.expiresAt !== undefined && typeof credential.expiresAt !== "string") {
-        return `Provider ${provider.id || "unknown"} credential \"expiresAt\" must be a string.`;
+      
+      // Validate expiresAt date format if provided
+      if (credential.expiresAt !== undefined) {
+        if (typeof credential.expiresAt !== "string") {
+          return `Provider ${provider.id || "unknown"} credential \"expiresAt\" must be a string.`;
+        }
+        if (credential.expiresAt && !isValidDateString(credential.expiresAt)) {
+          return `Provider ${provider.id || "unknown"} credential \"expiresAt\" must be in YYYY-MM-DD format.`;
+        }
       }
-      if (!VALID_CREDENTIAL_STATUSES.has(credential.status)) {
-        return `Provider ${provider.id || "unknown"} credential has invalid \"status\".`;
+      
+      // Validate status - case-insensitive check with normalization
+      if (typeof credential.status !== "string") {
+        return `Provider ${provider.id || "unknown"} credential \"status\" must be a string.`;
       }
+      const normalizedStatus = credential.status.toLowerCase().trim();
+      if (!VALID_CREDENTIAL_STATUSES.has(normalizedStatus)) {
+        return `Provider ${provider.id || "unknown"} credential has invalid \"status\". Must be one of: ${Array.from(VALID_CREDENTIAL_STATUSES).join(", ")}`;
+      }
+    }
+  }
+
+  return null;
+}
+
+const VALID_SHIFT_TYPES = new Set(["DAY", "NIGHT", "NMET", "JEOPARDY", "RECOVERY", "CONSULTS", "VACATION"]);
+const VALID_SLOT_PRIORITIES = new Set(["CRITICAL", "STANDARD"]);
+const VALID_LOCATION_GROUPS = new Set(["MAIN_CAMPUS_UNIT", "MAIN_CAMPUS_SERVICE", "AKRON_UNIT", "SUPPORT_SERVICE"]);
+const VALID_SERVICE_PRIORITIES = new Set(["CRITICAL", "STANDARD", "FLEXIBLE"]);
+
+function validateSlots(payload) {
+  if (!isArray(payload?.slots)) return null; // Let the main validation handle missing slots
+
+  for (const slot of payload.slots) {
+    if (!slot || typeof slot !== "object") return "Each slot must be an object.";
+    if (typeof slot.id !== "string" || !slot.id.trim()) {
+      return "Each slot must have a non-empty \"id\" string.";
+    }
+    if (typeof slot.date !== "string" || !isValidDateString(slot.date)) {
+      return `Slot ${slot.id || "unknown"} must have a valid \"date\" in YYYY-MM-DD format.`;
+    }
+    if (!VALID_SHIFT_TYPES.has(slot.type)) {
+      return `Slot ${slot.id || "unknown"} has invalid \"type\". Must be one of: ${Array.from(VALID_SHIFT_TYPES).join(", ")}`;
+    }
+    if (typeof slot.requiredSkill !== "string" || !slot.requiredSkill.trim()) {
+      return `Slot ${slot.id || "unknown"} must have a non-empty \"requiredSkill\".`;
+    }
+    if (!VALID_SLOT_PRIORITIES.has(slot.priority)) {
+      return `Slot ${slot.id || "unknown"} has invalid \"priority\". Must be one of: ${Array.from(VALID_SLOT_PRIORITIES).join(", ")}`;
+    }
+    if (typeof slot.location !== "string" || !slot.location.trim()) {
+      return `Slot ${slot.id || "unknown"} must have a non-empty \"location\".`;
+    }
+    if (slot.locationGroup !== undefined && !VALID_LOCATION_GROUPS.has(slot.locationGroup)) {
+      return `Slot ${slot.id || "unknown"} has invalid \"locationGroup\".`;
+    }
+    if (slot.servicePriority !== undefined && !VALID_SERVICE_PRIORITIES.has(slot.servicePriority)) {
+      return `Slot ${slot.id || "unknown"} has invalid \"servicePriority\".`;
+    }
+    // providerId can be null or a string
+    if (slot.providerId !== undefined && slot.providerId !== null && typeof slot.providerId !== "string") {
+      return `Slot ${slot.id || "unknown"} must have \"providerId\" as a string or null.`;
     }
   }
 
@@ -100,10 +174,18 @@ function validateStatePayload(payload) {
   }
 
   if (typeof payload.startDate !== "string") return "Field \"startDate\" must be a string.";
-  if (typeof payload.numWeeks !== "number") return "Field \"numWeeks\" must be a number.";
+  if (!isValidDateString(payload.startDate)) {
+    return "Field \"startDate\" must be in YYYY-MM-DD format.";
+  }
+  if (typeof payload.numWeeks !== "number" || payload.numWeeks < 1 || payload.numWeeks > 52 || !Number.isInteger(payload.numWeeks)) {
+    return "Field \"numWeeks\" must be an integer between 1 and 52.";
+  }
 
   const credentialError = validateCredentials(payload);
   if (credentialError) return credentialError;
+
+  const slotError = validateSlots(payload);
+  if (slotError) return slotError;
 
   return null;
 }

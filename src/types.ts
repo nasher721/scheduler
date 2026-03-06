@@ -146,3 +146,88 @@ export interface PersistedScheduleState {
     auditLog: AuditLogEntry[];
     dayHandoffs?: DayHandoff[];
 }
+
+// Copilot types - exported from here to avoid duplication
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  intent?: string;
+  confidence?: number;
+  suggestions?: string[];
+  requiresConfirmation?: boolean;
+  preview?: unknown;
+  actions?: unknown[];
+}
+
+export interface CopilotContext {
+  viewType?: 'week' | 'month';
+  selectedDate?: string | null;
+  selectedProviderId?: string | null;
+  userRole?: 'ADMIN' | 'SCHEDULER' | 'CLINICIAN';
+  visibleProviderCount?: number;
+}
+
+export interface CopilotConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: CopilotMessage[];
+  context?: {
+    viewType?: string;
+    selectedDate?: string | null;
+    userRole?: string;
+  };
+}
+
+export interface CopilotFeedbackEntry {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  intent: string;
+  action: 'accepted' | 'rejected' | 'modified' | 'ignored';
+  timestamp: string;
+  context?: Record<string, unknown>;
+}
+
+// Notification types
+export type NotificationSeverity = 'info' | 'warning' | 'critical';
+
+export interface NotificationRecord {
+  id: string;
+  eventType: string;
+  title: string;
+  body: string;
+  severity: NotificationSeverity;
+  channels: string[];
+  statusByChannel: Record<string, string>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+// API types
+export type ShiftRequestType = 'time_off' | 'swap' | 'availability';
+export type ShiftRequestStatus = 'pending' | 'approved' | 'denied';
+
+export interface ShiftRequest {
+  id: string;
+  providerName: string;
+  providerEmail?: string;
+  date: string;
+  type: ShiftRequestType;
+  notes: string;
+  status: ShiftRequestStatus;
+  source?: 'app' | 'email';
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+}
+
+export interface EmailEvent {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+}

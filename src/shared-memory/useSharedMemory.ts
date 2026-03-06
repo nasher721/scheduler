@@ -41,17 +41,28 @@ export function useSharedMemory<T>(key: string): [T | undefined, (value: T) => v
 export function useSharedMemoryWatch<T extends Record<string, any>>(
   keys: string[]
 ): Partial<T> {
+  // Sort keys to ensure stable dependency array regardless of order
+  const sortedKeys = useRef(keys.sort());
+  
+  // Update ref if keys actually change (ignoring order)
+  useEffect(() => {
+    const newSorted = [...keys].sort();
+    if (JSON.stringify(newSorted) !== JSON.stringify(sortedKeys.current)) {
+      sortedKeys.current = newSorted;
+    }
+  }, [keys]);
+
   const [values, setValues] = useState<Partial<T>>(() => {
     const initial: Partial<T> = {};
-    for (const key of keys) {
+    for (const key of sortedKeys.current) {
       (initial as any)[key] = sharedMemory.get(key);
     }
     return initial;
   });
 
   useEffect(() => {
-    return watch<T>(keys, setValues);
-  }, [keys.join(',')]);
+    return watch<T>(sortedKeys.current, setValues);
+  }, [sortedKeys.current.join(',')]);
 
   return values;
 }
@@ -147,20 +158,49 @@ export function useMemoryHistory(limit?: number): MemoryChangeEvent[] {
 /**
  * Hook for optimistic updates
  */
-export function useOptimisticUpdate<T>(key: string): {
+export function useOptimisticUpdate<T>(
+  key: string,
+  options: { 
+    syncDuration?: number;
+    onError?: (error: Error) => void;
+    onSuccess?: () => void;
+  } = {}
+): {
   value: T | undefined;
   update: (updater: (current: T | undefined) => T) => Promise<void>;
   isPending: boolean;
   error: Error | null;
   rollback: () => void;
+  resetError: () => void;
 } {
+  const { syncDuration = 500, onError, onSuccess } = options;
   const [value, setValue] = useSharedMemory<T>(key);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const rollbackValue = useRef<T | undefined>(undefined);
+  const abortController = useRef<AbortController | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+    };
+  }, []);
+
+  const resetError = useCallback(() => {
+    setError(null);
+  }, []);
 
   const update = useCallback(
     async (updater: (current: T | undefined) => T) => {
+      // Cancel any pending operation
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+      abortController.current = new AbortController();
+      
       setIsPending(true);
       setError(null);
 
@@ -173,18 +213,30 @@ export function useOptimisticUpdate<T>(key: string): {
 
       try {
         // Simulate server sync (replace with actual API call)
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(resolve, syncDuration);
+          
+          abortController.current?.signal.addEventListener('abort', () => {
+            clearTimeout(timeout);
+            reject(new Error('Operation aborted'));
+          });
+        });
+        
         setIsPending(false);
+        onSuccess?.();
       } catch (err) {
-        setError(err as Error);
-        setIsPending(false);
-        // Revert on error
-        if (rollbackValue.current !== undefined) {
-          sharedMemory.set(key, rollbackValue.current, { source: 'rollback' });
+        if ((err as Error).message !== 'Operation aborted') {
+          setError(err as Error);
+          onError?.(err as Error);
+          setIsPending(false);
+          // Revert on error
+          if (rollbackValue.current !== undefined) {
+            sharedMemory.set(key, rollbackValue.current, { source: 'rollback' });
+          }
         }
       }
     },
-    [key, value]
+    [key, value, syncDuration, onSuccess, onError]
   );
 
   const rollback = useCallback(() => {
@@ -193,7 +245,7 @@ export function useOptimisticUpdate<T>(key: string): {
     }
   }, [key]);
 
-  return { value, update, isPending, error, rollback };
+  return { value, update, isPending, error, rollback, resetError };
 }
 
 /**
@@ -204,12 +256,13 @@ export function useCollaborativeCursor(userId: string): {
   updateCursor: (x: number, y: number) => void;
 } {
   const [cursors, setCursors] = useState<Record<string, { x: number; y: number; timestamp: number }>>({});
+  const staleTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cursorKey = `cursor:${userId}`;
 
   useEffect(() => {
     // Subscribe to all cursor updates
-    return eventBus.on('memory:change', (event: MemoryChangeEvent) => {
+    const unsubscribe = eventBus.on('memory:change', (event: MemoryChangeEvent) => {
       if (event.key.startsWith('cursor:') && event.key !== cursorKey) {
         const otherUserId = event.key.replace('cursor:', '');
         setCursors((prev) => ({
@@ -218,6 +271,29 @@ export function useCollaborativeCursor(userId: string): {
         }));
       }
     });
+
+    // Cleanup stale cursors periodically
+    staleTimeoutRef.current = setInterval(() => {
+      const now = Date.now();
+      setCursors((prev) => {
+        const updated = { ...prev };
+        let hasChanges = false;
+        for (const [id, cursor] of Object.entries(updated)) {
+          if (now - cursor.timestamp > 10000) { // 10 second stale threshold
+            delete updated[id];
+            hasChanges = true;
+          }
+        }
+        return hasChanges ? updated : prev;
+      });
+    }, 5000);
+
+    return () => {
+      unsubscribe();
+      if (staleTimeoutRef.current) {
+        clearInterval(staleTimeoutRef.current);
+      }
+    };
   }, [userId, cursorKey]);
 
   const updateCursor = useCallback(

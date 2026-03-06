@@ -7,7 +7,8 @@ export * from "./types";
 import {
   ShiftType, ProviderCredential, CredentialStatus,
   Provider, CustomRule, ShiftSlot, ScenarioSnapshot, AuditLogEntry,
-  LocationGroup, ServicePriority, ServiceLocation
+  LocationGroup, ServicePriority, ServiceLocation,
+  type CopilotMessage, type CopilotConversation, type CopilotFeedbackEntry
 } from "./types";
 
 export interface ProviderCounts {
@@ -239,43 +240,7 @@ interface HistoryState {
   dayHandoffs?: import("./types").DayHandoff[];
 }
 
-// Copilot Conversation Types
-export interface CopilotMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  intent?: string;
-  confidence?: number;
-  suggestions?: string[];
-  requiresConfirmation?: boolean;
-  /** Preview data returned by copilot action (e.g. schedule diff) */
-  preview?: unknown;
-  actions?: unknown[];
-}
-
-export interface CopilotConversation {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  messages: CopilotMessage[];
-  context?: {
-    viewType?: string;
-    selectedDate?: string | null;
-    userRole?: string;
-  };
-}
-
-export interface CopilotFeedbackEntry {
-  id: string;
-  conversationId: string;
-  messageId: string;
-  intent: string;
-  action: 'accepted' | 'rejected' | 'modified' | 'ignored';
-  timestamp: string;
-  context?: Record<string, unknown>;
-}
+// Copilot types are now imported from ./types
 
 export type ScheduleSurfaceView = "calendar" | "excel";
 export type CalendarPresentationMode = "grid" | "list" | "timeline" | "month" | "bar" | "week";
