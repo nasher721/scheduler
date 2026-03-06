@@ -15,6 +15,7 @@ import {
   ChevronDown,
   StickyNote,
   Save,
+  Bed,
 } from "lucide-react";
 
 interface ShiftEditModalProps {
@@ -28,7 +29,9 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
   // ── Live slot from the store (always up-to-date) ──────────────────────
   const slot = useScheduleStore((s) => s.slots.find((sl) => sl.id === slotId) ?? null);
   const providers = useScheduleStore((s) => s.providers);
+  const slots = useScheduleStore((s) => s.slots);
   const assignShift = useScheduleStore((s) => s.assignShift);
+  const showToast = useScheduleStore((s) => s.showToast);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [showConfirmRemove, setShowConfirmRemove] = useState(false);
@@ -103,6 +106,32 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
     setShowConfirmRemove(false);
   };
 
+  const handleAssignOffService = () => {
+    if (!currentProvider) return;
+
+    const offServiceSlot = slots.find(
+      (candidate) => candidate.date === slot.date && candidate.type === "VACATION"
+    );
+
+    if (!offServiceSlot) {
+      showToast({
+        type: "error",
+        title: "Off Service Unavailable",
+        message: "No off service slot is available for this date.",
+      });
+      return;
+    }
+
+    assignShift(offServiceSlot.id, currentProvider.id);
+    assignShift(slot.id, null);
+    showToast({
+      type: "success",
+      title: "Assigned to Off Service",
+      message: `${currentProvider.name} was moved to off service on ${format(parseISO(slot.date), "MMM d")}.`,
+    });
+    setShowConfirmRemove(false);
+  };
+
   const shiftTypeLabels: Record<string, string> = {
     DAY: "Day Shift",
     NIGHT: "Night Shift",
@@ -110,7 +139,7 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
     JEOPARDY: "Jeopardy",
     RECOVERY: "Recovery",
     CONSULTS: "Consults",
-    VACATION: "Vacation",
+    VACATION: "Off Service",
   };
 
   const priorityColors: Record<string, { bg: string; border: string; text: string }> = {
@@ -281,6 +310,16 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
+                        {slot.type !== "VACATION" && (
+                          <button
+                            type="button"
+                            onClick={handleAssignOffService}
+                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0"
+                            title="Assign to off service"
+                          >
+                            <Bed className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
 
                       {/* Secondary Providers */}
