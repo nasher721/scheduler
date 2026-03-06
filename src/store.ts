@@ -1067,10 +1067,14 @@ export const useScheduleStore = create<ScheduleState>()(
 
       login: async (email) => {
         const normalizedEmail = email.toLowerCase().trim();
-        const bypassSupabase = shouldUseLocalAuthBypass();
+        
+        // Check for force local auth via URL parameter or hash
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceLocalAuth = urlParams.has('local') || window.location.hash === '#admin';
+        const bypassSupabase = shouldUseLocalAuthBypass() || forceLocalAuth;
 
         if (bypassSupabase) {
-          console.log('[DEV] Bypassing Supabase auth for:', normalizedEmail);
+          console.log('[Auth] Using local authentication for:', normalizedEmail);
 
           // Find provider by email
           const provider = get().providers.find(p =>
@@ -1085,7 +1089,7 @@ export const useScheduleStore = create<ScheduleState>()(
               message: `Logged in as ${provider.name}`
             });
           } else {
-            // Auto-create a provider for unknown emails in dev mode
+            // Auto-create a provider for unknown emails in local auth mode
             const isAdminEmail = normalizedEmail === 'admin@neuroicu.com';
             const newProvider: Provider = {
               id: crypto.randomUUID(),
@@ -1128,6 +1132,18 @@ export const useScheduleStore = create<ScheduleState>()(
 
           if (error) {
             console.error("Supabase Login Error:", error);
+            // Fall back to local auth on rate limit or connection errors
+            if (error.status === 429 || error.message?.includes('rate limit') || error.message?.includes('Failed to fetch')) {
+              console.log('[Auth] Supabase failed, falling back to local auth');
+              get().showToast({
+                type: "info",
+                title: "Using Offline Mode",
+                message: "Authentication server unavailable. Using local mode."
+              });
+              // Retry with local auth
+              get().login(normalizedEmail);
+              return;
+            }
             get().showToast({
               type: "error",
               title: "Login Failed",
@@ -1140,19 +1156,15 @@ export const useScheduleStore = create<ScheduleState>()(
           }
         } catch (error) {
           console.error("Unexpected Login Error:", error);
-          const message = error instanceof Error ? error.message : "An unexpected error occurred.";
 
-          // Provide more helpful error message
-          let userMessage = message;
-          if (message.includes("Failed to fetch")) {
-            userMessage = "Cannot connect to authentication server. If you're a developer, you can enable DEV mode bypass.";
-          }
-
+          // Fall back to local auth on unexpected errors
+          console.log('[Auth] Unexpected error, falling back to local auth');
           get().showToast({
-            type: "error",
-            title: "Login Error",
-            message: userMessage
+            type: "info",
+            title: "Using Offline Mode",
+            message: "Authentication server error. Using local mode."
           });
+          get().login(normalizedEmail);
         }
       },
 

@@ -173,6 +173,9 @@ async function readState() {
     location: s.location,
     secondaryProviderIds: s.secondary_provider_ids || [],
     isSharedAssignment: s.is_shared_assignment || false,
+    locationGroup: s.location_group,
+    servicePriority: s.service_priority,
+    serviceLocation: s.service_location,
   }));
 
   return {
@@ -230,6 +233,9 @@ async function writeState(state) {
       location: s.location,
       secondary_provider_ids: s.secondaryProviderIds || [],
       is_shared_assignment: s.isSharedAssignment || false,
+      location_group: s.locationGroup,
+      service_priority: s.servicePriority,
+      service_location: s.serviceLocation,
     }));
 
     for (let i = 0; i < slotsToUpsert.length; i += 500) {
