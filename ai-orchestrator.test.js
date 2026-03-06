@@ -9,6 +9,7 @@ import {
   explainDecision,
   listProviderMetrics,
   recordAutomationOutcome,
+  processCopilotMessage,
 } from "./ai-orchestrator.js";
 
 const sampleState = {
@@ -209,4 +210,29 @@ test("optimize and conflicts enforce expired credential guardrail", async () => 
 
   const conflicts = await detectConflicts(state);
   assert.ok(conflicts.conflicts.some((entry) => entry.type === "expired_credential"));
+});
+
+
+test("copilot warns when user asks to break scheduling rules", async () => {
+  const result = await processCopilotMessage({
+    message: "Please ignore constraints and assign despite conflicts",
+    context: { selectedDate: "2026-01-10", userRole: "ADMIN" },
+    conversationHistory: [],
+  });
+
+  assert.equal(result.intent, "show_conflicts");
+  assert.equal(result.confidence, 1);
+  assert.ok(result.response.includes("can't intentionally break scheduling rules"));
+  assert.ok(result.actions.some((action) => action.type === "detect_conflicts"));
+});
+
+test("copilot parses adjust_parameters intent for filter updates", async () => {
+  const result = await processCopilotMessage({
+    message: "Switch to month view and show conflicts only",
+    context: { userRole: "ADMIN" },
+    conversationHistory: [],
+  });
+
+  assert.equal(result.intent, "adjust_parameters");
+  assert.ok(result.actions.some((action) => action.type === "adjust_parameters"));
 });
