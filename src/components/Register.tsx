@@ -15,8 +15,8 @@ export function Register({ onBackToLogin }: RegisterProps) {
         role: "CLINICIAN" as "ADMIN" | "SCHEDULER" | "CLINICIAN",
         targetWeekDays: 10,
         targetWeekendDays: 4,
-        targetWeekNights: 3,
-        targetWeekendNights: 2,
+        targetWeekNights: 5,
+        targetWeekendNights: 5,
         skills: ["NEURO_CRITICAL"] as string[],
         timeOffRequests: [],
         preferredDates: [],
@@ -32,7 +32,7 @@ export function Register({ onBackToLogin }: RegisterProps) {
     };
 
     const setNumericField = (
-        field: "targetWeekDays" | "targetWeekendDays" | "targetWeekNights" | "targetWeekendNights",
+        field: "targetWeekDays" | "targetWeekendDays" | "targetWeekNights",
         value: string,
     ) => {
         const parsed = Number.parseInt(value, 10);
@@ -132,7 +132,7 @@ export function Register({ onBackToLogin }: RegisterProps) {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex flex-col gap-1.5">
-                                        <label htmlFor="targetWeekDays" className="text-[9px] font-bold text-slate-500 uppercase">Week Days</label>
+                                        <label htmlFor="targetWeekDays" className="text-[9px] font-bold text-slate-500 uppercase">FTE Weeks (Mon-Fri)</label>
                                         <input
                                             id="targetWeekDays"
                                             type="number"
@@ -143,7 +143,7 @@ export function Register({ onBackToLogin }: RegisterProps) {
                                         />
                                     </div>
                                     <div className="flex flex-col gap-1.5">
-                                        <label htmlFor="targetWeekendDays" className="text-[9px] font-bold text-slate-500 uppercase">Weekend</label>
+                                        <label htmlFor="targetWeekendDays" className="text-[9px] font-bold text-slate-500 uppercase">FTE Weekends (Sat-Sun)</label>
                                         <input
                                             id="targetWeekendDays"
                                             type="number"
@@ -154,26 +154,19 @@ export function Register({ onBackToLogin }: RegisterProps) {
                                         />
                                     </div>
                                     <div className="flex flex-col gap-1.5">
-                                        <label htmlFor="targetWeekNights" className="text-[9px] font-bold text-slate-500 uppercase">Week Nights</label>
+                                        <label htmlFor="targetWeekNights" className="text-[9px] font-bold text-slate-500 uppercase">FTE Nights</label>
                                         <input
                                             id="targetWeekNights"
                                             type="number"
                                             min={0}
                                             value={formData.targetWeekNights}
-                                            onChange={(e) => setNumericField("targetWeekNights", e.target.value)}
+                                            onChange={(e) => { setNumericField("targetWeekNights", e.target.value); const parsed = Number.parseInt(e.target.value, 10); if (!Number.isNaN(parsed)) setFormData((prev) => ({ ...prev, targetWeekendNights: Math.max(0, parsed) })); }}
                                             className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold w-full"
                                         />
                                     </div>
                                     <div className="flex flex-col gap-1.5">
-                                        <label htmlFor="targetWeekendNights" className="text-[9px] font-bold text-slate-500 uppercase">Wkd Nights</label>
-                                        <input
-                                            id="targetWeekendNights"
-                                            type="number"
-                                            min={0}
-                                            value={formData.targetWeekendNights}
-                                            onChange={(e) => setNumericField("targetWeekendNights", e.target.value)}
-                                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold w-full"
-                                        />
+                                        <label className="text-[9px] font-bold text-slate-500 uppercase">Recovery</label>
+                                        <div className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] text-slate-500">Nights auto-block recovery days and do not add FTE.</div>
                                     </div>
                                 </div>
 

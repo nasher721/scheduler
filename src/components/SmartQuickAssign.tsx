@@ -79,10 +79,8 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
           isUnderTarget = weekDays < provider.targetWeekDays;
         } else if (isDayShift && isWeekend) {
           isUnderTarget = weekDays < provider.targetWeekendDays;
-        } else if (!isDayShift && !isWeekend) {
-          isUnderTarget = weekNights < provider.targetWeekNights;
         } else {
-          isUnderTarget = weekNights < provider.targetWeekendNights;
+          isUnderTarget = weekNights < provider.targetWeekNights;
         }
 
         // Calculate score (0-100)
@@ -116,7 +114,7 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
             days: weekDays,
             nights: weekNights,
             targetDays: isWeekend ? provider.targetWeekendDays : provider.targetWeekDays,
-            targetNights: isWeekend ? provider.targetWeekendNights : provider.targetWeekNights,
+            targetNights: provider.targetWeekNights,
           }
         };
       })
@@ -304,14 +302,10 @@ export function ProviderWorkloadBadge({ providerId, slot }: ProviderWorkloadBadg
     current = weekendDays;
     target = provider.targetWeekendDays;
     label = "Wknd Days";
-  } else if (!isDayShift && !isWeekend) {
-    current = weekNights;
-    target = provider.targetWeekNights;
-    label = "Week Nights";
   } else {
-    current = weekendNights;
-    target = provider.targetWeekendNights;
-    label = "Wknd Nights";
+    current = weekNights + weekendNights;
+    target = provider.targetWeekNights;
+    label = "FTE Nights";
   }
 
   const percentage = target > 0 ? (current / target) * 100 : 0;

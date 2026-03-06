@@ -182,8 +182,7 @@ export default function App() {
     return c && (
       c.weekDays > p.targetWeekDays
       || c.weekendDays > p.targetWeekendDays
-      || c.weekNights > p.targetWeekNights
-      || c.weekendNights > p.targetWeekendNights
+      || (c.weekNights + c.weekendNights) > p.targetWeekNights
     );
   });
   const criticalUnfilled = slots.filter((slot) => slot.priority === "CRITICAL" && !slot.providerId).length;
@@ -192,7 +191,7 @@ export default function App() {
     const provider = providers.find((p) => p.id === slot.providerId);
     return provider ? !provider.skills.includes(slot.requiredSkill) : false;
   }).length;
-  const fatigueExposure = providers.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights + p.targetWeekendNights).length;
+  const fatigueExposure = providers.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights).length;
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
