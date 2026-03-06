@@ -79,10 +79,11 @@ export function AnalyticsDashboard() {
                             <thead>
                                 <tr className="bg-slate-50/80 border-b border-slate-200/60 text-slate-400 font-bold uppercase tracking-widest">
                                     <th className="px-5 py-4">Provider Entity</th>
+                                    <th className="px-5 py-4 text-center">Week (D/N)</th>
+                                    <th className="px-5 py-4 text-center">Weekend (D/N)</th>
                                     <th className="px-5 py-4 text-center">Load</th>
                                     <th className="px-5 py-4 text-center">Target</th>
                                     <th className="px-5 py-4 text-center">Variance</th>
-                                    <th className="px-5 py-4 text-right">Off-Hours</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -91,12 +92,20 @@ export function AnalyticsDashboard() {
                                     if (!c) return null;
 
                                     const cTotal = c.weekDays + c.weekendDays + c.weekNights + c.weekendNights;
-                                    const totalTarget = p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights;
+                                    const weekTarget = p.targetWeekDays + p.targetWeekNights;
+                                    const weekendTarget = p.targetWeekendDays + p.targetWeekendNights;
+                                    const totalTarget = weekTarget + weekendTarget;
                                     const variance = cTotal - totalTarget;
 
                                     return (
                                         <tr key={p.id} className="border-b border-slate-100/60 last:border-0 hover:bg-white/60 transition-colors group">
                                             <td className="px-5 py-4 font-bold text-slate-700">{p.name}</td>
+                                            <td className="px-5 py-4 text-center font-bold text-slate-600">
+                                                {c.weekDays}/{c.weekNights}
+                                            </td>
+                                            <td className="px-5 py-4 text-center font-bold text-slate-600">
+                                                {c.weekendDays}/{c.weekendNights}
+                                            </td>
                                             <td className="px-5 py-4 text-center font-bold text-slate-600">
                                                 {cTotal}
                                             </td>
@@ -112,12 +121,6 @@ export function AnalyticsDashboard() {
                                                                 <Minus className="w-2.5 h-2.5" />}
                                                         {Math.abs(variance)}
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-4 text-right">
-                                                <div className="flex flex-col items-end">
-                                                    <span className="font-bold text-slate-600">W:{c.weekendDays + c.weekendNights}</span>
-                                                    <span className="text-[9px] text-slate-400 font-medium tracking-tight">N:{c.weekNights + c.weekendNights}</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -151,12 +154,12 @@ export function AnalyticsDashboard() {
                             if (!c) return null;
 
                             const cTotal = c.weekDays + c.weekendDays + c.weekNights + c.weekendNights;
-                            const overageShifts = cTotal > (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights) ?
-                                cTotal - (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights) : 0;
-                            const overageNights = (c.weekNights + c.weekendNights) > p.targetWeekNights ?
-                                (c.weekNights + c.weekendNights) - p.targetWeekNights : 0;
+                            const totalTarget = p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights;
+                            const overageShifts = cTotal > totalTarget ? cTotal - totalTarget : 0;
+                            const weekNightOverage = c.weekNights > p.targetWeekNights ? c.weekNights - p.targetWeekNights : 0;
+                            const weekendNightOverage = c.weekendNights > p.targetWeekendNights ? c.weekendNights - p.targetWeekendNights : 0;
 
-                            if (overageShifts === 0 && overageNights === 0) return null;
+                            if (overageShifts === 0 && weekNightOverage === 0 && weekendNightOverage === 0) return null;
 
                             return (
                                 <div key={p.id} className="relative group p-5 rounded-2xl border border-error/10 bg-error-muted/30 overflow-hidden transition-all hover:bg-error-muted/50">
@@ -181,10 +184,16 @@ export function AnalyticsDashboard() {
                                                 <span>Significant Load: <strong>+{overageShifts} shifts</strong> over contract target.</span>
                                             </div>
                                         )}
-                                        {overageNights > 0 && (
+                                        {weekNightOverage > 0 && (
                                             <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/50 border border-white/80 text-[11px] font-medium text-slate-600 shadow-xs">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-error" />
-                                                <span>Circadian Strain: <strong>+{overageNights} excessive nights</strong>.</span>
+                                                <span>Circadian Strain (Week): <strong>+{weekNightOverage} excessive nights</strong>.</span>
+                                            </div>
+                                        )}
+                                        {weekendNightOverage > 0 && (
+                                            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/50 border border-white/80 text-[11px] font-medium text-slate-600 shadow-xs">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-error" />
+                                                <span>Circadian Strain (Weekend): <strong>+{weekendNightOverage} excessive nights</strong>.</span>
                                             </div>
                                         )}
                                     </div>
@@ -200,8 +209,9 @@ export function AnalyticsDashboard() {
                             if (!c) return true;
 
                             const cTotal = c.weekDays + c.weekendDays + c.weekNights + c.weekendNights;
-                            return cTotal <= (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights) &&
-                                (c.weekNights + c.weekendNights) <= p.targetWeekNights;
+                            return cTotal <= (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights) &&
+                                c.weekNights <= p.targetWeekNights &&
+                                c.weekendNights <= p.targetWeekendNights;
                         }) && (
                                 <div className="w-full p-6 flex flex-col items-center justify-center text-center gap-2 border-2 border-dashed border-emerald-100 rounded-xl bg-emerald-50/30">
                                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500">
