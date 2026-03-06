@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
 
 /**
  * Hook to announce messages to screen readers
@@ -21,7 +21,7 @@ export function useAnnouncer() {
 /**
  * Hook to manage focus trap within a modal/dialog
  */
-export function useFocusTrap(isActive: boolean, containerRef: React.RefObject<HTMLElement>) {
+export function useFocusTrap(isActive: boolean, containerRef: RefObject<HTMLElement>) {
   useEffect(() => {
     if (!isActive || !containerRef.current) return;
 
@@ -29,7 +29,7 @@ export function useFocusTrap(isActive: boolean, containerRef: React.RefObject<HT
     const focusableElements = container.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    
+
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
 
@@ -41,11 +41,9 @@ export function useFocusTrap(isActive: boolean, containerRef: React.RefObject<HT
           e.preventDefault();
           lastElement?.focus();
         }
-      } else {
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement?.focus();
-        }
+      } else if (document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement?.focus();
       }
     };
 
@@ -118,15 +116,16 @@ export function useHighContrast(): boolean {
 /**
  * Hook for accessible click handling (Enter/Space on focusable elements)
  */
-export function useAccessibleClick(
-  onClick: () => void
-): (e: React.KeyboardEvent) => void {
-  return useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClick();
-    }
-  }, [onClick]);
+export function useAccessibleClick(onClick: () => void): (e: ReactKeyboardEvent) => void {
+  return useCallback(
+    (e: ReactKeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick();
+      }
+    },
+    [onClick]
+  );
 }
 
 /**
@@ -141,7 +140,7 @@ export function useAriaLive(priority: 'polite' | 'assertive' = 'polite') {
     setTimeout(() => setMessage(''), 1000);
   }, []);
 
-  return { message, announce };
+  return { message, announce, priority };
 }
 
 /**
@@ -150,18 +149,8 @@ export function useAriaLive(priority: 'polite' | 'assertive' = 'polite') {
 export function AriaAnnouncer() {
   return (
     <>
-      <div
-        id="aria-announcer-polite"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      />
-      <div
-        id="aria-announcer-assertive"
-        aria-live="assertive"
-        aria-atomic="true"
-        className="sr-only"
-      />
+      <div id="aria-announcer-polite" aria-live="polite" aria-atomic="true" className="sr-only" />
+      <div id="aria-announcer-assertive" aria-live="assertive" aria-atomic="true" className="sr-only" />
     </>
   );
 }
@@ -189,7 +178,7 @@ export function usePageTitle(title: string) {
   useEffect(() => {
     const previousTitle = document.title;
     document.title = `${title} | Neuro ICU Scheduler`;
-    
+
     return () => {
       document.title = previousTitle;
     };
@@ -224,5 +213,3 @@ export function useInputMode() {
 
   return inputMode;
 }
-
-export default useAccessibility;

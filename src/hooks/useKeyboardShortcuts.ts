@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 
 export interface Shortcut {
   key: string;
@@ -194,6 +194,61 @@ export function groupShortcutsByCategory(shortcuts: Shortcut[]): Record<string, 
     acc[category].push(shortcut);
     return acc;
   }, {} as Record<string, Shortcut[]>);
+}
+
+/**
+ * Copilot-specific keyboard shortcuts
+ */
+export function useCopilotKeyboard(
+  isOpen: boolean,
+  onToggle: () => void,
+  onNewConversation: () => void,
+  onFocusInput: () => void
+) {
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const ctrlOrCmd = event.ctrlKey || event.metaKey;
+
+      if (ctrlOrCmd && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        onToggle();
+        return;
+      }
+
+      if (!isOpen) {
+        return;
+      }
+
+      if (ctrlOrCmd && event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        onNewConversation();
+      } else if (event.key === '/' && !event.shiftKey) {
+        event.preventDefault();
+        onFocusInput();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        onToggle();
+      } else if (event.key === '?' && event.shiftKey) {
+        event.preventDefault();
+        setShowHelp((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onToggle, onNewConversation, onFocusInput]);
+
+  return { showHelp, setShowHelp };
+}
+
+/**
+ * Lightweight mobile detection helper for responsive behavior.
+ */
+export function useMobileDetect() {
+  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  return { isMobile };
 }
 
 export default useKeyboardShortcuts;

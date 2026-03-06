@@ -178,3 +178,42 @@ export async function submitInboundEmail(payload: {
   console.warn("[submitInboundEmail] Email logged but missing providerName/date/type — skipping shift request creation.");
   return { ok: true };
 }
+
+
+export async function deleteShiftRequest(id: string): Promise<{ ok: boolean }> {
+  const { error } = await supabase.from("shift_requests").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(`Failed to delete shift request: ${error.message}`);
+  }
+
+  return { ok: true };
+}
+
+export async function updateEmailEvent(
+  id: string,
+  payload: Partial<Pick<EmailEvent, "status" | "type" | "raw_payload">>
+): Promise<{ event: EmailEvent }> {
+  const { data, error } = await supabase
+    .from("email_events")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update email event: ${error.message}`);
+  }
+
+  return { event: data as EmailEvent };
+}
+
+export async function deleteEmailEvent(id: string): Promise<{ ok: boolean }> {
+  const { error } = await supabase.from("email_events").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(`Failed to delete email event: ${error.message}`);
+  }
+
+  return { ok: true };
+}
