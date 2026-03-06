@@ -119,10 +119,8 @@ export function ProviderAvailabilityPanel({
         wouldExceedTarget = true;
       } else if (isDayShift && isWeekend && currentLoad.weekendDays >= provider.targetWeekendDays) {
         wouldExceedTarget = true;
-      } else if (!isDayShift && !isWeekend && currentLoad.weekNights >= provider.targetWeekNights) {
-        wouldExceedTarget = true;
-      } else if (!isDayShift && isWeekend && currentLoad.weekendNights >= provider.targetWeekendNights) {
-        wouldExceedTarget = true;
+      } else if (!isDayShift) {
+        wouldExceedTarget = (currentLoad.weekNights + currentLoad.weekendNights) >= provider.targetWeekNights;
       }
 
       if (wouldExceedTarget) {
@@ -266,7 +264,7 @@ export function ProviderAvailabilityPanel({
               <div className="space-y-3">
                 {filteredAvailabilities.map(({ provider, isAvailable, currentLoad, hasSkill, conflicts }) => {
                   const totalLoad = currentLoad.weekDays + currentLoad.weekendDays + currentLoad.weekNights + currentLoad.weekendNights;
-                  const targetTotal = provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights + provider.targetWeekendNights;
+                  const targetTotal = provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights;
                   const loadPercentage = targetTotal > 0 ? (totalLoad / targetTotal) * 100 : 0;
 
                   return (

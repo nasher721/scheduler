@@ -210,7 +210,7 @@ export function ProviderManager() {
             const totalAssigned = providerCount
               ? providerCount.weekDays + providerCount.weekendDays + providerCount.weekNights + providerCount.weekendNights
               : 0;
-            const totalTarget = p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights;
+            const totalTarget = p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights;
             const progress = totalTarget > 0 ? Math.round((totalAssigned / totalTarget) * 100) : 0;
 
             return (
@@ -289,16 +289,14 @@ export function ProviderManager() {
                   />
                   <ProgressBar
                     icon={<Moon className="w-2.5 h-2.5 text-slate-400" />}
-                    label="Wk Night"
+                    label="FTE Nights"
                     target={p.targetWeekNights}
-                    current={providerCount?.weekNights || 0}
+                    current={(providerCount?.weekNights || 0) + (providerCount?.weekendNights || 0)}
                   />
-                  <ProgressBar
-                    icon={<Moon className="w-2.5 h-2.5 text-error" />}
-                    label="Wknd Night"
-                    target={p.targetWeekendNights}
-                    current={providerCount?.weekendNights || 0}
-                  />
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Recovery Rule</p>
+                    <p className="mt-1 text-[10px] text-slate-500">Mon-Wed nights → Thu/Fri off. Thu-Sun nights → next week recovery.</p>
+                  </div>
                 </div>
 
                 {/* Expand/Collapse Toggle */}
@@ -330,7 +328,7 @@ export function ProviderManager() {
                         {/* Target Inputs */}
                         <div className="grid grid-cols-2 gap-4">
                           <label className="flex flex-col gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">Deploy Wk Day</span>
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">FTE Weeks (Mon-Fri)</span>
                             <input
                               type="number"
                               min={0}
@@ -340,7 +338,7 @@ export function ProviderManager() {
                             />
                           </label>
                           <label className="flex flex-col gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">Deploy Wknd Day</span>
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">FTE Weekends (Sat-Sun)</span>
                             <input
                               type="number"
                               min={0}
@@ -350,25 +348,21 @@ export function ProviderManager() {
                             />
                           </label>
                           <label className="flex flex-col gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">Deploy Wk Night</span>
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">FTE Nights</span>
                             <input
                               type="number"
                               min={0}
                               className="w-full bg-white border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-mono"
                               value={p.targetWeekNights}
-                              onChange={(e) => updateProvider(p.id, { targetWeekNights: Number(e.target.value) || 0 })}
+                              onChange={(e) => { const nights = Number(e.target.value) || 0; updateProvider(p.id, { targetWeekNights: nights, targetWeekendNights: nights }); }}
                             />
                           </label>
-                          <label className="flex flex-col gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">Deploy Wknd Night</span>
-                            <input
-                              type="number"
-                              min={0}
-                              className="w-full bg-white border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-mono"
-                              value={p.targetWeekendNights}
-                              onChange={(e) => updateProvider(p.id, { targetWeekendNights: Number(e.target.value) || 0 })}
-                            />
-                          </label>
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-1">Night Recovery</span>
+                            <div className="w-full bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-2 text-[10px] font-medium text-slate-600">
+                              Recovery days are excluded from service/FTE totals.
+                            </div>
+                          </div>
                         </div>
 
                         {/* Fatigue Settings */}

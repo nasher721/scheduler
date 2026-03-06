@@ -729,17 +729,50 @@ const getConsecutiveNights = (slots: ShiftSlot[], providerId: string, targetDate
   return consecutive;
 };
 
+const getDynamicRecoveryDatesForNight = (nightDate: string): Set<string> => {
+  const recoveryDates = new Set<string>();
+  const nightDateObj = parseISO(nightDate);
+  const dayOfWeek = nightDateObj.getDay();
+
+  // Mon-Wed night coverage forces Thu/Fri recovery in the same week.
+  if (dayOfWeek >= 1 && dayOfWeek <= 3) {
+    const monday = addDays(nightDateObj, -(dayOfWeek - 1));
+    recoveryDates.add(format(addDays(monday, 3), "yyyy-MM-dd"));
+    recoveryDates.add(format(addDays(monday, 4), "yyyy-MM-dd"));
+    return recoveryDates;
+  }
+
+  // Thu-Sun night coverage forces entire next calendar week as recovery.
+  const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const nextMonday = addDays(nightDateObj, daysUntilNextMonday);
+  for (let i = 0; i < 7; i += 1) {
+    recoveryDates.add(format(addDays(nextMonday, i), "yyyy-MM-dd"));
+  }
+
+  return recoveryDates;
+};
+
 const violatesPostNightRecovery = (slots: ShiftSlot[], providerId: string, slot: ShiftSlot, provider: Provider) => {
-  if (slot.type === "NIGHT") return false;
+  if (slot.type === "RECOVERY" || slot.type === "VACATION") return false;
 
   const nightDates = slots
     .filter((s) => s.providerId === providerId && s.type === "NIGHT")
     .map((s) => s.date);
 
-  return nightDates.some((nightDate) => {
+  for (const nightDate of nightDates) {
+    // Keep existing configurable minimum rest behavior.
     const diff = differenceInCalendarDays(parseISO(slot.date), parseISO(nightDate));
-    return diff > 0 && diff <= provider.minDaysOffAfterNight;
-  });
+    if (diff > 0 && diff <= provider.minDaysOffAfterNight) {
+      return true;
+    }
+
+    const dynamicRecoveryDates = getDynamicRecoveryDatesForNight(nightDate);
+    if (dynamicRecoveryDates.has(slot.date)) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 const canAssignProvider = (
@@ -869,12 +902,12 @@ const computeDeficitScore = (slot: ShiftSlot, provider: Provider, count: Provide
   }
 
   if (slot.type === "NIGHT") {
-    const target = slot.isWeekendLayout ? provider.targetWeekendNights : provider.targetWeekNights;
-    const current = slot.isWeekendLayout ? count.weekendNights : count.weekNights;
+    const target = provider.targetWeekNights;
+    const current = count.weekNights + count.weekendNights;
     return target - current + preferenceBoost + criticalBoost;
   }
 
-  return (provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights + provider.targetWeekendNights)
+  return (provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights)
     - (count.weekDays + count.weekendDays + count.weekNights + count.weekendNights)
     + preferenceBoost;
 };
@@ -2143,7 +2176,7 @@ export const useScheduleStore = create<ScheduleState>()(
             // Fairness - providers with fewer shifts get bonus
             const counts = getProviderCounts(state.slots, state.providers)[provider.id];
             const totalAssigned = counts.weekDays + counts.weekendDays + counts.weekNights + counts.weekendNights;
-            const totalTarget = provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights + provider.targetWeekendNights;
+            const totalTarget = provider.targetWeekDays + provider.targetWeekendDays + provider.targetWeekNights;
 
             if (totalAssigned < totalTarget) {
               factors.fairnessBalance = 1 - (totalAssigned / totalTarget);

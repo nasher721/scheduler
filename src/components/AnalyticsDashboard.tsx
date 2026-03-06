@@ -91,7 +91,7 @@ export function AnalyticsDashboard() {
                                     if (!c) return null;
 
                                     const cTotal = c.weekDays + c.weekendDays + c.weekNights + c.weekendNights;
-                                    const totalTarget = p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights;
+                                    const totalTarget = p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights;
                                     const variance = cTotal - totalTarget;
 
                                     return (
@@ -151,10 +151,10 @@ export function AnalyticsDashboard() {
                             if (!c) return null;
 
                             const cTotal = c.weekDays + c.weekendDays + c.weekNights + c.weekendNights;
-                            const overageShifts = cTotal > (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights) ?
-                                cTotal - (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights) : 0;
-                            const overageNights = (c.weekNights + c.weekendNights) > (p.targetWeekNights + p.targetWeekendNights) ?
-                                (c.weekNights + c.weekendNights) - (p.targetWeekNights + p.targetWeekendNights) : 0;
+                            const overageShifts = cTotal > (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights) ?
+                                cTotal - (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights) : 0;
+                            const overageNights = (c.weekNights + c.weekendNights) > p.targetWeekNights ?
+                                (c.weekNights + c.weekendNights) - p.targetWeekNights : 0;
 
                             if (overageShifts === 0 && overageNights === 0) return null;
 
@@ -200,8 +200,8 @@ export function AnalyticsDashboard() {
                             if (!c) return true;
 
                             const cTotal = c.weekDays + c.weekendDays + c.weekNights + c.weekendNights;
-                            return cTotal <= (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights + p.targetWeekendNights) &&
-                                (c.weekNights + c.weekendNights) <= (p.targetWeekNights + p.targetWeekendNights);
+                            return cTotal <= (p.targetWeekDays + p.targetWeekendDays + p.targetWeekNights) &&
+                                (c.weekNights + c.weekendNights) <= p.targetWeekNights;
                         }) && (
                                 <div className="w-full p-6 flex flex-col items-center justify-center text-center gap-2 border-2 border-dashed border-emerald-100 rounded-xl bg-emerald-50/30">
                                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500">
