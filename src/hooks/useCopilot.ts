@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useScheduleStore } from "@/store";
-import type { CopilotMessage } from "@/store";
-import type { ShiftTypeFilter } from "@/store";
+import type { CopilotMessage, ShiftTypeFilter, CalendarPresentationMode } from "@/store";
 import type { Provider, ShiftSlot } from "@/types";
 import {
   sendCopilotMessage,
@@ -297,7 +296,7 @@ function executeCopilotActions(params: {
           store.setShiftTypeFilter(selectedShift as ShiftTypeFilter);
         }
         if (surfaceView) {
-          store.setScheduleSurfaceView(surfaceView);
+          store.setCalendarPresentationMode(surfaceView as CalendarPresentationMode);
         }
         if (showConflictsOnly !== null) {
           store.setShowConflictsOnly(showConflictsOnly);
@@ -348,7 +347,7 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
   // Use refs for callbacks to avoid dependency issues
   const optionsRef = useRef(options);
   const storeRef = useRef(store);
-  
+
   // Keep refs up to date
   useEffect(() => {
     optionsRef.current = options;
@@ -372,7 +371,7 @@ export function useCopilot(options: UseCopilotOptions): UseCopilotReturn {
   const sendMessage = useCallback(async (content: string) => {
     const currentStore = storeRef.current;
     const currentOptions = optionsRef.current;
-    
+
     if (!currentStore.currentConversationId) return;
 
     setIsLoading(true);

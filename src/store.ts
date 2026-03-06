@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek, isValid } from "date-fns";
 import { registerProvider, loadScheduleState } from "./lib/api";
 import { supabase, supabaseStatus } from "./lib/supabase";
 export * from "./types";
@@ -1011,7 +1011,7 @@ export const useScheduleStore = create<ScheduleState>()(
       initialize: async () => {
         // Helper: given a Supabase session, find+set the matching provider as currentUser.
         // This is used both by the auth state listener and the post-load reconciliation step.
-        const reconcileUser = (sessionEmail: string | undefined) => {
+        const reconcileUser = (sessionEmail: string | null | undefined) => {
           if (!sessionEmail) return;
           const { providers } = get();
           const user = providers.find(
@@ -1040,7 +1040,7 @@ export const useScheduleStore = create<ScheduleState>()(
             set({
               providers: state.providers,
               slots: state.slots,
-              startDate: state.startDate,
+              startDate: (state.startDate && isValid(parseISO(state.startDate))) ? state.startDate : getWeekStart(),
               numWeeks: state.numWeeks,
               customRules: state.customRules,
               auditLog: state.auditLog,

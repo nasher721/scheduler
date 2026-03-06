@@ -1,4 +1,4 @@
-import { addDays, format, parseISO } from "date-fns";
+import { addDays, format, parseISO, isValid } from "date-fns";
 import { useMemo } from "react";
 import { useScheduleStore, type ShiftSlot } from "@/store";
 
@@ -16,7 +16,11 @@ export function useScheduleViewport() {
   } = useScheduleStore();
 
   const weekDates = useMemo(() => {
-    const baseStart = parseISO(startDate);
+    let baseStart = parseISO(startDate);
+    if (!isValid(baseStart)) {
+      console.warn(`Invalid schedule startDate found: "${startDate}". Falling back to today.`);
+      baseStart = new Date();
+    }
     const weekStart = addDays(baseStart, scheduleViewport.currentWeekOffset * 7);
     return Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   }, [startDate, scheduleViewport.currentWeekOffset]);
