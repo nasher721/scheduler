@@ -527,7 +527,7 @@ function BarView({
             <div key={format(date, "yyyy-MM-dd")} className={`flex-1 p-3 text-center text-xs font-bold border-l border-slate-200 ${isToday(date) ? 'bg-blue-50 text-blue-700' : isWeekend(date) ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-600'
               }`}>
               <div>{format(date, "EEE")}</div>
-              <div>{format(date, "d")}</div>
+              <div>{format(date, "MMM d")}</div>
             </div>
           ))}
         </div>
@@ -674,6 +674,9 @@ function WeekView({
               <div className={`text-2xl font-bold ${isTodayDay ? 'text-primary' : 'text-slate-800'}`}>
                 {format(date, "d")}
               </div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                {format(date, "MMM")}
+              </div>
               <div className="text-[10px] text-slate-400">
                 {daySlots.filter(s => s.providerId).length}/{daySlots.length}
               </div>
@@ -754,14 +757,16 @@ function WeekView({
 // 5. MONTH VIEW
 function MonthView({
   slots,
+  anchorDate,
   onShiftClick
 }: {
   slots: ShiftSlot[];
+  anchorDate: Date;
   providers: Provider[];
   conflicts: Conflict[];
   onShiftClick: (slot: ShiftSlot) => void;
 }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(anchorDate);
 
   const monthDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -912,7 +917,7 @@ function TimelineView({
           <div className="w-20 p-2 bg-slate-50 text-xs font-bold text-slate-500">Time</div>
           {weekDates.map(date => (
             <div key={date.toISOString()} className="flex-1 p-2 bg-slate-50 text-xs font-bold text-slate-700 text-center border-l border-slate-200">
-              {format(date, "EEE M/d")}
+              {format(date, "EEE, MMM d")}
             </div>
           ))}
         </div>
@@ -1052,28 +1057,31 @@ export function EnhancedCalendar() {
   const [selectedSlotForHistory, _setSelectedSlotForHistory] = useState<string | null>(null);
   const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
 
+  const activeMonthLabel = useMemo(() => {
+    const monthLabels = Array.from(new Set(weekDates.map((date) => format(date, "MMMM yyyy"))));
+    return monthLabels.join(" · ");
+  }, [weekDates]);
+
   // Filter slots for current view
   const visibleSlots = useMemo(() => {
     const dateStrs = weekDates.map(d => format(d, "yyyy-MM-dd"));
 
     return slots.filter(s => {
-      // For month view, show all slots in the month
-      if (scheduleViewport.calendarPresentationMode === "month") {
-        return true;
-      }
-      // For other views, filter by visible dates
-      if (!dateStrs.includes(s.date)) return false;
-
       if (scheduleViewport.shiftTypeFilter !== "all" && s.type !== scheduleViewport.shiftTypeFilter) return false;
       if (scheduleViewport.showConflictsOnly) {
         return conflicts.some(c => c.slotId === s.id && !c.resolvedAt);
       }
       if (scheduleViewport.showUnfilledOnly && s.providerId) return false;
+
+      // For non-month views, filter to the active week range.
+      if (scheduleViewport.calendarPresentationMode !== "month" && !dateStrs.includes(s.date)) return false;
+
       if (scheduleViewport.providerSearchTerm) {
         const provider = providers.find((p) => p.id === s.providerId);
         if (!provider) return false;
         return provider.name.toLowerCase().includes(scheduleViewport.providerSearchTerm.toLowerCase());
       }
+
       return true;
     });
   }, [slots, weekDates, scheduleViewport, conflicts, providers]);
@@ -1107,6 +1115,7 @@ export function EnhancedCalendar() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
                 {visibleSlots.length} shifts
               </p>
+              <p className="text-xs font-semibold text-slate-500 mt-1">{activeMonthLabel}</p>
             </div>
           </div>
 
@@ -1231,7 +1240,9 @@ export function EnhancedCalendar() {
 
             {scheduleViewport.calendarPresentationMode === "month" && (
               <MonthView
-                slots={slots}
+                key={format(weekDates[0], "yyyy-MM")}
+                slots={visibleSlots}
+                anchorDate={weekDates[0]}
                 providers={providers}
                 conflicts={conflicts}
                 onShiftClick={handleShiftClick}
