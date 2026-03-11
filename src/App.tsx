@@ -3,24 +3,13 @@ import { LandingPage } from "./components/LandingPage";
 import { CopilotPanel } from "./components/CopilotPanel";
 import { ScheduleChangePreview, type OptimizationPreview } from "./components/ScheduleChangePreview";
 import { SparkAnnotation } from "spark-banana";
-import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
-import { RuleBuilder } from "./components/RuleBuilder";
-import { SchedulingStrategyWorkbench } from "./components/SchedulingStrategyWorkbench";
-import { ShiftRequestBoard } from "./components/ShiftRequestBoard";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
+import { ErrorBoundary, ViewContent } from "./components/layout";
 import { getProviderCounts, useScheduleStore } from "./store";
 import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
-import { SwapManager } from "./components/SwapManager";
-import { HolidayTracker } from "./components/HolidayTracker";
-import { ConflictDashboard } from "./components/ConflictDashboard";
-import { NotificationCenter } from "./components/NotificationCenter";
-import { PredictiveInsights } from "./components/PredictiveInsights";
-import { ScheduleTemplates } from "./components/ScheduleTemplates";
-import { AITestPanel } from "./components/AITestPanel";
-import { ScheduleWorkspace } from "./components/schedule/ScheduleWorkspace";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { useNetworkStatus } from "./hooks/usePWA";
 import {
@@ -174,6 +163,27 @@ export default function App() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [currentUser]);
+
+  // Document title for accessibility and browser tab (Next.js-style metadata awareness)
+  useEffect(() => {
+    if (!currentUser || currentUser.role === "CLINICIAN") return;
+    const titles: Record<ViewMode, string> = {
+      schedule: "Schedule",
+      "shift-requests": "Shift Requests",
+      analytics: "Insights",
+      rules: "Governance",
+      strategy: "Strategy",
+      swaps: "Swaps",
+      holidays: "Holidays",
+      conflicts: "Command",
+      notifications: "Alerts",
+      predictive: "ML Insights",
+      templates: "Templates",
+      "ai-test": "AI Test",
+    };
+    const segment = titles[viewMode] ?? "Schedule";
+    document.title = `${segment} · Neuro ICU Staffing`;
+  }, [currentUser, viewMode]);
 
   const assigned = slots.filter((slot) => slot.providerId).length;
   const coverage = Math.round((assigned / Math.max(slots.length, 1)) * 100);
@@ -596,43 +606,9 @@ export default function App() {
             </div>
 
             <div className="w-full pb-20">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={viewMode}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  {viewMode === "analytics" ? (
-                    <AnalyticsDashboard />
-                  ) : viewMode === "schedule" ? (
-                    <ScheduleWorkspace />
-                  ) : viewMode === "shift-requests" ? (
-                    <ShiftRequestBoard />
-                  ) : viewMode === "rules" ? (
-                    <RuleBuilder />
-                  ) : viewMode === "strategy" ? (
-                    <SchedulingStrategyWorkbench />
-                  ) : viewMode === "swaps" ? (
-                    <SwapManager />
-                  ) : viewMode === "holidays" ? (
-                    <HolidayTracker />
-                  ) : viewMode === "conflicts" ? (
-                    <ConflictDashboard />
-                  ) : viewMode === "notifications" ? (
-                    <NotificationCenter />
-                  ) : viewMode === "predictive" ? (
-                    <PredictiveInsights />
-                  ) : viewMode === "templates" ? (
-                    <ScheduleTemplates />
-                  ) : viewMode === "ai-test" ? (
-                    <AITestPanel />
-                  ) : (
-                    <ScheduleWorkspace />
-                  )}
-                </motion.div>
-              </AnimatePresence>
+              <ErrorBoundary>
+                <ViewContent viewMode={viewMode} />
+              </ErrorBoundary>
             </div>
           </div>
         </motion.main>
