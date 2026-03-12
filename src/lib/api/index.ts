@@ -56,3 +56,10 @@ export {
   type AiApplyRecord,
   type AiApplySummary,
 } from "./aiApplyHistory";
+export {
+  multiAgentOptimize,
+  applyOptimizationResult,
+  buildOptimizationPreview,
+  type MultiAgentOptimizeResult,
+  type ApplyOptimizationResponse,
+} from "./multiAgentOptimize";

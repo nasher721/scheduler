@@ -189,6 +189,8 @@ export const SchedulingDirectorAgent = new Agent({
   systemPrompt: `You are the Scheduling Director for Neuro ICU.
 Your job is to coordinate specialized agents to create optimal schedules.
 
+Guardrails: Never assign a provider without checking credentials and availability. Prefer human_review for any apply; do not auto-apply unless explicitly instructed. Preserve compliance (credentials, time-off, max shifts) in all outputs.
+
 You have access to these agents:
 - coverage: Ensures all shifts are staffed with required skills
 - fairness: Balances workload equitably

@@ -536,6 +536,10 @@ function deterministicExplain(input, provider) {
 }
 
 function buildPrompt(task, payload) {
+  if (task === "intent-parsing" && payload?.text != null) {
+    const manifest = listCopilotCapabilities();
+    return buildIntentPrompt(payload.text, payload.context || {}, manifest);
+  }
   return `You are an ICU scheduling copilot. Task: ${task}. Return JSON only.\n${JSON.stringify(payload || {}, null, 2)}`;
 }
 
@@ -1007,8 +1011,18 @@ function buildRuleGuardrailWarning(text, context) {
   };
 }
 
-function buildIntentPrompt(text, context) {
+function buildIntentPrompt(text, context, manifest = null) {
+  const cap = manifest || listCopilotCapabilities();
+  const intentsList = (cap.intents || []).join(", ");
+  const actionsList = (cap.actions || []).join(", ");
+  const guardrails =
+    "Guardrails: Only use the intents listed above. Do not invent intents. For optimize_schedule, require human confirmation before applying.";
   return `Parse the user intent from this ICU scheduling request.
+
+Capability manifest (use only these):
+- Intents: ${intentsList}
+- Actions: ${actionsList}
+${guardrails}
 
 Available intents:
 - request_time_off: User wants time off for specific date(s)
@@ -1027,9 +1041,9 @@ Available intents:
 User message: "${text}"
 
 Current context:
-- View type: ${context?.viewType || 'unknown'}
-- Selected date: ${context?.selectedDate || 'none'}
-- User role: ${context?.userRole || 'unknown'}
+- View type: ${context?.viewType || "unknown"}
+- Selected date: ${context?.selectedDate || "none"}
+- User role: ${context?.userRole || "unknown"}
 - Visible providers: ${context?.visibleProviderCount || 0}
 
 Return ONLY a JSON object:
@@ -1040,8 +1054,8 @@ Return ONLY a JSON object:
     "providerName": "extracted name or null",
     "date": "extracted date reference or null",
     "shiftType": "DAY|NIGHT|G20|H22|AKRON|CONSULT|NMET|JEOPARDY|RECOVERY or null",
-      "targetProvider": "for swaps, who to swap with or null",
-      "scenarioName": "scenario name when provided, else null"
+    "targetProvider": "for swaps, who to swap with or null",
+    "scenarioName": "scenario name when provided, else null"
   }
 }`;
 }

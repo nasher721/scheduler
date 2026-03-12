@@ -1299,6 +1299,58 @@ app.post("/api/ai/apply", async (req, res) => {
   });
 });
 
+// ---------- Agent tools (typed primitives for AI/automation) ----------
+app.get("/api/agent-tools", (_req, res) => {
+  res.json({
+    tools: [
+      {
+        id: "schedule/assign-shift",
+        method: "POST",
+        path: "/api/agent-tools/schedule/assign-shift",
+        description: "Assign a provider to a shift slot or clear the assignment.",
+        params: { slotId: "string", providerId: "string | null" },
+      },
+      {
+        id: "ai/apply",
+        method: "POST",
+        path: "/api/ai/apply",
+        description: "Apply an optimized schedule state (human_review rollout with approvedBy).",
+        params: { result: "object", approvedBy: "string" },
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.post("/api/agent-tools/schedule/assign-shift", async (req, res) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Body must be an object with slotId and providerId." });
+  }
+  const slotId = typeof req.body.slotId === "string" ? req.body.slotId.trim() : "";
+  const providerId = req.body.providerId === null || req.body.providerId === undefined
+    ? null
+    : typeof req.body.providerId === "string" ? req.body.providerId.trim() : null;
+  if (!slotId) {
+    return res.status(400).json({ error: "slotId is required." });
+  }
+  const state = await readState();
+  const slots = isArray(state.slots) ? state.slots : [];
+  const slotIndex = slots.findIndex((s) => s && s.id === slotId);
+  if (slotIndex < 0) {
+    return res.status(404).json({ error: `Slot not found: ${slotId}.` });
+  }
+  const updated = slots.map((s, i) =>
+    i === slotIndex ? { ...s, providerId: providerId || null } : s
+  );
+  await writeState({ ...state, slots: updated });
+  return res.json({
+    ok: true,
+    slotId,
+    providerId,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
 app.post("/api/ai/rollback", async (req, res) => {
   if (!req.body || typeof req.body !== "object") {
     return res.status(400).json({ error: "Rollback payload must be an object." });

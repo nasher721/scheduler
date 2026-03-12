@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
-import { saveScheduleState, loadScheduleState } from "./lib/api";
+import { saveScheduleState, loadScheduleState, multiAgentOptimize, buildOptimizationPreview } from "./lib/api";
 import { supabase } from "./lib/supabase";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -65,6 +65,7 @@ export default function App() {
     closeChangePreview,
     applyAllAISuggestions,
     rejectAISuggestions,
+    openChangePreviewWithMultiAgentResult,
   } = useScheduleStore();
 
   useEffect(() => {
@@ -96,7 +97,30 @@ export default function App() {
   const [isAiMapping, setIsAiMapping] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
+  const [isMultiAgentOptimizing, setIsMultiAgentOptimizing] = useState(false);
   const isOnline = useNetworkStatus();
+
+  const runMultiAgentOptimize = useCallback(async () => {
+    setIsMultiAgentOptimizing(true);
+    try {
+      const scheduleState = { slots, providers, startDate, numWeeks, scenarios, customRules };
+      const result = await multiAgentOptimize(scheduleState);
+      if (!result?.success || !result.schedule) {
+        showToast({ type: "error", title: "Optimization failed", message: "No schedule result returned." });
+        return;
+      }
+      const preview = buildOptimizationPreview(result, slots, providers);
+      openChangePreviewWithMultiAgentResult(preview as OptimizationPreview, result);
+    } catch (err) {
+      showToast({
+        type: "error",
+        title: "Optimization failed",
+        message: err instanceof Error ? err.message : "Multi-agent optimize request failed.",
+      });
+    } finally {
+      setIsMultiAgentOptimizing(false);
+    }
+  }, [slots, providers, startDate, numWeeks, scenarios, customRules, showToast, openChangePreviewWithMultiAgentResult]);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
@@ -413,6 +437,16 @@ export default function App() {
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     Auto-Fill
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={runMultiAgentOptimize}
+                    disabled={isMultiAgentOptimizing}
+                    className="px-5 py-2 bg-white border border-violet-200 text-violet-700 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm flex items-center gap-2 disabled:opacity-60"
+                  >
+                    <Bot className="w-3.5 h-3.5" />
+                    {isMultiAgentOptimizing ? "Optimizing…" : "Optimize (AI)"}
                   </motion.button>
                   {/* Autosave status chip */}
                   {autoSaveStatus !== "idle" && (

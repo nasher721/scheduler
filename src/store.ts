@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek, isValid } from "date-fns";
-import { registerProvider, loadScheduleState } from "./lib/api";
+import { registerProvider, loadScheduleState, applyOptimizationResult } from "./lib/api";
 import { supabase, supabaseStatus } from "./lib/supabase";
 export * from "./types";
 import {
@@ -382,7 +382,9 @@ interface ScheduleState {
   ) => void;
   showChangePreview: boolean;
   changePreviewData: unknown;
+  pendingMultiAgentResult: unknown;
   openChangePreview: (preview: unknown) => void;
+  openChangePreviewWithMultiAgentResult: (preview: unknown, rawResult: unknown) => void;
   closeChangePreview: () => void;
   // Copilot Conversation History
   copilotConversations: CopilotConversation[];
@@ -2383,6 +2385,7 @@ export const useScheduleStore = create<ScheduleState>()(
       pendingAISuggestions: [],
       showChangePreview: false,
       changePreviewData: null,
+      pendingMultiAgentResult: null,
 
       applyAISuggestion: (suggestionId) => {
         const state = get();
@@ -2413,38 +2416,47 @@ export const useScheduleStore = create<ScheduleState>()(
         });
       },
 
-      applyAllAISuggestions: () => {
+      applyAllAISuggestions: async () => {
         const state = get();
+        const raw = state.pendingMultiAgentResult as { schedule?: { slots?: unknown[]; providers?: unknown[] } } | null | undefined;
+        if (raw?.schedule) {
+          try {
+            const approvedBy = state.currentUser?.email ?? null;
+            const res = await applyOptimizationResult(raw as Parameters<typeof applyOptimizationResult>[0], approvedBy);
+            const next = res.state as { slots?: typeof state.slots; providers?: typeof state.providers };
+            set({
+              slots: Array.isArray(next.slots) ? next.slots : state.slots,
+              providers: Array.isArray(next.providers) ? next.providers : state.providers,
+              pendingMultiAgentResult: null,
+              showChangePreview: false,
+            });
+            get().showToast({ type: 'success', title: 'Optimization Applied', message: 'Schedule updated from multi-agent result.' });
+          } catch (err) {
+            get().showToast({
+              type: 'error',
+              title: 'Apply Failed',
+              message: err instanceof Error ? err.message : 'Failed to apply optimization',
+            });
+          }
+          return;
+        }
         let newSlots = [...state.slots];
-
         state.pendingAISuggestions.forEach(suggestion => {
           newSlots = newSlots.map(slot => {
             if (slot.id === suggestion.slotId) {
-              return {
-                ...slot,
-                providerId: suggestion.toProviderId ?? null
-              };
+              return { ...slot, providerId: suggestion.toProviderId ?? null };
             }
             return slot;
           });
         });
-
-        set({
-          slots: newSlots,
-          pendingAISuggestions: [],
-          showChangePreview: false
-        });
-
-        get().showToast({
-          type: 'success',
-          title: 'All Changes Applied',
-          message: `${state.pendingAISuggestions.length} changes have been applied`
-        });
+        set({ slots: newSlots, pendingAISuggestions: [], showChangePreview: false });
+        get().showToast({ type: 'success', title: 'All Changes Applied', message: `${state.pendingAISuggestions.length} changes have been applied` });
       },
 
       rejectAISuggestions: () => {
         set({
           pendingAISuggestions: [],
+          pendingMultiAgentResult: null,
           showChangePreview: false
         });
 
@@ -2464,14 +2476,15 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       openChangePreview: (preview) => {
-        set({
-          showChangePreview: true,
-          changePreviewData: preview
-        });
+        set({ showChangePreview: true, changePreviewData: preview, pendingMultiAgentResult: null });
+      },
+
+      openChangePreviewWithMultiAgentResult: (preview, rawResult) => {
+        set({ showChangePreview: true, changePreviewData: preview, pendingMultiAgentResult: rawResult ?? null });
       },
 
       closeChangePreview: () => {
-        set({ showChangePreview: false });
+        set({ showChangePreview: false, pendingMultiAgentResult: null });
       },
 
       // Copilot Conversation History
