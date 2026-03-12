@@ -63,3 +63,14 @@ export {
   type MultiAgentOptimizeResult,
   type ApplyOptimizationResponse,
 } from "./multiAgentOptimize";
+export {
+  fetchScheduleSummary,
+  fetchScheduleScenarios,
+  fetchLastOptimizationResult,
+  fetchAgentTools,
+  type ScheduleSummaryResponse,
+  type ScheduleScenariosResponse,
+  type LastOptimizationResultResponse,
+  type AgentToolsResponse,
+  type AgentToolDescriptor,
+} from "./scheduleApi";

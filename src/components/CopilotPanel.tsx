@@ -60,12 +60,16 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
   );
 
   // Build context from current store state
+  const slots = store.slots;
+  const totalSlots = slots.length;
+  const unfilledSlots = slots.filter((s) => !s.providerId).length;
   const context = {
     viewType: "week" as const,
     selectedDate: store.selectedDate || null,
     selectedProviderId: store.selectedProviderId || null,
     userRole: store.currentUser?.role || "CLINICIAN",
     visibleProviderCount: store.providers.length,
+    scheduleSummary: { totalSlots, unfilledSlots, providerCount: store.providers.length },
   };
 
   const { 
@@ -497,7 +501,13 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
                       {message.suggestions.map((suggestion, idx) => (
                         <button
                           key={idx}
-                          onClick={() => handleSuggestionClick(suggestion)}
+                          onClick={() => {
+                            if (suggestion === "Run full AI optimizer") {
+                              store.runMultiAgentOptimize();
+                              return;
+                            }
+                            handleSuggestionClick(suggestion);
+                          }}
                           className="text-xs px-2 py-1 rounded-full bg-white hover:bg-slate-50 transition-colors border border-slate-200"
                         >
                           {suggestion}
@@ -505,6 +515,22 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
                       ))}
                     </div>
                   )}
+
+                  {/* Run AI optimizer button when action is available */}
+                  {message.role === "assistant" &&
+                    Array.isArray(message.actions) &&
+                    message.actions.some((a: unknown) => typeof a === "object" && a !== null && (a as { type?: string }).type === "multi_agent_optimize") && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => store.runMultiAgentOptimize()}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors border border-violet-200 flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Run AI optimizer
+                        </button>
+                      </div>
+                    )}
 
                   {/* Feedback buttons for assistant messages */}
                   {message.role === "assistant" && message.intent && (

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek, isValid } from "date-fns";
-import { registerProvider, loadScheduleState, applyOptimizationResult } from "./lib/api";
+import { registerProvider, loadScheduleState, applyOptimizationResult, multiAgentOptimize, buildOptimizationPreview } from "./lib/api";
 import { supabase, supabaseStatus } from "./lib/supabase";
 export * from "./types";
 import {
@@ -386,6 +386,7 @@ interface ScheduleState {
   openChangePreview: (preview: unknown) => void;
   openChangePreviewWithMultiAgentResult: (preview: unknown, rawResult: unknown) => void;
   closeChangePreview: () => void;
+  runMultiAgentOptimize: () => Promise<void>;
   // Copilot Conversation History
   copilotConversations: CopilotConversation[];
   currentConversationId: string | null;
@@ -2485,6 +2486,33 @@ export const useScheduleStore = create<ScheduleState>()(
 
       closeChangePreview: () => {
         set({ showChangePreview: false, pendingMultiAgentResult: null });
+      },
+
+      runMultiAgentOptimize: async () => {
+        const state = get();
+        const scheduleState = {
+          slots: state.slots,
+          providers: state.providers,
+          startDate: state.startDate,
+          numWeeks: state.numWeeks,
+          scenarios: state.scenarios,
+          customRules: state.customRules,
+        };
+        try {
+          const result = await multiAgentOptimize(scheduleState);
+          if (!result?.success || !result.schedule) {
+            get().showToast({ type: "error", title: "Optimization failed", message: "No schedule result returned." });
+            return;
+          }
+          const preview = buildOptimizationPreview(result, state.slots, state.providers);
+          get().openChangePreviewWithMultiAgentResult(preview, result);
+        } catch (err) {
+          get().showToast({
+            type: "error",
+            title: "Optimization failed",
+            message: err instanceof Error ? err.message : "Multi-agent optimize request failed.",
+          });
+        }
       },
 
       // Copilot Conversation History

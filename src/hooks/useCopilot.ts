@@ -200,6 +200,11 @@ function executeCopilotActions(params: {
         executed += 1;
         break;
       }
+      case "multi_agent_optimize": {
+        void store.runMultiAgentOptimize();
+        executed += 1;
+        break;
+      }
       case "assign_shift":
       case "unassign_shift": {
         const slotIdFromAction = typeof action.slotId === "string" ? action.slotId : null;

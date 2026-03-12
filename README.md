@@ -109,6 +109,16 @@ These endpoints are available today and can be progressively wired to real provi
 - `GET /api/ai/apply-history`
 - `GET /api/ai/apply-history/:applyId`
 
+**Agent tools & AI contracts**
+
+- `GET /api/agent-tools` — list of typed agent tools (e.g. `schedule/assign-shift`, `ai/apply`) with method, path, description, and params.
+- `POST /api/agent-tools/schedule/assign-shift` — assign or clear a single slot (`slotId`, `providerId`).
+- `GET /api/schedule/summary` — schedule metadata (startDate, numWeeks, slotCount, scenarioCount, providerCount).
+- `GET /api/schedule/scenarios` — list saved scenarios.
+- `GET /api/ai/agents/optimize/result` — last multi-agent optimization result (for polling after async runs).
+
+Canonical request/response shapes for `POST /api/ai/apply` and `POST /api/ai/rollback` are documented in `server/ai-contracts.md`.
+
 Phase 4 additions in the deterministic path:
 
 - Objective scoring and policy profiles continue to drive optimization outcomes.

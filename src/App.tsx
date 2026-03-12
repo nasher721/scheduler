@@ -12,6 +12,7 @@ import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { useNetworkStatus } from "./hooks/usePWA";
+import { useAnomalyAlerts } from "./hooks/useAnomalyAlerts";
 import {
   AlertTriangle,
   Save,
@@ -99,6 +100,7 @@ export default function App() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [isMultiAgentOptimizing, setIsMultiAgentOptimizing] = useState(false);
   const isOnline = useNetworkStatus();
+  const { alerts: anomalyAlerts } = useAnomalyAlerts();
 
   const runMultiAgentOptimize = useCallback(async () => {
     setIsMultiAgentOptimizing(true);
@@ -463,6 +465,17 @@ export default function App() {
                   <button onClick={handleClearSchedule} className="p-2 text-slate-400 hover:text-amber-600 transition-colors" title="Clear Schedule"><Trash className="w-4 h-4" /></button>
                   <button onClick={handleClearStaff} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Clear Staff"><AlertTriangle className="w-4 h-4" /></button>
                   <div className="w-px h-6 bg-slate-200/60 mx-1" />
+                  {anomalyAlerts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("analytics")}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-200 transition-colors"
+                      title="View anomaly alerts in Analytics"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      {anomalyAlerts.length} alert{anomalyAlerts.length !== 1 ? "s" : ""}
+                    </button>
+                  )}
                   <button
                     onClick={toggleCopilot}
                     className={cn(

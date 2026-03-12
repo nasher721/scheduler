@@ -1044,7 +1044,8 @@ Current context:
 - View type: ${context?.viewType || "unknown"}
 - Selected date: ${context?.selectedDate || "none"}
 - User role: ${context?.userRole || "unknown"}
-- Visible providers: ${context?.visibleProviderCount || 0}
+- Visible providers: ${context?.visibleProviderCount ?? 0}
+${context?.scheduleSummary ? `- Schedule: ${context.scheduleSummary.totalSlots} slots, ${context.scheduleSummary.unfilledSlots} unfilled, ${context.scheduleSummary.providerCount} providers` : ""}
 
 Return ONLY a JSON object:
 {
@@ -1212,11 +1213,11 @@ async function buildCopilotResponse(intentResult, context, history) {
     },
     
     optimize_schedule: {
-      message: "I'll analyze the current schedule and suggest optimizations for better fairness and coverage.",
-      suggestions: ['Optimize now', 'Show me conflicts first', 'Adjust optimization goals'],
+      message: "I'll analyze the current schedule and suggest optimizations for better fairness and coverage. You can use quick auto-fill or run the full AI multi-agent optimizer.",
+      suggestions: ['Optimize now', 'Show me conflicts first', 'Run full AI optimizer', 'Adjust optimization goals'],
       requiresConfirmation: true,
       preview: { type: 'optimization', estimatedImpact: 'Calculating...' },
-      actions: [{ type: "auto_assign" }]
+      actions: [{ type: "auto_assign" }, { type: "multi_agent_optimize" }]
     },
     
     check_coverage: {

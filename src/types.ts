@@ -167,6 +167,8 @@ export interface CopilotContext {
   selectedProviderId?: string | null;
   userRole?: 'ADMIN' | 'SCHEDULER' | 'CLINICIAN';
   visibleProviderCount?: number;
+  /** Optional schedule summary for intent prompt (unfilled slots, totals) */
+  scheduleSummary?: { totalSlots: number; unfilledSlots: number; providerCount: number };
 }
 
 export interface CopilotConversation {
