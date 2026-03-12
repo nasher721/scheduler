@@ -214,6 +214,13 @@ export class SchedulingOrchestrator extends EventEmitter {
   }
 
   /**
+   * Get last optimization result (for polling / shared-memory alignment)
+   */
+  getLastResult() {
+    return this.memory.get('scheduling:optimization:result') || null;
+  }
+
+  /**
    * Get agent execution history
    */
   getHistory() {

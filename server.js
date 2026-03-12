@@ -721,6 +721,26 @@ app.put("/api/state", async (req, res) => {
   return res.json({ ok: true, queuedEmails: queuedEmails.length, updatedAt: new Date().toISOString() });
 });
 
+app.get("/api/schedule/scenarios", async (_req, res) => {
+  const state = await readState();
+  const scenarios = isArray(state.scenarios) ? state.scenarios : [];
+  return res.json({ scenarios, total: scenarios.length, updatedAt: new Date().toISOString() });
+});
+
+app.get("/api/schedule/summary", async (_req, res) => {
+  const state = await readState();
+  const slots = isArray(state.slots) ? state.slots : [];
+  const scenarios = isArray(state.scenarios) ? state.scenarios : [];
+  return res.json({
+    startDate: state.startDate,
+    numWeeks: state.numWeeks,
+    slotCount: slots.length,
+    scenarioCount: scenarios.length,
+    providerCount: isArray(state.providers) ? state.providers.length : 0,
+    updatedAt: new Date().toISOString(),
+  });
+});
+
 app.get("/api/shift-requests", async (req, res) => {
   const statusFilter = typeof req.query?.status === "string" ? req.query.status.trim().toLowerCase() : "";
   if (statusFilter && !VALID_SHIFT_REQUEST_STATUSES.has(statusFilter)) {
@@ -1309,6 +1329,27 @@ app.get("/api/agent-tools", (_req, res) => {
         path: "/api/agent-tools/schedule/assign-shift",
         description: "Assign a provider to a shift slot or clear the assignment.",
         params: { slotId: "string", providerId: "string | null" },
+      },
+      {
+        id: "schedule/scenarios",
+        method: "GET",
+        path: "/api/schedule/scenarios",
+        description: "List saved schedule scenarios.",
+        params: {},
+      },
+      {
+        id: "schedule/summary",
+        method: "GET",
+        path: "/api/schedule/summary",
+        description: "Get schedule metadata (startDate, numWeeks, slotCount, scenarioCount).",
+        params: {},
+      },
+      {
+        id: "ai/agents/optimize/result",
+        method: "GET",
+        path: "/api/ai/agents/optimize/result",
+        description: "Get last multi-agent optimization result (after POST optimize).",
+        params: {},
       },
       {
         id: "ai/apply",

@@ -30,6 +30,22 @@ export function registerAIServicesRoutes(app) {
   });
 
   /**
+   * Get last optimization result (shared memory; for polling after async runs)
+   */
+  app.get('/api/ai/agents/optimize/result', (req, res) => {
+    try {
+      const orchestrator = getSchedulingOrchestrator();
+      const result = orchestrator.getLastResult();
+      if (!result) {
+        return res.status(404).json({ error: 'No optimization result available. Run POST /api/ai/agents/optimize first.' });
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * Stream optimization progress
    */
   app.get('/api/ai/agents/optimize/stream', (req, res) => {
