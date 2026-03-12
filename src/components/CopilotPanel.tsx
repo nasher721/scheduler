@@ -42,6 +42,7 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
   const [isListening, setIsListening] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [capabilityPrompts, setCapabilityPrompts] = useState<string[]>([]);
+  const [capabilities, setCapabilities] = useState<{ intents: string[]; actions: string[] } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -121,13 +122,18 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
   }, []);
 
   useEffect(() => {
-    if (!isOpen || capabilityPrompts.length > 0) return;
+    if (!isOpen || capabilityPrompts.length > 0 || capabilities) return;
     void getCopilotCapabilities()
       .then((response) => {
-        setCapabilityPrompts(response.result.examplePrompts.slice(0, 5));
+        const result = response.result;
+        setCapabilityPrompts(result.examplePrompts.slice(0, 5));
+        setCapabilities({
+          intents: result.intents ?? [],
+          actions: result.actions ?? [],
+        });
       })
       .catch(() => undefined);
-  }, [isOpen, capabilityPrompts.length]);
+  }, [isOpen, capabilityPrompts.length, capabilities]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -143,10 +149,111 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
     }
   }, [isOpen]);
 
+  const buildHelpMessage = (keyword?: string) => {
+    if (!capabilities) {
+      return [
+        "I’m your scheduling copilot. I can help you:",
+        "• Request time off and swaps",
+        "• Check coverage and conflicts",
+        "• Optimize and explain the schedule",
+        "",
+        "Type a question in your own words, or use `/help` and `/tools` once I’ve loaded capabilities.",
+      ].join("\n");
+    }
+
+    const intents = capabilities.intents;
+    const humanize = (id: string) =>
+      id.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+    const matches = (s: string) => !keyword || s.toLowerCase().includes(keyword.toLowerCase());
+    const intentLines = intents
+      .filter((id) => matches(id) || matches(humanize(id)))
+      .map((id) => `• ${humanize(id)}`);
+
+    if (intentLines.length === 0) {
+      return [
+        "I couldn’t find any specific capabilities for that topic.",
+        "",
+        "Try asking things like:",
+        "• “Who’s covering this weekend?”",
+        "• “Balance night shifts for next month”",
+        "• “Why am I on call Saturday?”",
+      ].join("\n");
+    }
+
+    const header = keyword
+      ? `Here’s what I can do related to “${keyword}”:`
+      : "Here’s what I can help with on your schedule:";
+
+    return [
+      header,
+      "",
+      ...intentLines,
+      "",
+      "Type a question in your own words, or use `/tools` to see a full list of actions I can run.",
+    ].join("\n");
+  };
+
+  const buildToolsMessage = () => {
+    if (!capabilities) {
+      return [
+        "I’m still loading my tools. Try again in a moment, or start with a natural-language question like:",
+        "• “Who’s covering this weekend?”",
+        "• “Scan for conflicts next week”",
+      ].join("\n");
+    }
+
+    const humanize = (id: string) =>
+      id.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+    const lines = capabilities.actions.map((id) => `• ${humanize(id)}`);
+
+    return [
+      "Here are the tools I can use on your schedule:",
+      "",
+      ...lines,
+      "",
+      "You can either ask in natural language (“Balance nights next month”) or reference tools directly (“Use auto_assign for next week”).",
+    ].join("\n");
+  };
+
+  const injectHelpOrToolsReply = (userCommand: string, content: string) => {
+    let cid = store.currentConversationId;
+    if (!cid) {
+      store.createConversation();
+      cid = useScheduleStore.getState().currentConversationId ?? undefined;
+    }
+    if (!cid) return;
+    const userMsg = {
+      id: crypto.randomUUID(),
+      role: "user" as const,
+      content: userCommand,
+      timestamp: new Date().toISOString(),
+    };
+    store.addMessageToConversation(cid, userMsg);
+    const assistantMsg = {
+      id: crypto.randomUUID(),
+      role: "assistant" as const,
+      content,
+      timestamp: new Date().toISOString(),
+    };
+    store.addMessageToConversation(cid, assistantMsg);
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
     const message = inputValue.trim();
     setInputValue("");
+
+    if (message === "/help" || message.startsWith("/help ")) {
+      const keyword = message === "/help" ? undefined : message.slice(5).trim() || undefined;
+      injectHelpOrToolsReply(message, buildHelpMessage(keyword));
+      return;
+    }
+
+    if (message === "/tools") {
+      injectHelpOrToolsReply(message, buildToolsMessage());
+      return;
+    }
+
     await sendMessage(message);
   };
 
@@ -347,6 +454,19 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
         {/* Messages */}
         <div className="flex-1 px-4 py-4 overflow-y-auto" ref={scrollRef}>
           <div className="space-y-4">
+            {messages.length === 0 && (
+              <div className="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-4 text-sm text-slate-600 space-y-2">
+                <p className="font-medium text-slate-800">Meet your Schedule AI copilot.</p>
+                <p>I can understand natural-language questions about your Neuro ICU schedule, check coverage, find conflicts, and explain assignments.</p>
+                <p className="text-xs text-slate-500 mt-2">Try asking:</p>
+                <ul className="text-xs space-y-0.5 list-disc list-inside text-slate-600">
+                  <li>Who's covering this weekend?</li>
+                  <li>Balance night shifts for next month</li>
+                  <li>Why am I on call Saturday?</li>
+                </ul>
+                <p className="text-xs text-slate-500 mt-2">Type <code className="bg-slate-200 px-1 rounded">/help</code> for a full list of what I can do, or <code className="bg-slate-200 px-1 rounded">/tools</code> to see all actions I can run.</p>
+              </div>
+            )}
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -479,7 +599,11 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isListening ? "Listening..." : "Type a message..."}
+              placeholder={
+                isListening
+                  ? "Listening..."
+                  : "Ask about your schedule, or type /help or /tools"
+              }
               className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
               disabled={isLoading}
             />

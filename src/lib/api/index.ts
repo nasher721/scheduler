@@ -50,3 +50,9 @@ export {
   loadScheduleState,
   optimizeWithSolver,
 } from "./scheduleState";
+export {
+  fetchApplyHistory,
+  fetchApplyHistorySummary,
+  type AiApplyRecord,
+  type AiApplySummary,
+} from "./aiApplyHistory";

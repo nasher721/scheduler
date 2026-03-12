@@ -1,12 +1,16 @@
 import { useScheduleStore, getProviderCounts, getProviderCredentialSummary } from "../store";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Minus, ShieldAlert, History, Calendar as CalendarIcon, User, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, ShieldAlert, History, Calendar as CalendarIcon, User, AlertTriangle, CheckCircle2, Bot, Zap } from "lucide-react";
+import { useAiApplyHistory } from "@/hooks/useAiApplyHistory";
+import { useAnomalyAlerts } from "@/hooks/useAnomalyAlerts";
 import { format, parseISO } from "date-fns";
 import { ExportCenter } from "./ExportCenter";
 
 export function AnalyticsDashboard() {
     const { slots, providers, auditLog, customRules } = useScheduleStore();
+    const { records: applyRecords, summary: applySummary, isLoading: applyLoading, error: applyError, refresh: refreshApply } = useAiApplyHistory({ limit: 10, days: 30 });
+    const { alerts: anomalyAlerts, isLoading: anomalyLoading, error: anomalyError, refresh: refreshAnomaly } = useAnomalyAlerts();
 
     const counts = useMemo(() => getProviderCounts(slots, providers), [slots, providers]);
 
@@ -328,6 +332,105 @@ export function AnalyticsDashboard() {
                             </div>
                         </div>
                     </div>
+                </motion.div>
+            </div>
+
+            {/* AI Apply History & Anomaly Alerts */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 }}
+                    className="satin-panel p-8 flex flex-col items-start gap-6 border-slate-200/40"
+                >
+                    <div className="flex items-center justify-between w-full border-b border-slate-100 pb-5">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 border border-primary/20 rounded-xl text-primary">
+                                <Bot className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-serif text-slate-900 tracking-tight">AI Apply History</h2>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-1">Schedule automation & rollback</p>
+                            </div>
+                        </div>
+                        <button type="button" onClick={refreshApply} className="text-[10px] font-bold text-slate-500 hover:text-primary uppercase tracking-wider">Refresh</button>
+                    </div>
+                    {applyLoading && <p className="text-sm text-slate-500">Loading…</p>}
+                    {applyError && <p className="text-sm text-error">{applyError.message}</p>}
+                    {!applyLoading && !applyError && applySummary && (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full">
+                                <div className="p-3 rounded-xl border border-slate-100 bg-white/60">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Applies</p>
+                                    <p className="text-xl font-bold text-slate-800">{applySummary.applyCount}</p>
+                                </div>
+                                <div className="p-3 rounded-xl border border-slate-100 bg-white/60">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rollbacks</p>
+                                    <p className="text-xl font-bold text-slate-800">{applySummary.rollbackCount}</p>
+                                </div>
+                                <div className="p-3 rounded-xl border border-slate-100 bg-white/60">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rollback rate</p>
+                                    <p className="text-xl font-bold text-slate-800">{applySummary.rollbackRate != null ? `${(applySummary.rollbackRate * 100).toFixed(1)}%` : "—"}</p>
+                                </div>
+                                <div className="p-3 rounded-xl border border-slate-100 bg-white/60">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg score</p>
+                                    <p className="text-xl font-bold text-slate-800">{applySummary.avgObjectiveScore != null ? applySummary.avgObjectiveScore.toFixed(1) : "—"}</p>
+                                </div>
+                            </div>
+                            <div className="w-full flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-2">
+                                {applyRecords.length === 0 ? (
+                                    <p className="text-sm text-slate-500 italic">No apply events in the last 30 days.</p>
+                                ) : (
+                                    applyRecords.slice(0, 8).map((r) => (
+                                        <div key={r.id} className="flex items-center justify-between py-2 border-b border-slate-100 text-[11px]">
+                                            <span className="font-medium text-slate-700">{format(parseISO(r.timestamp), "MMM d, HH:mm")}</span>
+                                            <span className="text-slate-500">{r.rolloutMode ?? "—"}</span>
+                                            {r.rolledBackAt ? <span className="text-warning font-bold">Rolled back</span> : <span className="text-slate-400">Applied</span>}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </>
+                    )}
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="satin-panel p-8 flex flex-col items-start gap-6 border-slate-200/40"
+                >
+                    <div className="flex items-center justify-between w-full border-b border-slate-100 pb-5">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-50 border border-amber-200/60 rounded-xl text-amber-500">
+                                <Zap className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-serif text-slate-900 tracking-tight">Anomaly Alerts</h2>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-1">AI-detected schedule risks</p>
+                            </div>
+                        </div>
+                        <button type="button" onClick={refreshAnomaly} className="text-[10px] font-bold text-slate-500 hover:text-primary uppercase tracking-wider">Refresh</button>
+                    </div>
+                    {anomalyLoading && <p className="text-sm text-slate-500">Loading…</p>}
+                    {anomalyError && <p className="text-sm text-error">{anomalyError.message}</p>}
+                    {!anomalyLoading && !anomalyError && (
+                        <div className="w-full flex flex-col gap-2 max-h-[280px] overflow-y-auto pr-2">
+                            {anomalyAlerts.length === 0 ? (
+                                <p className="text-sm text-slate-500 italic">No active anomaly alerts. Run detection from the AI Test panel to monitor.</p>
+                            ) : (
+                                anomalyAlerts.slice(0, 10).map((a) => (
+                                    <div key={a.id} className="p-3 rounded-xl border border-amber-100 bg-amber-50/50 text-[11px]">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-bold text-amber-800 uppercase tracking-wider">{a.severity ?? a.type ?? "Alert"}</span>
+                                            {a.detectedAt && <span className="text-slate-500">{format(parseISO(a.detectedAt), "MMM d")}</span>}
+                                        </div>
+                                        <p className="mt-1 text-slate-700">{a.message ?? a.description ?? (a as Record<string, unknown>).title ?? "No description"}</p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
                 </motion.div>
             </div>
         </div>
