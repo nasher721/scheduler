@@ -102,16 +102,19 @@ export default function App() {
   const isOnline = useNetworkStatus();
   const { alerts: anomalyAlerts } = useAnomalyAlerts();
 
+  const safeSlots = Array.isArray(slots) ? slots : [];
+  const safeProviders = Array.isArray(providers) ? providers : [];
+
   const runMultiAgentOptimize = useCallback(async () => {
     setIsMultiAgentOptimizing(true);
     try {
-      const scheduleState = { slots, providers, startDate, numWeeks, scenarios, customRules };
+      const scheduleState = { slots: safeSlots, providers: safeProviders, startDate, numWeeks, scenarios, customRules };
       const result = await multiAgentOptimize(scheduleState);
       if (!result?.success || !result.schedule) {
         showToast({ type: "error", title: "Optimization failed", message: "No schedule result returned." });
         return;
       }
-      const preview = buildOptimizationPreview(result, slots, providers);
+      const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
       openChangePreviewWithMultiAgentResult(preview as OptimizationPreview, result);
     } catch (err) {
       showToast({
@@ -122,7 +125,7 @@ export default function App() {
     } finally {
       setIsMultiAgentOptimizing(false);
     }
-  }, [slots, providers, startDate, numWeeks, scenarios, customRules, showToast, openChangePreviewWithMultiAgentResult]);
+  }, [safeSlots, safeProviders, startDate, numWeeks, scenarios, customRules, showToast, openChangePreviewWithMultiAgentResult]);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
@@ -132,10 +135,10 @@ export default function App() {
     setAutoSaveStatus("saving");
     try {
       await saveScheduleState({
-        providers,
+        providers: safeProviders,
         startDate,
         numWeeks,
-        slots,
+        slots: safeSlots,
         scenarios,
         customRules,
         auditLog,
@@ -146,7 +149,7 @@ export default function App() {
       setAutoSaveStatus("error");
       setTimeout(() => setAutoSaveStatus("idle"), 3000);
     }
-  }, [providers, startDate, numWeeks, slots, scenarios, customRules, auditLog]);
+  }, [safeProviders, startDate, numWeeks, safeSlots, scenarios, customRules, auditLog]);
 
   useEffect(() => {
     // Don't autosave if not logged in or offline
@@ -211,10 +214,10 @@ export default function App() {
     document.title = `${segment} · Neuro ICU Staffing`;
   }, [currentUser, viewMode]);
 
-  const assigned = slots.filter((slot) => slot.providerId).length;
-  const coverage = Math.round((assigned / Math.max(slots.length, 1)) * 100);
-  const counts = useMemo(() => getProviderCounts(slots, providers), [slots, providers]);
-  const overloaded = providers.filter((p) => {
+  const assigned = safeSlots.filter((slot) => slot?.providerId).length;
+  const coverage = Math.round((assigned / Math.max(safeSlots.length, 1)) * 100);
+  const counts = useMemo(() => getProviderCounts(safeSlots, safeProviders), [safeSlots, safeProviders]);
+  const overloaded = safeProviders.filter((p) => {
     const c = counts[p.id];
     return c && (
       c.weekDays > p.targetWeekDays
@@ -222,13 +225,13 @@ export default function App() {
       || (c.weekNights + c.weekendNights) > p.targetWeekNights
     );
   });
-  const criticalUnfilled = slots.filter((slot) => slot.priority === "CRITICAL" && !slot.providerId).length;
-  const skillMismatchRisk = slots.filter((slot) => {
-    if (!slot.providerId) return false;
-    const provider = providers.find((p) => p.id === slot.providerId);
-    return provider ? !provider.skills.includes(slot.requiredSkill) : false;
+  const criticalUnfilled = safeSlots.filter((slot) => slot?.priority === "CRITICAL" && !slot?.providerId).length;
+  const skillMismatchRisk = safeSlots.filter((slot) => {
+    if (!slot?.providerId) return false;
+    const provider = safeProviders.find((p) => p.id === slot.providerId);
+    return provider ? !(provider.skills ?? []).includes(slot.requiredSkill) : false;
   }).length;
-  const fatigueExposure = providers.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights).length;
+  const fatigueExposure = safeProviders.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights).length;
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -318,10 +321,10 @@ export default function App() {
   const handleServerSave = async () => {
     try {
       await saveScheduleState({
-        providers,
+        providers: safeProviders,
         startDate,
         numWeeks,
-        slots,
+        slots: safeSlots,
         scenarios,
         customRules,
         auditLog,
@@ -333,7 +336,7 @@ export default function App() {
   };
 
   const handleClearStaff = () => {
-    if (providers.length === 0) {
+    if (safeProviders.length === 0) {
       showToast({ type: "info", title: "No Staff to Clear", message: "There are no provider profiles to remove." });
       return;
     }
@@ -344,7 +347,7 @@ export default function App() {
   };
 
   const handleClearSchedule = () => {
-    if (slots.every((slot) => !slot.providerId) && scenarios.length === 0) {
+    if (safeSlots.every((slot) => !slot?.providerId) && scenarios.length === 0) {
       showToast({ type: "info", title: "Schedule Already Clear", message: "There are no assignments or scenarios to reset." });
       return;
     }
@@ -509,7 +512,7 @@ export default function App() {
                 <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Unit Allocation</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-medium text-slate-800">{assigned}</span>
-                  <span className="text-xs text-slate-400">/ {slots.length}</span>
+                  <span className="text-xs text-slate-400">/ {safeSlots.length}</span>
                 </div>
               </div>
 

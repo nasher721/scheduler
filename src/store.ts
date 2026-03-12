@@ -2676,6 +2676,15 @@ export const useScheduleStore = create<ScheduleState>()(
         copilotConversations: state.copilotConversations,
         copilotFeedback: state.copilotFeedback,
       }),
+      onRehydrateStorage: () => (state, err) => {
+        if (err) return;
+        if (state && (!Array.isArray(state.slots) || !Array.isArray(state.providers))) {
+          useScheduleStore.setState({
+            slots: Array.isArray(state.slots) ? state.slots : [],
+            providers: Array.isArray(state.providers) ? state.providers : [],
+          });
+        }
+      },
     },
   ),
 );
