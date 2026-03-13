@@ -1,5 +1,77 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+
+// ─── Safe localStorage wrapper ────────────────────────────────────────────────
+// Wraps every setItem in a try/catch so a QuotaExceededError never crashes the
+// app.  When quota is exceeded the handler prunes the largest state slices
+// (undo history → copilot conversations → notifications) inline, retries once,
+// and – if storage is still full – removes the stale key so the next write can
+// succeed.  A one-time console warning is emitted instead of an uncaught error.
+const _safeStorage = {
+  getItem: (name: string): string | null => {
+    try { return localStorage.getItem(name); } catch { return null; }
+  },
+  setItem: (name: string, value: string): void => {
+    const tryWrite = (payload: string) => {
+      try {
+        localStorage.setItem(name, payload);
+        return true;
+      } catch (err) {
+        const isQuota =
+          err instanceof DOMException &&
+          (err.name === "QuotaExceededError" ||
+            err.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+            err.code === 22);
+        if (!isQuota) throw err;
+        return false;
+      }
+    };
+
+    if (tryWrite(value)) return;
+
+    // First attempt failed — try to prune large slices and retry.
+    try {
+      const parsed: { state?: Record<string, unknown> } = JSON.parse(value);
+      const s = parsed?.state;
+      if (s) {
+        // Trim undo history to the most recent 15 snapshots.
+        if (Array.isArray(s.history) && (s.history as unknown[]).length > 15) {
+          const trimmed = (s.history as unknown[]).slice(-15);
+          s.history = trimmed;
+          s.historyIndex = Math.min(
+            typeof s.historyIndex === "number" ? s.historyIndex : 14,
+            14,
+          );
+        }
+        // Keep only the 3 most recent copilot conversations.
+        if (Array.isArray(s.copilotConversations)) {
+          s.copilotConversations = (s.copilotConversations as unknown[]).slice(-3);
+        }
+        // Drop stale ML suggestions (they are regenerated on demand).
+        if (Array.isArray(s.mlSuggestions)) {
+          s.mlSuggestions = [];
+        }
+        // Trim notifications to the 20 most recent.
+        if (Array.isArray(s.notifications)) {
+          s.notifications = (s.notifications as unknown[]).slice(-20);
+        }
+        if (tryWrite(JSON.stringify(parsed))) return;
+      }
+    } catch {
+      // Parsing failed — fall through to evict.
+    }
+
+    // Still over quota: evict the stale key so the next write can succeed.
+    try { localStorage.removeItem(name); } catch { /* nothing */ }
+    console.warn(
+      "[NICU Scheduler] localStorage quota exceeded. Undo history and AI conversation logs were trimmed to free space. Core schedule data is preserved.",
+    );
+  },
+  removeItem: (name: string): void => {
+    try { localStorage.removeItem(name); } catch { /* nothing */ }
+  },
+};
+// ─────────────────────────────────────────────────────────────────────────────
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek, isValid } from "date-fns";
 import { registerProvider, loadScheduleState, applyOptimizationResult, multiAgentOptimize, buildOptimizationPreview } from "./lib/api";
 import { supabase, supabaseStatus } from "./lib/supabase";
@@ -2655,25 +2727,29 @@ export const useScheduleStore = create<ScheduleState>()(
     }),
     {
       name: "nicu-schedule-store-v4",
+      storage: createJSONStorage(() => _safeStorage),
       partialize: (state) => ({
         providers: state.providers,
         startDate: state.startDate,
         numWeeks: state.numWeeks,
         slots: state.slots,
         scenarios: state.scenarios,
-        history: state.history,
-        historyIndex: state.historyIndex,
+        // Cap undo history at 30 entries to keep storage lean.
+        history: state.history.slice(-30),
+        historyIndex: Math.min(state.historyIndex, 29),
         swapRequests: state.swapRequests,
         holidayAssignments: state.holidayAssignments,
         conflicts: state.conflicts,
-        notifications: state.notifications,
+        // Keep only the 30 most recent notifications.
+        notifications: state.notifications.slice(-30),
         notificationPreferences: state.notificationPreferences,
         preferenceProfiles: state.preferenceProfiles,
-        mlSuggestions: state.mlSuggestions,
+        // ML suggestions are regenerated on demand — do not persist.
         scheduleTemplates: state.scheduleTemplates,
         dayHandoffs: state.dayHandoffs,
         scheduleViewport: state.scheduleViewport,
-        copilotConversations: state.copilotConversations,
+        // Keep only the 5 most recent AI conversations.
+        copilotConversations: state.copilotConversations.slice(-5),
         copilotFeedback: state.copilotFeedback,
       }),
       onRehydrateStorage: () => (state, err) => {
