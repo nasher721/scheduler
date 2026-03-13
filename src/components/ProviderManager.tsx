@@ -3,6 +3,7 @@ import { useScheduleStore, getProviderCounts, type TimeOffType, getProviderCrede
 import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun, X } from "lucide-react";
 import { DraggableProvider } from "./Calendar";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 function TimeOffForm({ onAdd }: { onAdd: (date: string, type: TimeOffType) => void }) {
   const [date, setDate] = useState("");
@@ -12,14 +13,14 @@ function TimeOffForm({ onAdd }: { onAdd: (date: string, type: TimeOffType) => vo
     <div className="flex gap-2">
       <input
         type="date"
-        className="flex-1 bg-white/50 border border-slate-200/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+        className="flex-1 input-base rounded-lg py-2 text-sm"
         value={date}
         onChange={(e) => setDate(e.target.value)}
         title="Date"
         aria-label="Date"
       />
       <select
-        className="w-24 bg-white/50 border border-slate-200/60 rounded-xl px-2 py-2 text-xs font-bold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+        className="w-24 input-base rounded-lg py-2 text-sm appearance-none"
         value={type}
         onChange={(e) => setType(e.target.value as TimeOffType)}
         title="Time Off Type"
@@ -37,7 +38,7 @@ function TimeOffForm({ onAdd }: { onAdd: (date: string, type: TimeOffType) => vo
             setDate("");
           }
         }}
-        className="bg-primary text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
+        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
       >
         Add
       </button>
@@ -55,17 +56,17 @@ function ProgressBar({ target, current, label, icon }: { target: number; current
       <div className="flex justify-between items-center px-0.5">
         <div className="flex items-center gap-1.5">
           <span className="opacity-70">{icon}</span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+          <span className="text-xs font-medium text-foreground-muted">{label}</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className={`text-[10px] font-bold tabular-nums ${isOver ? "text-error" : isComplete ? "text-success" : "text-slate-600"}`}>
+          <span className={`text-xs font-semibold tabular-nums ${isOver ? "text-error" : isComplete ? "text-success" : "text-foreground"}`}>
             {current}
           </span>
-          <span className="text-[9px] font-bold text-slate-300">/</span>
-          <span className="text-[9px] font-bold text-slate-300 tabular-nums">{target}</span>
+          <span className="text-xs text-foreground-muted">/</span>
+          <span className="text-xs text-foreground-muted tabular-nums">{target}</span>
         </div>
       </div>
-      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
@@ -124,34 +125,33 @@ export function ProviderManager() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
+      initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-      className="satin-panel p-6 flex flex-col gap-6 w-full max-w-sm h-fit sticky top-6 bg-white/60 rounded-[2rem] border-slate-200/40"
+      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+      className="stone-panel p-5 flex flex-col gap-5 w-full h-fit sticky top-6"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-5">
-        <div className="flex items-center gap-4">
-          <div className="p-2.5 bg-primary/5 rounded-2xl text-primary">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-xl text-primary">
             <Users className="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>
-            <h2 className="text-xl font-serif text-slate-900 leading-tight">Clinical Staff</h2>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{providers.length} Active Profiles</p>
+            <h2 className="text-lg font-semibold text-foreground">Clinical staff</h2>
+            <p className="text-xs text-foreground-muted mt-0.5">{providers.length} providers</p>
           </div>
         </div>
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => setIsAdding(true)}
-          title="Add Staff"
-          className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all"
+          title="Add provider"
+          aria-label="Add provider"
+          className="p-2.5 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity"
         >
           <Plus className="w-5 h-5 stroke-[3]" />
         </motion.button>
       </div>
 
-      {/* Add Form */}
       <AnimatePresence>
         {isAdding && (
           <motion.div
@@ -161,46 +161,44 @@ export function ProviderManager() {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-200/60 mb-6 group transition-all hover:bg-white hover:shadow-md">
+            <div className="p-4 bg-secondary/30 rounded-xl border border-border mb-4">
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <input
                     autoFocus
                     type="text"
-                    className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 transition-all placeholder:text-slate-300 ${nameError ? "border-red-400 focus:ring-red-200 animate-[shake_0.3s_ease]" : "border-slate-200/60 focus:ring-primary/20"}`}
-                    placeholder="Enter medical signature..."
+                    className={cn("input-base rounded-lg py-2.5", nameError && "border-error focus:ring-error/20 animate-[shake_0.3s_ease]")}
+                    placeholder="Name (required)"
                     value={newName}
                     onChange={(e) => { setNewName(e.target.value); if (nameError) setNameError(false); }}
                     onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                   />
                   {nameError && (
-                    <p className="text-[10px] font-bold text-red-500 px-1">Medical signature is required.</p>
+                    <p className="text-xs font-medium text-error px-1">Name is required.</p>
                   )}
                 </div>
                 <input
                   type="email"
-                  className="w-full bg-white border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-300"
-                  placeholder="provider@hospital.org (optional)"
+                  className="input-base rounded-lg py-2.5"
+                  placeholder="Email (optional)"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                 />
               </div>
-              <div className="flex justify-end gap-3 mt-4">
-                {/* Use onMouseDown so the dismiss fires before the input blur event,
-                    preventing a missed first-click when the name field has focus. */}
+              <div className="flex justify-end gap-2 mt-4">
                 <button
                   type="button"
                   onMouseDown={(e) => { e.preventDefault(); handleDiscard(); }}
-                  className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                  className="px-3 py-2 text-sm font-medium text-foreground-muted hover:text-foreground transition-colors"
                 >
                   Discard
                 </button>
                 <button
                   type="button"
                   onClick={handleAdd}
-                  className="bg-primary text-white px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
                 >
-                  Initialize Profile
+                  Add provider
                 </button>
               </div>
             </div>
@@ -208,8 +206,7 @@ export function ProviderManager() {
         )}
       </AnimatePresence>
 
-      {/* Provider Cards */}
-      <div className="flex flex-col gap-3 -mx-1 px-1 max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide">
+      <div className="flex flex-col gap-3 max-h-[calc(100vh-260px)] overflow-y-auto scrollbar-hide">
         <AnimatePresence mode="popLayout">
           {providers.length === 0 && !isAdding && (
             <motion.div
@@ -217,11 +214,11 @@ export function ProviderManager() {
               animate={{ opacity: 1 }}
               className="text-center py-8"
             >
-              <div className="w-16 h-16 mx-auto mb-4 bg-slate-100 rounded-2xl flex items-center justify-center">
-                <Users className="w-8 h-8 text-slate-400" />
+              <div className="w-14 h-14 mx-auto mb-3 bg-secondary/50 rounded-xl flex items-center justify-center">
+                <Users className="w-7 h-7 text-foreground-muted" />
               </div>
-              <p className="text-sm text-slate-500">No providers yet</p>
-              <p className="text-xs text-slate-400 mt-1">Click the + button to add staff</p>
+              <p className="text-sm text-foreground-muted">No providers yet</p>
+              <p className="text-xs text-foreground-muted/80 mt-1">Click + to add staff</p>
             </motion.div>
           )}
 
@@ -238,12 +235,12 @@ export function ProviderManager() {
               <motion.div
                 layout
                 layoutId={p.id}
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
+                exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                transition={{ duration: 0.25, delay: index * 0.03 }}
                 key={p.id}
-                className="provider-card group relative bg-white/40 border border-slate-200/40 rounded-2xl p-4 transition-all hover:bg-white hover:border-slate-300/50 hover:shadow-xl hover:shadow-slate-200/30"
+                className="provider-card group relative bg-surface border border-border rounded-xl p-4 transition-all hover:border-primary/20 hover:shadow-md"
               >
                 {/* Header Row */}
                 <div className="flex justify-between items-start mb-4">
@@ -267,7 +264,7 @@ export function ProviderManager() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${progress >= 100 ? "bg-success-muted text-success" : progress >= 50 ? "bg-primary-muted text-primary" : "bg-slate-100 text-slate-500"}`}>
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${progress >= 100 ? "bg-success/10 text-success" : progress >= 50 ? "bg-primary/10 text-primary" : "bg-secondary text-foreground-muted"}`}>
                       {progress}%
                     </span>
                     <motion.button

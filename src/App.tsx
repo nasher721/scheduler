@@ -383,33 +383,26 @@ export default function App() {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="min-h-screen p-6 md:p-8 lg:p-10 flex flex-col gap-10 relative z-10">
-        {/* Header Section */}
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-8 max-w-[1600px] mx-auto relative z-10">
         <motion.header
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col gap-10"
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col gap-6"
         >
-          {/* Institutional Branding & Action Row */}
-          <div className="flex flex-col gap-8">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-10 border-b border-slate-200/60 pb-10">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className="w-10 h-[1px] bg-primary opacity-40" />
-                  <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary/80">Department of Neurology</span>
-                </div>
-                <h1 className="text-6xl lg:text-7xl tracking-tighter text-slate-900 leading-[0.85]">
-                  Neuro <span className="font-serif italic text-primary">ICU</span> <span className="text-slate-300 font-extralight">Staffing</span>
-                </h1>
-                <p className="text-sm text-slate-500 mt-4 max-w-md font-medium leading-relaxed">
-                  High-fidelity orchestration for clinical environments.
-                  Synchronizing coverage, fatigue logic, and risk-mitigated assignment.
-                </p>
-              </div>
+          {/* Branding + Toolbar */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <h1 className="text-4xl sm:text-5xl tracking-tight text-foreground leading-tight font-serif italic">
+                Neuro <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">ICU</span> Staffing
+              </h1>
+              <p className="text-sm text-foreground-muted mt-1.5 max-w-md">
+                Coverage, fatigue logic, risk-mitigated assignment.
+              </p>
+            </div>
 
-              {/* Action Toolbar */}
-              <div className="flex items-center gap-2 flex-wrap bg-slate-100/40 p-1.5 rounded-2xl border border-slate-200/50 backdrop-blur-sm">
+            {/* Action Toolbar */}
+            <div className="flex items-center gap-1.5 flex-wrap rounded-xl bg-secondary/60 p-1.5 border border-border">
                 <input
                   title="Import"
                   type="file"
@@ -419,26 +412,22 @@ export default function App() {
                   onChange={handleImport}
                 />
 
-                <div className="flex items-center gap-1 bg-white/80 rounded-xl p-1 shadow-sm border border-slate-200/50">
-                  <button onClick={handleUndo} disabled={!canUndo()} className="p-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-10" title="Undo"><Undo2 className="w-4 h-4" /></button>
-                  <button onClick={handleRedo} disabled={!canRedo()} className="p-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-10" title="Redo"><Redo2 className="w-4 h-4" /></button>
+                <div className="flex items-center gap-0.5 rounded-lg bg-surface p-0.5 border border-border">
+                  <button onClick={handleUndo} disabled={!canUndo()} className="p-2 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 text-foreground-muted" title="Undo" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
+                  <button onClick={handleRedo} disabled={!canRedo()} className="p-2 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 text-foreground-muted" title="Redo" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
                 </div>
-
-                <div className="w-px h-6 bg-slate-200/60 mx-1" />
-
-                <div className="flex items-center gap-1">
-                  <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Import</button>
-                  <button onClick={handleRollbackImport} disabled={!canRollbackImport} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 disabled:opacity-40 transition-colors">Rollback</button>
+                <div className="w-px h-5 bg-border mx-0.5" />
+                <div className="flex items-center gap-0.5">
+                  <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm font-medium text-foreground-muted hover:text-foreground rounded-lg transition-colors">Import</button>
+                  <button onClick={handleRollbackImport} disabled={!canRollbackImport} className="px-3 py-2 text-sm font-medium text-foreground-muted hover:text-foreground disabled:opacity-40 rounded-lg transition-colors">Rollback</button>
                 </div>
-
-                <div className="w-px h-6 bg-slate-200/60 mx-1" />
-
-                <div className="flex items-center gap-2">
+                <div className="w-px h-5 bg-border mx-0.5" />
+                <div className="flex items-center gap-1.5">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={autoAssign}
-                    className="px-5 py-2 bg-white border border-blue-100 text-primary rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm flex items-center gap-2"
+                    className="px-4 py-2 bg-surface border border-primary/20 text-primary rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 hover:bg-primary/5 transition-colors"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     Auto-Fill
@@ -448,32 +437,31 @@ export default function App() {
                     whileTap={{ scale: 0.98 }}
                     onClick={runMultiAgentOptimize}
                     disabled={isMultiAgentOptimizing}
-                    className="px-5 py-2 bg-white border border-violet-200 text-violet-700 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm flex items-center gap-2 disabled:opacity-60"
+                    className="px-4 py-2 bg-surface border border-primary/20 text-primary rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 disabled:opacity-50 hover:bg-primary/5 transition-colors"
                   >
                     <Bot className="w-3.5 h-3.5" />
                     {isMultiAgentOptimizing ? "Optimizing…" : "Optimize (AI)"}
                   </motion.button>
-                  {/* Autosave status chip */}
                   {autoSaveStatus !== "idle" && (
-                    <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full ${autoSaveStatus === "saving" || autoSaveStatus === "pending"
-                      ? "bg-blue-100 text-blue-600 animate-pulse"
-                      : autoSaveStatus === "saved"
-                        ? "bg-emerald-100 text-emerald-600"
-                        : "bg-rose-100 text-rose-600"
-                      }`}>
-                      {autoSaveStatus === "pending" ? "Pending…" : autoSaveStatus === "saving" ? "Saving…" : autoSaveStatus === "saved" ? "✓ Saved" : "Save Failed"}
+                    <span className={cn(
+                      "text-xs font-medium px-2.5 py-1 rounded-full",
+                      (autoSaveStatus === "saving" || autoSaveStatus === "pending") && "bg-primary/10 text-primary animate-pulse",
+                      autoSaveStatus === "saved" && "bg-success/10 text-success",
+                      autoSaveStatus === "error" && "bg-error/10 text-error"
+                    )}>
+                      {autoSaveStatus === "pending" ? "Pending" : autoSaveStatus === "saving" ? "Saving" : autoSaveStatus === "saved" ? "Saved" : "Save failed"}
                     </span>
                   )}
-                  <button onClick={handleServerSave} className="p-2 text-slate-400 hover:text-primary transition-colors" title="Sync to server now"><Save className="w-4 h-4" /></button>
-                  <button onClick={handleClearSchedule} className="p-2 text-slate-400 hover:text-amber-600 transition-colors" title="Clear Schedule"><Trash className="w-4 h-4" /></button>
-                  <button onClick={handleClearStaff} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Clear Staff"><AlertTriangle className="w-4 h-4" /></button>
-                  <div className="w-px h-6 bg-slate-200/60 mx-1" />
+                  <button onClick={handleServerSave} className="p-2 text-foreground-muted hover:text-primary rounded-lg transition-colors" title="Sync to server" aria-label="Save to server"><Save className="w-4 h-4" /></button>
+                  <button onClick={handleClearSchedule} className="p-2 text-foreground-muted hover:text-warning rounded-lg transition-colors" title="Clear schedule" aria-label="Clear schedule"><Trash className="w-4 h-4" /></button>
+                  <button onClick={handleClearStaff} className="p-2 text-foreground-muted hover:text-error rounded-lg transition-colors" title="Clear staff" aria-label="Clear staff"><AlertTriangle className="w-4 h-4" /></button>
+                  <div className="w-px h-5 bg-border mx-0.5" />
                   {anomalyAlerts.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setViewMode("analytics")}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-200 transition-colors"
-                      title="View anomaly alerts in Analytics"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-warning/10 text-warning border border-warning/20 text-sm font-medium hover:opacity-90 transition-opacity"
+                      title="View anomaly alerts"
                     >
                       <AlertCircle className="w-3.5 h-3.5" />
                       {anomalyAlerts.length} alert{anomalyAlerts.length !== 1 ? "s" : ""}
@@ -482,10 +470,11 @@ export default function App() {
                   <button
                     onClick={toggleCopilot}
                     className={cn(
-                      "p-2 rounded-lg transition-colors flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider",
-                      isCopilotOpen ? "bg-primary text-white" : "text-slate-400 hover:text-primary"
+                      "p-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium",
+                      isCopilotOpen ? "bg-primary text-primary-foreground" : "text-foreground-muted hover:text-primary"
                     )}
                     title="AI Assistant"
+                    aria-label="Toggle AI assistant"
                   >
                     <Bot className="w-4 h-4" />
                     <span className="hidden sm:inline">AI</span>
@@ -495,115 +484,71 @@ export default function App() {
             </div>
           </div>
 
-          {/* Situational Awareness Bar */}
-          <div className="flex flex-col xl:flex-row gap-6 no-print">
-            <div className="flex-1 stone-panel p-8 flex items-center justify-between gap-10">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Tactical Coverage</span>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-5xl font-extralight tracking-tighter text-slate-900">{coverage}%</span>
-                  <div className={`w-2.5 h-2.5 rounded-full ${coverage >= 95 ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-amber-500'}`} />
-                </div>
+          {/* One compact awareness strip */}
+          <div className="stone-panel p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 no-print">
+            <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-light tracking-tight text-foreground">{coverage}%</span>
+                <span className="text-xs text-foreground-muted">coverage</span>
+                <div className={cn("w-2 h-2 rounded-full", coverage >= 95 ? "bg-success" : "bg-warning")} />
               </div>
-
-              <div className="h-12 w-[1px] bg-slate-100" />
-
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Unit Allocation</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-medium text-slate-800">{assigned}</span>
-                  <span className="text-xs text-slate-400">/ {safeSlots.length}</span>
-                </div>
+              <div className="flex items-center gap-1.5 text-sm">
+                <span className="font-medium text-foreground">{assigned}</span>
+                <span className="text-foreground-muted">/ {safeSlots.length} slots</span>
               </div>
-
-              <div className="flex-1 max-w-[240px] h-1 bg-slate-100 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${coverage}%` }}
-                  className="h-full bg-primary relative"
-                >
-                  <div className="absolute inset-0 bg-white/30 animate-[shimmer_2s_infinite]" />
-                </motion.div>
+              <div className="h-4 w-px bg-border hidden sm:block" />
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <span className="text-foreground-muted">Start</span>
+                  <input type="date" title="Start Date" aria-label="Start Date" value={startDate} onChange={(e) => setScheduleRange(e.target.value, numWeeks)} className="bg-transparent border-none p-0 text-sm font-medium text-foreground focus:ring-0 focus:outline-none" />
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="number" min={1} max={12} title="Weeks" aria-label="Weeks" value={numWeeks} onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} className="bg-transparent border-none p-0 w-8 text-sm font-medium text-foreground text-center focus:ring-0 focus:outline-none" />
+                  <span className="text-foreground-muted">wks</span>
+                </label>
               </div>
-
-              <div className="h-12 w-[1px] bg-slate-100" />
-
-              {/* Network Status */}
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Connection</span>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_12px_hsla(160,84%,39%,0.4)]' : 'bg-rose-500'}`} />
-                  <span className={`text-xs font-bold ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {isOnline ? 'Online' : 'Offline'}
-                  </span>
-                </div>
+              <div className="h-4 w-px bg-border hidden sm:block" />
+              <div className="flex items-center gap-2">
+                <div className={cn("w-2 h-2 rounded-full", isOnline ? "bg-success" : "bg-error")} />
+                <span className={cn("text-sm font-medium", isOnline ? "text-success" : "text-error")}>{isOnline ? "Online" : "Offline"}</span>
               </div>
             </div>
-
-            <div className="stone-panel p-8 flex items-center gap-16">
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100/50">
-                  <AlertCircle className="w-6 h-6 text-rose-500" />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-rose-600 tracking-tighter leading-none">{criticalUnfilled}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Critical Gaps</p>
-                </div>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold text-error">{criticalUnfilled}</span>
+                <span className="text-xs text-foreground-muted">critical gaps</span>
               </div>
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-100/50">
-                  <Zap className="w-6 h-6 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-amber-600 tracking-tighter leading-none">{skillMismatchRisk}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Skill Risk</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="satin-panel p-6 flex flex-col justify-center gap-4">
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Deployment</span>
-                  <input type="date" title="Start Date" aria-label="Start Date" value={startDate} onChange={(e) => setScheduleRange(e.target.value, numWeeks)} className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 focus:ring-0" />
-                </div>
-                <div className="w-[1px] h-6 bg-slate-200" />
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Horizon</span>
-                  <div className="flex items-center gap-1">
-                    <input type="number" min={1} max={12} title="Number of Weeks" aria-label="Number of Weeks" value={numWeeks} onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} className="bg-transparent border-none p-0 w-6 text-xs font-bold text-slate-900 focus:ring-0" />
-                    <span className="text-[9px] font-medium text-slate-400 uppercase">wks</span>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold text-warning">{skillMismatchRisk}</span>
+                <span className="text-xs text-foreground-muted">skill risk</span>
               </div>
             </div>
           </div>
 
 
-          {/* Scenario Ledger */}
-          <div className="flex items-center gap-4 no-print overflow-x-auto pb-2 scrollbar-hide">
-            <div className="flex items-center gap-2 mr-4">
+          {/* Scenarios */}
+          <div className="flex items-center gap-3 no-print overflow-x-auto pb-1 scrollbar-hide">
+            <div className="flex items-center gap-2 shrink-0">
               <input
                 value={scenarioName}
                 onChange={(e) => setScenarioName(e.target.value)}
-                placeholder="New Strategy Name..."
-                className="bg-transparent border-b border-slate-200 py-1 text-xs font-medium focus:border-primary outline-none transition-colors w-40"
+                placeholder="New scenario…"
+                className="bg-transparent border-b border-border py-1.5 text-sm font-medium text-foreground placeholder:text-foreground-muted focus:border-primary outline-none transition-colors w-36"
               />
-              <button title="Save Scenario" aria-label="Save Scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="p-2 text-slate-400 hover:text-primary"><Save className="w-4 h-4" /></button>
+              <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="p-2 text-foreground-muted hover:text-primary rounded-lg transition-colors"><Save className="w-4 h-4" /></button>
             </div>
-
             <AnimatePresence>
               {scenarios.map((scenario) => (
                 <motion.div
                   key={scenario.id}
-                  initial={{ opacity: 0, x: -10 }}
+                  initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="shrink-0 flex items-center gap-3 px-4 py-2 rounded-xl border border-slate-100 bg-white shadow-sm hover:border-blue-200 transition-all cursor-pointer group"
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface hover:border-primary/30 transition-all cursor-pointer group text-sm font-medium text-foreground"
                   onClick={() => loadScenario(scenario.id)}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{scenario.name}</span>
-                  <button title="Delete Scenario" aria-label="Delete Scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity"><Trash className="w-3 h-3 text-rose-400 hover:text-rose-600" /></button>
+                  {scenario.name}
+                  <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-error hover:text-error"><Trash className="w-3 h-3" /></button>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -613,49 +558,39 @@ export default function App() {
           <AnimatePresence>
             {(lastActionMessage || overloaded.length > 0 || fatigueExposure > 0) && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="stone-panel bg-amber-50/50 border-amber-200/50 p-4 flex items-start gap-3 shadow-none"
+                exit={{ opacity: 0, y: -6 }}
+                className="stone-panel bg-warning/5 border-warning/20 p-4 flex items-start gap-3"
               >
-                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5" />
-                <div className="flex-1 text-xs text-amber-900/80 leading-relaxed">
-                  {lastActionMessage && <p className="font-bold text-amber-900">{lastActionMessage}</p>}
-                  {overloaded.length > 0 && <p>System Overload: {overloaded.map(p => p.name).join(", ")}</p>}
-                  {fatigueExposure > 0 && <p>Fatigue Boundary: {fatigueExposure} critical exposure(s) detected.</p>}
+                <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                <div className="flex-1 text-sm text-foreground-secondary leading-relaxed">
+                  {lastActionMessage && <p className="font-semibold text-foreground">{lastActionMessage}</p>}
+                  {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.name).join(", ")}</p>}
+                  {fatigueExposure > 0 && <p>Fatigue: {fatigueExposure} exposure(s).</p>}
                 </div>
-                <button onClick={clearMessage} className="text-[10px] font-bold uppercase tracking-widest text-amber-700 hover:text-amber-900">Dismiss</button>
+                <button onClick={clearMessage} className="text-sm font-medium text-warning hover:text-foreground transition-colors shrink-0">Dismiss</button>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.header>
 
-        {/* Main Content Arena */}
+        {/* Main content */}
         <motion.main
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="flex flex-col xl:flex-row gap-10 items-start flex-1"
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="flex flex-col xl:flex-row gap-6 items-start flex-1 min-w-0"
         >
-          <div className="w-full xl:w-80 shrink-0">
+          <aside className="w-full xl:w-72 shrink-0">
             <ProviderManager />
-          </div>
-
-          <div className="flex-1 w-full flex flex-col min-w-0">
-            <div className="satin-panel p-4 rounded-2xl border border-slate-200/50 mb-6">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Navigation</p>
-                  <p className="text-xs text-slate-500 mt-1">Use top tabs for core workflow and dropdowns for supporting modules.</p>
-                </div>
-                <ExportMenu />
-              </div>
-              <div className="mt-3">
-                <ViewToggle view={viewMode} onChange={setViewMode} />
-              </div>
+          </aside>
+          <div className="flex-1 w-full min-w-0 flex flex-col gap-4">
+            <div className="satin-panel p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <ViewToggle view={viewMode} onChange={setViewMode} />
+              <ExportMenu />
             </div>
-
-            <div className="w-full pb-20">
+            <div className="w-full pb-16">
               <ErrorBoundary>
                 <ViewContent viewMode={viewMode} />
               </ErrorBoundary>
@@ -666,68 +601,67 @@ export default function App() {
 
       <AnimatePresence>
         {isImportOpen && importPreview && (
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-5xl p-6 max-h-[85vh] overflow-auto">
-              <div className="flex justify-between items-start mb-4">
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-foreground/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 8, opacity: 0 }} className="bg-surface border border-border rounded-2xl w-full max-w-4xl p-6 max-h-[85vh] overflow-auto shadow-xl">
+              <div className="flex justify-between items-start mb-5">
                 <div>
-                  <h3 className="text-xl font-semibold text-slate-900">Import Preview (Dry Run)</h3>
-                  <p className="text-sm text-slate-500">{importPreview.validRows} valid / {importPreview.invalidRows} invalid rows across {importPreview.totalRows} parsed rows.</p>
+                  <h3 className="text-lg font-semibold text-foreground">Import preview</h3>
+                  <p className="text-sm text-foreground-muted mt-0.5">{importPreview.validRows} valid / {importPreview.invalidRows} invalid of {importPreview.totalRows} rows.</p>
                 </div>
-                <button onClick={() => setIsImportOpen(false)} className="text-slate-500 hover:text-slate-900">Close</button>
+                <button onClick={() => setIsImportOpen(false)} className="text-sm font-medium text-foreground-muted hover:text-foreground transition-colors p-1">Close</button>
               </div>
 
               {importPreview.requiresMapping && (
-                <div className="mb-5 border rounded-xl p-4 bg-amber-50/50 border-amber-200">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 mb-3">Column Mapping Required</p>
+                <div className="mb-5 rounded-xl p-4 bg-warning/5 border border-warning/20">
+                  <p className="text-sm font-medium text-foreground mb-3">Column mapping</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {(["date", "night", "dayG20", "dayH22", "dayAkron", "consults", "dayAmet", "dayNmet", "jeopardy", "recovery", "vacation"] as ImportFieldKey[]).map((field) => (
-                      <label key={field} className="flex flex-col gap-1 text-xs text-slate-700">
-                        <span className="font-semibold">{field}</span>
-                        <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="border rounded-lg px-2 py-1.5">
+                      <label key={field} className="flex flex-col gap-1 text-sm text-foreground-secondary">
+                        <span className="font-medium text-foreground">{field}</span>
+                        <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="input-base rounded-lg py-2">
                           <option value="">Select column</option>
                           {importPreview.availableHeaders.map((header) => <option key={header} value={header}>{header}</option>)}
                         </select>
                       </label>
                     ))}
                   </div>
-                  <div className="mt-4 flex gap-3">
-                    <button onClick={() => rerunImportPreview(importPreview.fileName)} className="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors">Re-validate Mapping</button>
+                  <div className="mt-4 flex gap-2">
+                    <button onClick={() => rerunImportPreview(importPreview.fileName)} className="px-3 py-2 text-sm font-medium rounded-lg bg-foreground text-primary-foreground hover:opacity-90 transition-opacity">Re-validate</button>
                     <button
                       onClick={handleSmartMap}
                       disabled={isAiMapping}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2 disabled:opacity-50"
+                      className="px-3 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 flex items-center gap-2 disabled:opacity-50 transition-colors"
                     >
-                      <Sparkles className={`w-3.5 h-3.5 ${isAiMapping ? 'animate-pulse' : ''}`} />
-                      {isAiMapping ? 'AI is analyzing...' : 'AI Smart Map'}
+                      <Sparkles className={`w-3.5 h-3.5 ${isAiMapping ? "animate-pulse" : ""}`} />
+                      {isAiMapping ? "Analyzing…" : "AI Smart Map"}
                     </button>
                   </div>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div className="border rounded-xl p-4">
-                  <h4 className="text-sm font-semibold mb-2">Issues</h4>
-                  <ul className="space-y-1 text-xs text-slate-700 max-h-64 overflow-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-xl p-4 border border-border">
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Issues</h4>
+                  <ul className="space-y-1.5 text-sm text-foreground-secondary max-h-56 overflow-auto">
                     {importPreview.issues.map((issue, idx) => (
                       <li key={`${issue.code}-${idx}`} className="flex gap-2">
-                        <span className={issue.type === "error" ? "text-rose-600" : "text-amber-700"}>{issue.type.toUpperCase()}</span>
-                        <span>{issue.message} {issue.action ? `• ${issue.action}` : ""}</span>
+                        <span className={cn("font-medium shrink-0", issue.type === "error" ? "text-error" : "text-warning")}>{issue.type}</span>
+                        <span>{issue.message} {issue.action ? `· ${issue.action}` : ""}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
-
-                <div className="border rounded-xl p-4">
-                  <h4 className="text-sm font-semibold mb-2">Row Preview</h4>
-                  <div className="max-h-64 overflow-auto text-xs">
+                <div className="rounded-xl p-4 border border-border">
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Row preview</h4>
+                  <div className="max-h-56 overflow-auto text-sm">
                     <table className="w-full text-left">
-                      <thead className="text-slate-500"><tr><th>Date</th><th>Assignments</th><th>Status</th></tr></thead>
-                      <tbody>
+                      <thead className="text-foreground-muted text-xs font-medium"><tr><th className="pb-2">Date</th><th className="pb-2">Assignments</th><th className="pb-2">Status</th></tr></thead>
+                      <tbody className="text-foreground-secondary">
                         {importPreview.rows.slice(0, 30).map((row, idx) => (
-                          <tr key={`${row.date}-${idx}`} className="border-t">
-                            <td className="py-1 pr-2">{row.date || "Invalid"}</td>
-                            <td className="py-1 pr-2">{Object.values(row.assignments).flat().slice(0, 3).join(", ") || "—"}</td>
-                            <td className="py-1">{row.issues.some((issue) => issue.type === "error") ? "Invalid" : row.issues.length ? "Warning" : "Valid"}</td>
+                          <tr key={`${row.date}-${idx}`} className="border-t border-border">
+                            <td className="py-1.5 pr-2">{row.date || "—"}</td>
+                            <td className="py-1.5 pr-2">{Object.values(row.assignments).flat().slice(0, 3).join(", ") || "—"}</td>
+                            <td className="py-1.5">{row.issues.some((i) => i.type === "error") ? "Invalid" : row.issues.length ? "Warning" : "Valid"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -736,9 +670,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => setIsImportOpen(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
-                <button onClick={handleApplyImport} disabled={importPreview.requiresMapping} className="px-4 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-50">Apply Import</button>
+              <div className="mt-6 flex justify-end gap-2">
+                <button onClick={() => setIsImportOpen(false)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-secondary/50 transition-colors">Cancel</button>
+                <button onClick={handleApplyImport} disabled={importPreview.requiresMapping} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">Apply import</button>
               </div>
             </motion.div>
           </motion.section>
