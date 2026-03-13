@@ -349,9 +349,18 @@ export function useAnomalyDetection() {
 
 // ============ UNIFIED AI STATUS HOOK ============
 
+// Maximum number of consecutive network failures before polling is paused.
+const AI_STATUS_MAX_FAILURES = 3;
+// After MAX_FAILURES the interval backs off to 5 minutes so the console stays
+// quiet when the AI backend is unreachable.
+const AI_STATUS_BACKOFF_MS = 5 * 60 * 1000;
+
 export function useAIStatus() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(true);
+  const consecutiveFailuresRef = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = useCallback(async () => {
     setIsLoading(true);
@@ -360,19 +369,44 @@ export function useAIStatus() {
       if (response.ok) {
         const data = await response.json();
         setStatus(data);
+        consecutiveFailuresRef.current = 0;
+        setIsAvailable(true);
       }
-    } catch (err) {
-      console.error('Failed to fetch AI status:', err);
+    } catch {
+      consecutiveFailuresRef.current += 1;
+      if (consecutiveFailuresRef.current === AI_STATUS_MAX_FAILURES) {
+        // Log once instead of on every poll cycle.
+        console.warn(
+          `[NICU Scheduler] AI status endpoint unreachable after ${AI_STATUS_MAX_FAILURES} attempts. ` +
+          'Polling paused — click Refresh to retry.',
+        );
+        setIsAvailable(false);
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Reschedule the interval dynamically: normal cadence while reachable, backed-
+  // off cadence once the failure threshold is crossed.
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
+    const scheduleNext = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      const delay = consecutiveFailuresRef.current >= AI_STATUS_MAX_FAILURES
+        ? AI_STATUS_BACKOFF_MS
+        : 30000;
+      intervalRef.current = setInterval(() => {
+        void fetchStatus().then(scheduleNext);
+      }, delay);
+    };
 
-  return { status, isLoading, refresh: fetchStatus };
+    void fetchStatus().then(scheduleNext);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+    // fetchStatus is stable (useCallback with no deps), so this runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { status, isLoading, isAvailable, refresh: fetchStatus };
 }

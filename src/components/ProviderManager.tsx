@@ -85,12 +85,16 @@ export function ProviderManager() {
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [nameError, setNameError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const counts = getProviderCounts(slots, providers);
 
   const handleAdd = () => {
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      setNameError(true);
+      return;
+    }
     addProvider({
       name: newName.trim(),
       targetWeekDays: 10,
@@ -107,7 +111,15 @@ export function ProviderManager() {
     });
     setNewName("");
     setNewEmail("");
+    setNameError(false);
     setIsAdding(false);
+  };
+
+  const handleDiscard = () => {
+    setIsAdding(false);
+    setNewName("");
+    setNewEmail("");
+    setNameError(false);
   };
 
   return (
@@ -151,15 +163,20 @@ export function ProviderManager() {
           >
             <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-200/60 mb-6 group transition-all hover:bg-white hover:shadow-md">
               <div className="flex flex-col gap-3">
-                <input
-                  autoFocus
-                  type="text"
-                  className="w-full bg-white border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-300"
-                  placeholder="Enter medical signature..."
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                />
+                <div className="flex flex-col gap-1">
+                  <input
+                    autoFocus
+                    type="text"
+                    className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 transition-all placeholder:text-slate-300 ${nameError ? "border-red-400 focus:ring-red-200 animate-[shake_0.3s_ease]" : "border-slate-200/60 focus:ring-primary/20"}`}
+                    placeholder="Enter medical signature..."
+                    value={newName}
+                    onChange={(e) => { setNewName(e.target.value); if (nameError) setNameError(false); }}
+                    onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                  />
+                  {nameError && (
+                    <p className="text-[10px] font-bold text-red-500 px-1">Medical signature is required.</p>
+                  )}
+                </div>
                 <input
                   type="email"
                   className="w-full bg-white border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-300"
@@ -169,13 +186,17 @@ export function ProviderManager() {
                 />
               </div>
               <div className="flex justify-end gap-3 mt-4">
+                {/* Use onMouseDown so the dismiss fires before the input blur event,
+                    preventing a missed first-click when the name field has focus. */}
                 <button
-                  onClick={() => { setIsAdding(false); setNewName(""); setNewEmail(""); }}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); handleDiscard(); }}
                   className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   Discard
                 </button>
                 <button
+                  type="button"
                   onClick={handleAdd}
                   className="bg-primary text-white px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
                 >
