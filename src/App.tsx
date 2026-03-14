@@ -482,7 +482,6 @@ export default function App() {
                 </div>
               </div>
             </div>
-          </div>
 
           {/* One compact awareness strip */}
           <div className="stone-panel p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 no-print">
