@@ -70,6 +70,7 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
     userRole: store.currentUser?.role || "CLINICIAN",
     visibleProviderCount: store.providers.length,
     scheduleSummary: { totalSlots, unfilledSlots, providerCount: store.providers.length },
+    currentUser: store.currentUser ? { id: store.currentUser.id, name: store.currentUser.name } : null,
   };
 
   const { 

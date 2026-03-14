@@ -11,6 +11,7 @@ import { getProviderCounts, useScheduleStore } from "./store";
 import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { OnboardingTour, useOnboardingTour } from "./components/OnboardingTour";
 import { useNetworkStatus } from "./hooks/usePWA";
 import { useAnomalyAlerts } from "./hooks/useAnomalyAlerts";
 import {
@@ -101,6 +102,7 @@ export default function App() {
   const [isMultiAgentOptimizing, setIsMultiAgentOptimizing] = useState(false);
   const isOnline = useNetworkStatus();
   const { alerts: anomalyAlerts } = useAnomalyAlerts();
+  const onboarding = useOnboardingTour();
 
   const safeSlots = Array.isArray(slots) ? slots : [];
   const safeProviders = Array.isArray(providers) ? providers : [];
@@ -182,6 +184,9 @@ export default function App() {
                 slots: state.slots,
                 startDate: state.startDate,
                 numWeeks: state.numWeeks,
+                scenarios: state.scenarios ?? [],
+                customRules: state.customRules ?? [],
+                auditLog: state.auditLog ?? [],
               });
             }
           } catch {
@@ -468,9 +473,10 @@ export default function App() {
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={toggleCopilot}
                     className={cn(
-                      "p-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium",
+                      "copilot-trigger p-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium",
                       isCopilotOpen ? "bg-primary text-primary-foreground" : "text-foreground-muted hover:text-primary"
                     )}
                     title="AI Assistant"
@@ -681,6 +687,12 @@ export default function App() {
       <ToastContainer />
       <InstallPrompt />
       <CopilotPanel isOpen={isCopilotOpen} onToggle={toggleCopilot} />
+
+      <OnboardingTour
+        isOpen={onboarding.isOpen}
+        onClose={onboarding.closeTour}
+        onComplete={onboarding.completeTour}
+      />
 
       {/* AI Change Preview Modal */}
       {showChangePreview && !!changePreviewData && (

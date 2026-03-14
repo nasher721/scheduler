@@ -41,6 +41,12 @@ const defaultSteps: TourStep[] = [
     content: 'Track your schedule health in real-time. Ensure fair distribution and adequate coverage.',
     position: 'left',
   },
+  {
+    target: '.copilot-trigger',
+    title: 'AI Schedule Copilot',
+    content: 'Ask in plain language: "Who\'s covering this weekend?", "Balance nights", or "Check conflicts." Type /help for capabilities or /tools for actions. The copilot can optimize, explain assignments, and more.',
+    position: 'bottom',
+  },
 ];
 
 interface OnboardingTourProps {

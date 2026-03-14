@@ -1,44 +1,13 @@
+import { buildResponses as getCopilotResponses } from './server/prompts/copilot-responses.js';
+import { POLICY_PROFILES, ROLLOUT_MODES, POLICY_AUTO_APPLY_THRESHOLD } from './server/prompts/policy-config.js';
+import { getOutcomePrompt } from './server/prompts/outcome-prompts.js';
+import { getConflictMessage } from './server/prompts/conflict-config.js';
+
 const DEFAULT_PROVIDERS = [
   { id: "openai", label: "OpenAI", models: ["gpt-4.1-mini", "gpt-4.1"], envKey: "OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", models: ["claude-3-5-sonnet-latest"], envKey: "ANTHROPIC_API_KEY" },
   { id: "google", label: "Google Gemini", models: ["gemini-2.0-flash"], envKey: "GEMINI_API_KEY" },
 ];
-
-const POLICY_PROFILES = {
-  balanced: {
-    coverageCompletion: 0.35,
-    fatigueRiskMinimization: 0.2,
-    fairnessEquityDistribution: 0.2,
-    preferenceSatisfaction: 0.15,
-    continuityOfCare: 0.1,
-  },
-  safety_first: {
-    coverageCompletion: 0.45,
-    fatigueRiskMinimization: 0.25,
-    fairnessEquityDistribution: 0.15,
-    preferenceSatisfaction: 0.05,
-    continuityOfCare: 0.1,
-  },
-  fairness_first: {
-    coverageCompletion: 0.3,
-    fatigueRiskMinimization: 0.15,
-    fairnessEquityDistribution: 0.35,
-    preferenceSatisfaction: 0.1,
-    continuityOfCare: 0.1,
-  },
-};
-
-const ROLLOUT_MODES = {
-  SHADOW: "shadow",
-  HUMAN_REVIEW: "human_review",
-  AUTO_APPLY: "auto_apply",
-};
-
-const POLICY_AUTO_APPLY_THRESHOLD = {
-  balanced: 88,
-  safety_first: 92,
-  fairness_first: 90,
-};
 
 const PROVIDER_PRICING_USD_PER_1K_TOKENS = {
   openai: 0.01,
@@ -464,41 +433,37 @@ function deterministicConflicts(state, provider) {
 
   for (const slot of slots) {
     if (!slot?.providerId) {
-      conflicts.push({ type: "unassigned_slot", severity: "high", slotId: slot?.id || null, message: "Slot has no assigned provider." });
+      const { severity, message } = getConflictMessage("unassigned_slot");
+      conflicts.push({ type: "unassigned_slot", severity, slotId: slot?.id || null, message });
       continue;
     }
 
     const providerProfile = providers.get(slot.providerId);
     if (!providerProfile) {
-      conflicts.push({ type: "missing_provider", severity: "high", slotId: slot?.id || null, message: "Assigned provider does not exist." });
+      const { severity, message } = getConflictMessage("missing_provider");
+      conflicts.push({ type: "missing_provider", severity, slotId: slot?.id || null, message });
       continue;
     }
 
     if (!providerHasSkill(providerProfile, slot.requiredSkill)) {
-      conflicts.push({ type: "skill_mismatch", severity: "high", slotId: slot?.id || null, message: "Provider missing required skill for slot." });
+      const { severity, message } = getConflictMessage("skill_mismatch");
+      conflicts.push({ type: "skill_mismatch", severity, slotId: slot?.id || null, message });
     }
 
     if (isProviderUnavailable(providerProfile, slot.date)) {
-      conflicts.push({
-        type: "time_off_violation",
-        severity: "high",
-        slotId: slot?.id || null,
-        message: "Provider is assigned on an approved time-off date.",
-      });
+      const { severity, message } = getConflictMessage("time_off_violation");
+      conflicts.push({ type: "time_off_violation", severity, slotId: slot?.id || null, message });
     }
 
     if (providerHasExpiredCredential(providerProfile, slot.date)) {
-      conflicts.push({
-        type: "expired_credential",
-        severity: "high",
-        slotId: slot?.id || null,
-        message: "Provider has an expired credential for this date.",
-      });
+      const { severity, message } = getConflictMessage("expired_credential");
+      conflicts.push({ type: "expired_credential", severity, slotId: slot?.id || null, message });
     }
 
     const key = `${slot.providerId}:${slot.date}`;
     if (seenProviderDate.has(key)) {
-      conflicts.push({ type: "double_booked", severity: "medium", slotId: slot?.id || null, message: "Provider is assigned more than once on this date." });
+      const { severity, message } = getConflictMessage("double_booked");
+      conflicts.push({ type: "double_booked", severity, slotId: slot?.id || null, message });
     } else {
       seenProviderDate.add(key);
     }
@@ -508,12 +473,8 @@ function deterministicConflicts(state, provider) {
 
     const maxShifts = maxShiftRules.get(slot.providerId);
     if (Number.isFinite(maxShifts) && weeklyAssignments.get(weekKey) > maxShifts) {
-      conflicts.push({
-        type: "max_shifts_per_week_exceeded",
-        severity: "medium",
-        slotId: slot?.id || null,
-        message: "Provider exceeds configured maximum shifts for this week.",
-      });
+      const { severity, message } = getConflictMessage("max_shifts_per_week_exceeded");
+      conflicts.push({ type: "max_shifts_per_week_exceeded", severity, slotId: slot?.id || null, message });
     }
   }
 
@@ -538,8 +499,10 @@ function deterministicExplain(input, provider) {
 function buildPrompt(task, payload) {
   if (task === "intent-parsing" && payload?.text != null) {
     const manifest = listCopilotCapabilities();
-    return buildIntentPrompt(payload.text, payload.context || {}, manifest);
+    return buildIntentPrompt(payload.text, payload.context || {}, manifest, payload.conversationHistory || []);
   }
+  const outcomePrompt = getOutcomePrompt(task, payload);
+  if (outcomePrompt) return outcomePrompt;
   return `You are an ICU scheduling copilot. Task: ${task}. Return JSON only.\n${JSON.stringify(payload || {}, null, 2)}`;
 }
 
@@ -1011,13 +974,33 @@ function buildRuleGuardrailWarning(text, context) {
   };
 }
 
-function buildIntentPrompt(text, context, manifest = null) {
+function buildIntentPrompt(text, context, manifest = null, conversationHistory = []) {
   const cap = manifest || listCopilotCapabilities();
   const intentsList = (cap.intents || []).join(", ");
   const actionsList = (cap.actions || []).join(", ");
   const guardrails =
     "Guardrails: Only use the intents listed above. Do not invent intents. For optimize_schedule, require human confirmation before applying.";
-  return `Parse the user intent from this ICU scheduling request.
+
+  const scheduleSummary = context?.scheduleSummary;
+  const coverageNote = scheduleSummary
+    ? ` ${scheduleSummary.totalSlots} slots, ${scheduleSummary.unfilledSlots} unfilled, ${scheduleSummary.providerCount} providers.`
+    : "";
+  const systemBlock = `You are the Neuro ICU Staffing copilot. App: schedule management for coverage, fatigue, and fairness.
+Current context: view=${context?.viewType || "week"}, date=${context?.selectedDate || "none"}, user role=${context?.userRole || "unknown"}${coverageNote}
+What you can do: ${intentsList}. Actions: ${actionsList}.
+${context?.preferenceSummary ? `User preferences (summary): ${context.preferenceSummary}\n` : ""}${context?.recentActivity ? `Recent activity: ${context.recentActivity}\n` : ""}`;
+
+  const recentTurns = (conversationHistory || []).slice(-10).map((m) => {
+    const role = m.role === "user" ? "User" : "Assistant";
+    const content = typeof m.content === "string" ? m.content : (m.content?.text ?? "");
+    return `${role}: ${content}`;
+  });
+  const historyBlock = recentTurns.length > 0
+    ? `\nRecent conversation (for context):\n${recentTurns.join("\n")}\n\nCurrent user message (parse intent for this):`
+    : "\nUser message";
+  return `${systemBlock}
+
+Parse the user intent from this ICU scheduling request.
 
 Capability manifest (use only these):
 - Intents: ${intentsList}
@@ -1037,8 +1020,7 @@ Available intents:
 - adjust_preferences: User wants to change their scheduling preferences
 - greeting: Simple greeting/hello
 - unknown: None of the above
-
-User message: "${text}"
+${historyBlock}: "${text}"
 
 Current context:
 - View type: ${context?.viewType || "unknown"}
@@ -1066,7 +1048,8 @@ export async function parseIntent(input) {
   const task = "intent-parsing";
   const payload = {
     text: input?.text,
-    context: input?.context || {}
+    context: input?.context || {},
+    conversationHistory: input?.conversationHistory || []
   };
 
   // Use LLM if available, otherwise deterministic
@@ -1162,8 +1145,8 @@ export async function processCopilotMessage(input) {
     };
   }
   
-  // Step 1: Parse intent
-  const intentResult = await parseIntent({ text: message, context });
+  // Step 1: Parse intent (include conversation history for contextual follow-ups)
+  const intentResult = await parseIntent({ text: message, context, conversationHistory });
   
   // Step 2: Build response based on intent
   const response = await buildCopilotResponse(intentResult, context, conversationHistory);
@@ -1187,157 +1170,10 @@ function generateMessageId() {
 
 async function buildCopilotResponse(intentResult, context, history) {
   const { intent, entities, confidence } = intentResult;
-  
-  const responses = {
-    greeting: {
-      message: "Hello! I'm your scheduling assistant. How can I help you today? You can ask me to:\n• Request time off\n• Check coverage\n• Optimize the schedule\n• Find conflicts\n• Or just tell me what you need!",
-      suggestions: ['Show my schedule', 'Who covers next weekend?', 'Optimize schedule'],
-      requiresConfirmation: false
-    },
-    
-    request_time_off: {
-      message: entities.date 
-        ? `I'll help you request time off${entities.date ? ` for ${entities.date}` : ''}. Let me check coverage first.`
-        : "I'd be happy to help you request time off. What date(s) do you need?",
-      suggestions: entities.date ? ['Check coverage', 'Submit request', 'Find alternative'] : ['Next Monday', 'Next week', 'March 15-17'],
-      requiresConfirmation: false,
-      actions: entities.date ? [{ type: 'check_coverage', date: entities.date }] : []
-    },
-    
-    request_swap: {
-      message: entities.targetProvider
-        ? `I can help you swap shifts with ${entities.targetProvider}. Which shift would you like to swap?`
-        : "I can help you arrange a shift swap. Which shift do you want to swap and with whom?",
-      suggestions: ['My next night shift', 'This weekend', 'Let me pick from calendar'],
-      requiresConfirmation: false
-    },
-    
-    optimize_schedule: {
-      message: "I'll analyze the current schedule and suggest optimizations for better fairness and coverage. You can use quick auto-fill or run the full AI multi-agent optimizer.",
-      suggestions: ['Optimize now', 'Show me conflicts first', 'Run full AI optimizer', 'Adjust optimization goals'],
-      requiresConfirmation: true,
-      preview: { type: 'optimization', estimatedImpact: 'Calculating...' },
-      actions: [{ type: "auto_assign" }, { type: "multi_agent_optimize" }]
-    },
-    
-    check_coverage: {
-      message: entities.date 
-        ? `Let me check coverage${entities.date ? ` for ${entities.date}` : ''}${entities.shiftType ? ` (${entities.shiftType})` : ''}.`
-        : "Which date or time period would you like me to check coverage for?",
-      suggestions: ['This weekend', 'Next week', 'Tonight', 'All uncovered shifts'],
-      requiresConfirmation: false,
-      actions: [{ type: 'show_coverage', date: entities.date, shiftType: entities.shiftType }]
-    },
-    
-    explain_assignment: {
-      message: "I'll explain the reasoning behind your assignments. Looking at your targets, preferences, and fairness across the team...",
-      suggestions: ['Why so many nights?', 'Why this weekend?', 'Show my fairness score'],
-      requiresConfirmation: false,
-      actions: [{ type: 'explain_assignments', providerId: context?.currentUser?.id }]
-    },
-    
-    simulate_scenario: {
-      message: "I can simulate what would happen in that scenario. This helps us prepare contingency plans.",
-      suggestions: ['Dr. Smith sick', 'Census surge 20%', 'Multiple absences'],
-      requiresConfirmation: false,
-      preview: { type: 'simulation', scenario: 'absence' }
-    },
-    
-    get_recommendations: {
-      message: "Here are my recommendations based on the current schedule:",
-      suggestions: ['Show all recommendations', 'Focus on fairness', 'Focus on coverage'],
-      requiresConfirmation: false
-    },
-    
-    show_conflicts: {
-      message: "I'll scan the schedule for conflicts, double-bookings, and constraint violations.",
-      suggestions: ['Show all conflicts', 'Show critical only', 'Auto-fix where possible'],
-      requiresConfirmation: false,
-      actions: [{ type: 'detect_conflicts' }]
-    },
+  const responses = getCopilotResponses(entities || {}, context || {});
+  const base = responses[intent] || responses.unknown;
+  const baseResponse = { ...base, actions: base.actions ? [...base.actions] : [] };
 
-    resolve_conflicts: {
-      message: "I can auto-resolve conflicts that support safe auto-fixes and leave the rest for manual review.",
-      suggestions: ['Run auto-fix now', 'Show unresolved only', 'Rescan conflicts'],
-      requiresConfirmation: false,
-      actions: [{ type: "detect_conflicts" }, { type: "resolve_conflicts" }]
-    },
-
-    assign_shift: {
-      message: entities.date
-        ? `I can assign a shift${entities.shiftType ? ` (${entities.shiftType})` : ""} on ${entities.date}.`
-        : "I can assign a shift. Tell me the date (and optional shift type).",
-      suggestions: ['Assign selected date', 'Assign night shift', 'Assign day shift'],
-      requiresConfirmation: false,
-      actions: [{ type: "assign_shift", date: entities.date, shiftType: entities.shiftType, providerName: entities.targetProvider || entities.providerName }]
-    },
-
-    adjust_parameters: {
-      message: "I can update calendar and scheduling filters based on your request.",
-      suggestions: ["Show conflicts only", "Show unfilled only", "Switch to month view", "Reset filters"],
-      requiresConfirmation: false,
-      actions: [{
-        type: "adjust_parameters",
-        date: entities.date,
-        shiftType: entities.shiftType,
-        surfaceView: entities.surfaceView,
-        showConflictsOnly: entities.showConflictsOnly,
-        showUnfilledOnly: entities.showUnfilledOnly,
-      }]
-    },
-
-    unassign_shift: {
-      message: entities.date
-        ? `I can clear the assignment${entities.shiftType ? ` for ${entities.shiftType}` : ""} on ${entities.date}.`
-        : "I can remove a shift assignment. Tell me the date (and optional shift type).",
-      suggestions: ['Clear selected date', 'Clear night shift', 'Clear day shift'],
-      requiresConfirmation: false,
-      actions: [{ type: "unassign_shift", date: entities.date, shiftType: entities.shiftType }]
-    },
-
-    save_scenario: {
-      message: entities.scenarioName
-        ? `Saving scenario "${entities.scenarioName}".`
-        : "I can save the current plan as a scenario snapshot.",
-      suggestions: ['Save scenario as Weekend Plan', 'Save scenario as Backup Roster'],
-      requiresConfirmation: false,
-      actions: [{ type: "save_scenario", scenarioName: entities.scenarioName }]
-    },
-
-    load_scenario: {
-      message: entities.scenarioName
-        ? `I can load scenario "${entities.scenarioName}".`
-        : "I can load a saved scenario. Tell me which one.",
-      suggestions: ['Load latest scenario', 'Load Weekend Plan'],
-      requiresConfirmation: false,
-      actions: [{ type: "load_scenario", scenarioName: entities.scenarioName }]
-    },
-
-    delete_scenario: {
-      message: entities.scenarioName
-        ? `I can delete scenario "${entities.scenarioName}".`
-        : "I can delete a saved scenario. Tell me which one.",
-      suggestions: ['Delete latest scenario', 'Delete Weekend Plan'],
-      requiresConfirmation: false,
-      actions: [{ type: "delete_scenario", scenarioName: entities.scenarioName }]
-    },
-    
-    adjust_preferences: {
-      message: "I can help you update your scheduling preferences. What would you like to change?",
-      suggestions: ['Fewer weekends', 'Fewer nights', 'More day shifts', 'Specific dates off'],
-      requiresConfirmation: false
-    },
-    
-    unknown: {
-      message: "I'm not sure I understood. I can help you with:\n• Requesting time off or swaps\n• Checking coverage\n• Optimizing the schedule\n• Explaining assignments\n• Finding conflicts\n\nWhat would you like to do?",
-      suggestions: ['Request time off', 'Check coverage', 'Optimize schedule', 'Show help'],
-      requiresConfirmation: false
-    }
-  };
-
-  const baseResponse = responses[intent] || responses.unknown;
-  
-  // Add confidence indicator for low-confidence intents
   if (confidence < 0.7 && intent !== 'unknown') {
     baseResponse.message = `I think you want to ${intent.replace(/_/g, ' ')}, but I'm not entirely sure. ${baseResponse.message}`;
   }

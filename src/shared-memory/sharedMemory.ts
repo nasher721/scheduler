@@ -385,19 +385,27 @@ export async function syncWithServer(): Promise<void> {
   eventBus.emit('memory:sync:start');
 
   try {
-    // This will be implemented with the actual API
     const response = await fetch('/api/state');
     if (!response.ok) throw new Error('Failed to fetch state');
 
-    const serverState = await response.json();
+    const data = await response.json();
 
-    // Merge server state into local memory
-    for (const [key, value] of Object.entries(serverState)) {
-      const current = getEntry(key);
-      const serverEntry = value as MemoryEntry;
-
-      if (!current || serverEntry.version > current.version) {
-        set(key, serverEntry.value, { source: 'server' });
+    // GET /api/state returns { state, updatedAt } (schedule state), not key-value memory.
+    // Do not merge as key-value to avoid corrupting local shared-memory. Schedule UI
+    // uses Supabase realtime + loadScheduleState; shared-memory is for other keys only.
+    const isScheduleStateShape = data != null && typeof data.state === 'object' && !Array.isArray(data.state);
+    if (isScheduleStateShape) {
+      // No-op: schedule state is not stored in shared-memory; main UI syncs via Supabase.
+    } else {
+      const serverState = data as Record<string, unknown>;
+      for (const [key, value] of Object.entries(serverState)) {
+        const serverEntry = value as MemoryEntry;
+        if (serverEntry && typeof serverEntry === 'object' && 'value' in serverEntry) {
+          const current = getEntry(key);
+          if (!current || (serverEntry.version != null && serverEntry.version > (current.version ?? 0))) {
+            set(key, serverEntry.value, { source: 'server' });
+          }
+        }
       }
     }
 

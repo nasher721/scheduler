@@ -357,6 +357,7 @@ interface ScheduleState {
   updateProvider: (id: string, provider: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
   addCustomRule: (rule: Omit<CustomRule, "id">) => void;
+  updateCustomRule: (id: string, updates: Partial<Omit<CustomRule, "id">>) => void;
   removeCustomRule: (id: string) => void;
   setScheduleRange: (startDate: string, numWeeks: number) => void;
   assignShift: (slotId: string, providerId: string | null, secondaryProviderIds?: string[]) => void;
@@ -367,6 +368,7 @@ interface ScheduleState {
   applyImportedSnapshot: (providers: Provider[], slots: ShiftSlot[], appliedAssignments: number, skippedRows: number) => void;
   createScenario: (name: string) => void;
   loadScenario: (id: string) => void;
+  updateScenario: (id: string, updates: Partial<Pick<ScenarioSnapshot, "name">>) => void;
   deleteScenario: (id: string) => void;
   clearMessage: () => void;
   showToast: (toast: Omit<Toast, "id">) => void;
@@ -386,6 +388,7 @@ interface ScheduleState {
   cancelSwapRequest: (id: string) => void;
   // Holiday management
   addHolidayAssignment: (assignment: Omit<HolidayAssignment, 'id'>) => void;
+  updateHolidayAssignment: (holidayName: string, date: string, updates: Partial<Pick<HolidayAssignment, 'providerId' | 'shiftType'>>) => void;
   removeHolidayAssignment: (holidayName: string, date: string) => void;
   getProviderHolidayCount: (providerId: string, year: number) => number;
   // Conflict resolution
@@ -408,6 +411,7 @@ interface ScheduleState {
   dismissMLSuggestion: (suggestionId: string) => void;
   // Schedule Templates
   createTemplate: (template: Omit<ScheduleTemplate, 'id' | 'createdAt'>) => void;
+  updateTemplate: (id: string, updates: Partial<Omit<ScheduleTemplate, 'id' | 'createdAt'>>) => void;
   deleteTemplate: (id: string) => void;
   applyTemplate: (id: string, startDate: string) => void;
   createProviderGroup: (name: string, providerIds: string[]) => void;
@@ -1354,6 +1358,31 @@ export const useScheduleStore = create<ScheduleState>()(
         get().showToast({ type: "success", title: "Rule Added", message: `Custom rule created.` });
       },
 
+      updateCustomRule: (id, updates) => {
+        const state = get();
+        const index = state.customRules.findIndex((r) => r.id === id);
+        if (index < 0) return;
+        const rule = state.customRules[index];
+        const updated = { ...rule, ...updates };
+        const next = state.customRules.slice();
+        next[index] = updated;
+        set({
+          customRules: next,
+          lastActionMessage: "Custom rule updated.",
+          auditLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: "RULE_CHANGE" as const,
+              details: `Updated custom rule: ${rule.type}`,
+              user: state.currentUser?.name ?? "System",
+            },
+            ...state.auditLog,
+          ],
+        });
+        get().showToast({ type: "info", title: "Rule Updated" });
+      },
+
       removeCustomRule: (id) => {
         const state = get();
         const ruleToRemove = state.customRules.find(r => r.id === id);
@@ -1640,6 +1669,23 @@ export const useScheduleStore = create<ScheduleState>()(
         get().showToast({ type: "info", title: "Scenario Loaded", message: `"${found.name}" has been restored.` });
       },
 
+      updateScenario: (id, updates) => {
+        const state = get();
+        const index = state.scenarios.findIndex((s) => s.id === id);
+        if (index < 0) return;
+        const scenario = state.scenarios[index];
+        const updated = { ...scenario, ...updates };
+        const next = state.scenarios.slice();
+        next[index] = updated;
+        set({
+          scenarios: next,
+          lastActionMessage: updates.name != null ? `Renamed scenario to "${updates.name}"` : "Scenario updated.",
+        });
+        if (updates.name != null) {
+          get().showToast({ type: "success", title: "Scenario Updated", message: `Scenario renamed to "${updates.name}".` });
+        }
+      },
+
       deleteScenario: (id) => {
         set((state) => ({
           scenarios: state.scenarios.filter((scenario) => scenario.id !== id),
@@ -1815,6 +1861,22 @@ export const useScheduleStore = create<ScheduleState>()(
         set({
           holidayAssignments: [...filtered, assignment],
           lastActionMessage: `Holiday assigned: ${assignment.holidayName}`,
+        });
+      },
+
+      updateHolidayAssignment: (holidayName, date, updates) => {
+        const state = get();
+        const index = state.holidayAssignments.findIndex(
+          (h) => h.holidayName === holidayName && h.date === date
+        );
+        if (index < 0) return;
+        const assignment = state.holidayAssignments[index];
+        const updated = { ...assignment, ...updates };
+        const next = state.holidayAssignments.slice();
+        next[index] = updated;
+        set({
+          holidayAssignments: next,
+          lastActionMessage: `Holiday assignment updated: ${holidayName}`,
         });
       },
 
@@ -2311,6 +2373,20 @@ export const useScheduleStore = create<ScheduleState>()(
           scheduleTemplates: [...state.scheduleTemplates, newTemplate]
         });
         get().showToast({ type: "success", title: "Template Created", message: `"${template.name}" saved for reuse` });
+      },
+
+      updateTemplate: (id, updates) => {
+        const state = get();
+        const index = state.scheduleTemplates.findIndex((t) => t.id === id);
+        if (index < 0) return;
+        const template = state.scheduleTemplates[index];
+        const updated = { ...template, ...updates };
+        const next = state.scheduleTemplates.slice();
+        next[index] = updated;
+        set({
+          scheduleTemplates: next,
+        });
+        get().showToast({ type: "success", title: "Template Updated", message: `"${updated.name}" updated.` });
       },
 
       deleteTemplate: (id) => {

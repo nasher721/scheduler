@@ -271,6 +271,7 @@ async function readState() {
   };
 }
 
+/** Primitive: persist schedule state to DB only. No email or audit. Use queueScheduleChangeEmails for notify. */
 async function writeState(state) {
   if (state.providers && state.providers.length > 0) {
     const providersToUpsert = state.providers.map(p => ({
@@ -716,8 +717,8 @@ app.put("/api/state", async (req, res) => {
   }
 
   const previousState = await readState();
-  await writeState(req.body);
-  const queuedEmails = await queueScheduleChangeEmails(previousState, req.body);
+  await writeState(req.body); // primitive: write only
+  const queuedEmails = await queueScheduleChangeEmails(previousState, req.body); // workflow: notify
   return res.json({ ok: true, queuedEmails: queuedEmails.length, updatedAt: new Date().toISOString() });
 });
 
@@ -1320,45 +1321,30 @@ app.post("/api/ai/apply", async (req, res) => {
 });
 
 // ---------- Agent tools (typed primitives for AI/automation) ----------
+// Primitives: capability-only (read/write/list). Workflows: orchestration (optimize, apply, notify).
 app.get("/api/agent-tools", (_req, res) => {
+  const tools = [
+    { id: "schedule/assign-shift", method: "POST", path: "/api/agent-tools/schedule/assign-shift", description: "Assign a provider to a shift slot or clear the assignment.", params: { slotId: "string", providerId: "string | null" }, category: "primitive" },
+    { id: "schedule/scenarios", method: "GET", path: "/api/schedule/scenarios", description: "List saved schedule scenarios.", params: {}, category: "primitive" },
+    { id: "schedule/summary", method: "GET", path: "/api/schedule/summary", description: "Get schedule metadata (startDate, numWeeks, slotCount, scenarioCount).", params: {}, category: "primitive" },
+    { id: "ai/agents/optimize/result", method: "GET", path: "/api/ai/agents/optimize/result", description: "Get last multi-agent optimization result (after POST optimize).", params: {}, category: "primitive" },
+    { id: "ai/apply", method: "POST", path: "/api/ai/apply", description: "Apply an optimized schedule state (human_review rollout with approvedBy).", params: { result: "object", approvedBy: "string" }, category: "workflow" },
+    { id: "state/read", method: "GET", path: "/api/state", description: "Read full schedule state (providers, slots, scenarios, customRules, auditLog, startDate, numWeeks).", params: {}, category: "primitive" },
+    { id: "state/write", method: "PUT", path: "/api/state", description: "Write full schedule state. Triggers schedule-change notifications.", params: { state: "object" }, category: "workflow" },
+    { id: "ai/agents/optimize", method: "POST", path: "/api/ai/agents/optimize", description: "Run multi-agent schedule optimization. Returns result; use ai/apply to apply.", params: { body: "object (scheduleState)" }, category: "workflow" },
+    { id: "shift-requests/create", method: "POST", path: "/api/shift-requests", description: "Create a shift request.", params: { body: "object (request payload)" }, category: "primitive" },
+    { id: "shift-requests/update", method: "PATCH", path: "/api/shift-requests/:id", description: "Update a shift request (e.g. approve/deny).", params: { id: "path", body: "object" }, category: "primitive" },
+    { id: "notifications/send", method: "POST", path: "/api/notifications/send", description: "Send a notification.", params: { body: "object" }, category: "primitive" },
+    { id: "notifications/update", method: "PATCH", path: "/api/notifications/:id", description: "Update a notification (e.g. mark read).", params: { id: "path", body: "object" }, category: "primitive" },
+    { id: "notifications/delete", method: "DELETE", path: "/api/notifications/:id", description: "Delete a notification.", params: { id: "path" }, category: "primitive" },
+    { id: "ai/forecast/read", method: "GET", path: "/api/ai/forecast", description: "Read demand forecast for a date range (query: startDate, days).", params: { startDate: "query", days: "query" }, category: "primitive" },
+    { id: "ai/preferences/read", method: "GET", path: "/api/ai/preferences", description: "List all learned preference models.", params: {}, category: "primitive" },
+    { id: "ai/preferences/read-one", method: "GET", path: "/api/ai/preferences/:providerId", description: "Read one provider's preference model.", params: { providerId: "path" }, category: "primitive" },
+  ];
   res.json({
-    tools: [
-      {
-        id: "schedule/assign-shift",
-        method: "POST",
-        path: "/api/agent-tools/schedule/assign-shift",
-        description: "Assign a provider to a shift slot or clear the assignment.",
-        params: { slotId: "string", providerId: "string | null" },
-      },
-      {
-        id: "schedule/scenarios",
-        method: "GET",
-        path: "/api/schedule/scenarios",
-        description: "List saved schedule scenarios.",
-        params: {},
-      },
-      {
-        id: "schedule/summary",
-        method: "GET",
-        path: "/api/schedule/summary",
-        description: "Get schedule metadata (startDate, numWeeks, slotCount, scenarioCount).",
-        params: {},
-      },
-      {
-        id: "ai/agents/optimize/result",
-        method: "GET",
-        path: "/api/ai/agents/optimize/result",
-        description: "Get last multi-agent optimization result (after POST optimize).",
-        params: {},
-      },
-      {
-        id: "ai/apply",
-        method: "POST",
-        path: "/api/ai/apply",
-        description: "Apply an optimized schedule state (human_review rollout with approvedBy).",
-        params: { result: "object", approvedBy: "string" },
-      },
-    ],
+    tools,
+    primitives: tools.filter((t) => t.category === "primitive").map((t) => t.id),
+    workflows: tools.filter((t) => t.category === "workflow").map((t) => t.id),
     updatedAt: new Date().toISOString(),
   });
 });

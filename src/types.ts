@@ -169,6 +169,12 @@ export interface CopilotContext {
   visibleProviderCount?: number;
   /** Optional schedule summary for intent prompt (unfilled slots, totals) */
   scheduleSummary?: { totalSlots: number; unfilledSlots: number; providerCount: number };
+  /** Current user identity for explain_assignment and backend actions */
+  currentUser?: { id: string; name: string } | null;
+  /** Optional summary of user scheduling preferences (injected into copilot prompt) */
+  preferenceSummary?: string | null;
+  /** Optional recent activity summary, e.g. last N actions (injected into copilot prompt) */
+  recentActivity?: string | null;
 }
 
 export interface CopilotConversation {
