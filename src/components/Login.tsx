@@ -55,10 +55,10 @@ export function Login() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="min-h-screen flex items-center justify-center p-6 relative z-10"
+                    className="min-h-dvh flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 relative z-10"
                 >
                     <div className="w-full max-w-md">
-                        <div className="satin-panel p-10 flex flex-col gap-8">
+                        <div className="satin-panel p-6 sm:p-10 flex flex-col gap-6 sm:gap-8">
                             <div className="flex flex-col items-center text-center gap-3">
                                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
                                     <Lock className="w-8 h-8 text-primary" />
@@ -88,7 +88,7 @@ export function Login() {
                                             onChange={(e) => setEmail(e.target.value)}
                                             onBlur={() => setShowHint(true)}
                                             placeholder="e.g. adams@hospital.org"
-                                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                                         />
                                         <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                                     </div>
@@ -97,7 +97,7 @@ export function Login() {
                                 <button
                                     type="submit"
                                     disabled={!email.trim()}
-                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] uppercase tracking-widest py-4 rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-2 active:scale-95"
+                                    className="w-full min-h-[48px] bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] uppercase tracking-widest py-3.5 sm:py-4 rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-2 active:scale-[0.99]"
                                 >
                                     Sign In
                                     <ArrowRight className="h-4 w-4" />

@@ -40,8 +40,8 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
   const insightsValue = insightsViews.some((item) => item.value === view) ? view : "";
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
-      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-secondary/50 border border-border">
+    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+      <div className="flex w-full min-w-0 items-center gap-1 rounded-lg border border-border bg-secondary/50 p-0.5 sm:w-auto">
         <button
           onClick={() => onChange("schedule")}
           className={`nav-chip rounded-lg ${view === "schedule" ? "nav-chip-active" : ""}`}
@@ -59,8 +59,8 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
           Shift requests
         </button>
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <label className="relative flex items-center min-w-[140px]">
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <label className="relative flex min-h-[44px] w-full min-w-0 items-center sm:min-w-[140px] sm:max-w-[min(100%,220px)]">
           <span className="sr-only">Operations</span>
           <select
             value={operationsValue}
@@ -77,7 +77,7 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 w-4 h-4 text-foreground-muted" />
         </label>
-        <label className="relative flex items-center min-w-[140px]">
+        <label className="relative flex min-h-[44px] w-full min-w-0 items-center sm:min-w-[140px] sm:max-w-[min(100%,220px)]">
           <span className="sr-only">Insights</span>
           <select
             value={insightsValue}

@@ -53,7 +53,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30 overflow-x-hidden">
+        <div className="min-h-dvh bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30 overflow-x-hidden pb-[env(safe-area-inset-bottom)]">
             <style>{`
         @keyframes camera-pan {
           0%, 15% { transform: scale(2.2) translate(-3%, -18%); }
@@ -199,10 +199,12 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       `}</style>
 
             {/* Navigation */}
-            <nav className="absolute top-0 w-full p-6 z-50 flex justify-between items-center border-b border-white/5">
-                <div className="flex items-center gap-2">
-                    <BrainCircuit className="w-8 h-8 text-cyan-400" />
-                    <span className="text-xl font-bold tracking-tight text-white">Neuro<span className="text-cyan-400">Sync</span></span>
+            <nav className="absolute top-0 w-full z-50 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 sm:flex-nowrap sm:px-6 sm:py-6">
+                <div className="flex min-w-0 items-center gap-2">
+                    <BrainCircuit className="h-8 w-8 shrink-0 text-cyan-400" aria-hidden />
+                    <span className="truncate text-lg font-bold tracking-tight text-white sm:text-xl">
+                        Neuro<span className="text-cyan-400">Sync</span>
+                    </span>
                 </div>
                 <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
                     <a href="#" className="hover:text-cyan-400 transition-colors">Features</a>
@@ -210,15 +212,16 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                     <a href="#" className="hover:text-cyan-400 transition-colors">Security</a>
                 </div>
                 <button
+                    type="button"
                     onClick={onLogin}
-                    className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-cyan-500 hover:text-slate-900 transition-all"
+                    className="min-h-[44px] shrink-0 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-400 transition-all active:bg-cyan-500/20 sm:px-5 sm:hover:bg-cyan-500 sm:hover:text-slate-900"
                 >
                     Provider Login
                 </button>
             </nav>
 
             {/* Hero Section */}
-            <main className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden flex flex-col lg:flex-row items-center justify-between px-6 lg:px-12 max-w-7xl mx-auto gap-12">
+            <main className="relative flex max-w-7xl flex-col items-center justify-between gap-10 overflow-hidden px-4 pb-16 pt-28 sm:px-6 sm:pt-32 lg:flex-row lg:gap-12 lg:px-12 lg:pb-32 lg:pt-48">
 
                 {/* Ambient background glow */}
                 <div className="absolute top-1/4 left-10 w-96 h-96 bg-cyan-600/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -234,7 +237,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                         Live Hospital Connectivity
                     </div>
 
-                    <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight text-white uppercase italic">
+                    <h1 className="text-3xl font-extrabold uppercase italic leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
                         Command the <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
                             Neuro ICU.
@@ -245,14 +248,18 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                         The intelligent scheduling and coordination platform built specifically for Neurocritical Care. Seamlessly manage urgent EVD placements, simultaneous intubations, and incoming trauma flight logistics in real-time.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
                         <button
+                            type="button"
                             onClick={() => setShowLoginOverlay(true)}
-                            className="flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
+                            className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3.5 font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.99] sm:px-8 sm:py-4 sm:hover:scale-105 sm:hover:shadow-cyan-500/40"
                         >
-                            Start Scheduling <ArrowRight className="w-5 h-5" />
+                            Start Scheduling <ArrowRight className="h-5 w-5" aria-hidden />
                         </button>
-                        <button className="flex items-center justify-center gap-2 bg-slate-800 text-white border border-slate-700 px-8 py-4 rounded-xl font-semibold hover:bg-slate-700 transition-all">
+                        <button
+                            type="button"
+                            className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-6 py-3.5 font-semibold text-white transition-all active:bg-slate-700 sm:px-8 sm:py-4 sm:hover:bg-slate-700"
+                        >
                             Watch Demo
                         </button>
                     </div>
@@ -497,14 +504,14 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.4 }}
-                                className="absolute inset-0 flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-xl z-30 rounded-3xl"
+                                className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl bg-slate-950/85 p-4 backdrop-blur-xl sm:p-6"
                             >
                                 <motion.div
                                     initial={{ scale: 0.9, y: 20 }}
                                     animate={{ scale: 1, y: 0 }}
                                     exit={{ scale: 0.9, y: 20 }}
                                     transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                                    className="w-full max-w-md bg-slate-900 border border-cyan-500/20 rounded-3xl p-10 shadow-2xl shadow-cyan-500/10 relative overflow-hidden"
+                                    className="relative w-full max-w-md overflow-hidden rounded-3xl border border-cyan-500/20 bg-slate-900 p-6 shadow-2xl shadow-cyan-500/10 sm:p-10"
                                 >
                                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600" />
 
@@ -527,7 +534,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                                                     value={email}
                                                     onChange={(e) => setEmail(e.target.value)}
                                                     placeholder="name@hospital.org"
-                                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-12 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all font-medium"
+                                                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-12 py-4 text-base font-medium text-white placeholder:text-slate-600 transition-all focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                                                 />
                                                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                                             </div>

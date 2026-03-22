@@ -36,7 +36,7 @@ export function ScheduleToolbar() {
       </div>
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
             <button
               onClick={() => setScheduleSurfaceView("calendar")}
@@ -69,8 +69,8 @@ export function ScheduleToolbar() {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto touch-scroll rounded-xl bg-slate-100/80 p-1 scrollbar-hide [-webkit-overflow-scrolling:touch]">
             {CALENDAR_MODES.map(({ mode, icon, label }) => (
               <button
                 key={mode}
@@ -89,9 +89,11 @@ export function ScheduleToolbar() {
           </div>
 
           <select
+            title="Shift type filter"
+            aria-label="Shift type filter"
             value={scheduleViewport.shiftTypeFilter}
             onChange={(event) => setShiftTypeFilter(event.target.value as ShiftTypeFilter)}
-            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20"
+            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20 min-h-[44px]"
           >
             <option value="all">All shifts</option>
             <option value="DAY">Day</option>
@@ -128,7 +130,7 @@ export function ScheduleToolbar() {
             value={scheduleViewport.providerSearchTerm}
             onChange={(event) => setProviderSearchTerm(event.target.value)}
             placeholder="Search provider..."
-            className="soft-control px-2.5 py-2 focus:ring-2 focus:ring-primary/20 w-40"
+            className="soft-control min-h-[44px] w-full min-w-0 max-w-full px-2.5 py-2 focus:ring-2 focus:ring-primary/20 sm:w-40 sm:min-w-[10rem]"
           />
 
           <button

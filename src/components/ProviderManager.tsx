@@ -206,7 +206,7 @@ export function ProviderManager() {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col gap-3 max-h-[calc(100vh-260px)] overflow-y-auto scrollbar-hide">
+      <div className="flex max-h-[min(70vh,calc(100dvh-240px))] flex-col gap-3 overflow-y-auto scrollbar-hide">
         <AnimatePresence mode="popLayout">
           {providers.length === 0 && !isAdding && (
             <motion.div

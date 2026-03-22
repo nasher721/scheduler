@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import './styles/responsive.css';
 
 @tailwind base;
 @tailwind components;
@@ -174,10 +175,12 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    overflow-x: clip;
   }
 
   body {
     @apply min-h-screen antialiased;
+    min-height: 100dvh;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-feature-settings: "tnum", "ss01";
     background-color: hsl(var(--background));

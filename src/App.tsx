@@ -388,7 +388,7 @@ export default function App() {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-8 max-w-[1600px] mx-auto relative z-10">
+      <div className="relative z-10 mx-auto flex min-h-dvh max-w-[1600px] flex-col gap-6 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-8 sm:px-4 sm:py-6 lg:px-8">
         <motion.header
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -398,7 +398,7 @@ export default function App() {
           {/* Branding + Toolbar */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className="text-4xl sm:text-5xl tracking-tight text-foreground leading-tight font-serif italic">
+              <h1 className="text-2xl sm:text-4xl md:text-5xl tracking-tight text-foreground leading-tight font-serif italic">
                 Neuro <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">ICU</span> Staffing
               </h1>
               <p className="text-sm text-foreground-muted mt-1.5 max-w-md">
@@ -406,8 +406,9 @@ export default function App() {
               </p>
             </div>
 
-            {/* Action Toolbar */}
-            <div className="flex items-center gap-1.5 flex-wrap rounded-xl bg-secondary/60 p-1.5 border border-border">
+            {/* Action Toolbar — horizontal scroll on narrow viewports (iPhone / small Safari) */}
+            <div className="max-w-full overflow-x-auto touch-scroll scrollbar-hide rounded-xl border border-border bg-secondary/60 p-1.5 [-webkit-overflow-scrolling:touch]">
+              <div className="flex min-w-min items-center gap-1.5">
                 <input
                   title="Import"
                   type="file"
@@ -486,6 +487,7 @@ export default function App() {
                     <span className="hidden sm:inline">AI</span>
                   </button>
                 </div>
+              </div>
               </div>
             </div>
 
