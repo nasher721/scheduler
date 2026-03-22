@@ -1,0 +1,300 @@
+/**
+ * Schedule print dialog preview + injected print window.
+ * Scoped under .print-schedule so it does not affect the rest of the app.
+ */
+
+.print-schedule {
+  --print-ink: #0f172a;
+  --print-ink-muted: #475569;
+  --print-ink-faint: #94a3b8;
+  --print-border: #e2e8f0;
+  --print-border-strong: #cbd5e1;
+  --print-surface: #ffffff;
+  --print-surface-subtle: #f8fafc;
+  --print-surface-weekend: #f1f5f9;
+  --print-header-bg: #0f172a;
+  --print-accent: #1d4ed8;
+  --print-critical: #b45309;
+  --print-critical-bg: #fffbeb;
+}
+
+/* ---------- Print window: @page applies when user prints from popup ---------- */
+@page {
+  size: landscape;
+  margin: 0.45in 0.55in;
+}
+
+.print-schedule .print-page {
+  background: var(--print-surface);
+  break-inside: avoid;
+  page-break-after: always;
+  max-width: 100%;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 4px 12px rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  border: 1px solid var(--print-border);
+  padding: 1.4rem 1.5rem 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.print-schedule .print-page:last-child {
+  page-break-after: auto;
+}
+
+/* Header */
+.print-schedule .print-schedule-header {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 1.125rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--print-border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.print-schedule .print-schedule-header__accent {
+  width: 0.35rem;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #1e293b 0%, var(--print-header-bg) 100%);
+}
+
+.print-schedule .print-schedule-header__body {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(180deg, #fafbfc 0%, var(--print-surface) 55%);
+}
+
+.print-schedule .print-schedule-kicker {
+  margin: 0 0 0.25rem 0;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--print-accent);
+}
+
+.print-schedule .print-schedule-title {
+  margin: 0 0 0.2rem 0;
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--print-ink);
+}
+
+.print-schedule .print-schedule-subtitle {
+  margin: 0;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--print-ink-muted);
+}
+
+/* Table shell */
+.print-schedule .print-schedule-table-wrap {
+  border: 1px solid var(--print-border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--print-surface);
+}
+
+.print-schedule .print-schedule-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.print-schedule .print-schedule-th-date {
+  width: 12%;
+}
+
+.print-schedule .print-schedule-th-loc {
+  width: auto;
+}
+
+.print-schedule .print-schedule-table thead th {
+  background: var(--print-header-bg) !important;
+  color: #f8fafc !important;
+  font-weight: 600;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #334155;
+  vertical-align: bottom;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-schedule .print-schedule-table tbody tr:nth-child(even) td {
+  background: var(--print-surface-subtle) !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-schedule .print-schedule-table tbody td {
+  border: 1px solid var(--print-border);
+  padding: 0.45rem 0.65rem;
+  vertical-align: top;
+  color: var(--print-ink);
+}
+
+.print-schedule .print-schedule-table .print-date-cell {
+  width: 12%;
+  min-width: 5rem;
+  background: var(--print-surface) !important;
+  border-right: 2px solid var(--print-border-strong) !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-schedule .print-schedule-table tr.print-weekend-row .print-date-cell {
+  background: var(--print-surface-weekend) !important;
+}
+
+.print-schedule .print-schedule-table .print-date-cell .print-day-name {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--print-ink-muted);
+}
+
+.print-schedule .print-schedule-table .print-date-cell .print-day-num {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--print-ink);
+}
+
+.print-schedule .print-schedule-table tr.print-weekend-row td:not(.print-date-cell) {
+  background: #f4f4f5 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-schedule .print-schedule-table .print-cell-critical {
+  font-weight: 700;
+  color: var(--print-ink);
+}
+
+.print-schedule .print-schedule-table .print-cell-critical .print-critical-badge {
+  display: inline-block;
+  margin-left: 0.15rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--print-critical);
+  background: var(--print-critical-bg);
+  border: 1px solid #fde68a;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-schedule .print-schedule-table .print-cell-empty {
+  color: var(--print-ink-faint);
+  font-style: italic;
+}
+
+.print-schedule .print-schedule-table .print-cell-unfilled {
+  color: var(--print-critical);
+  font-weight: 600;
+  font-size: 0.68rem;
+}
+
+/* Legend */
+.print-schedule .print-schedule-legend {
+  margin-top: 1rem;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  color: var(--print-ink-muted);
+  background: var(--print-surface-subtle);
+  border: 1px solid var(--print-border);
+  border-radius: 0.35rem;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-schedule .print-schedule-legend strong {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--print-ink);
+}
+
+.print-schedule .print-schedule-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.print-schedule .print-legend-swatch {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  border: 1px solid var(--print-border-strong);
+  flex-shrink: 0;
+}
+
+.print-schedule .print-legend-swatch--weekend {
+  background: #f4f4f5;
+}
+
+.print-schedule .print-legend-swatch--critical {
+  background: var(--print-critical-bg);
+  border-color: #fde68a;
+}
+
+/* Footer */
+.print-schedule .print-schedule-footer {
+  margin-top: 1rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--print-border);
+  display: flex;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.print-schedule .print-schedule-footer .print-schedule-footer__stamp {
+  letter-spacing: 0.02em;
+  color: var(--print-ink-faint);
+}
+
+.print-schedule .print-schedule-footer .print-schedule-footer__notice {
+  letter-spacing: 0.02em;
+  color: var(--print-ink-muted);
+  font-weight: 500;
+  max-width: 22rem;
+  text-align: right;
+}
+
+@media print {
+  .print-schedule .print-page {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+  }
+}
