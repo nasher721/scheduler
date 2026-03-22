@@ -192,7 +192,7 @@ export async function deleteShiftRequest(id: string): Promise<{ ok: boolean }> {
 
 export async function updateEmailEvent(
   id: string,
-  payload: Partial<Pick<EmailEvent, "status" | "type" | "raw_payload">>
+  payload: Partial<Pick<EmailEvent, "status" | "type">>
 ): Promise<{ event: EmailEvent }> {
   const { data, error } = await supabase
     .from("email_events")

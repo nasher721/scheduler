@@ -3,7 +3,7 @@
  * Central event system for shared memory communication
  */
 
-import { MemoryChangeEvent, MemoryEventType, MemoryEventHandler } from './types';
+import { MemoryChangeEvent, MemoryEventHandler } from './types';
 
 type EventCallback = (...args: any[]) => void;
 

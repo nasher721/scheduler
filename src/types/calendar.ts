@@ -4,7 +4,7 @@
  * Type definitions for Phase 1-5 calendar improvements
  */
 
-import type { ShiftSlot, Provider, ServicePriority, ShiftType } from './index';
+import type { ShiftSlot, ServicePriority, ShiftType } from '../types';
 
 // ============================================================================
 // Phase 1: UX & Accessibility

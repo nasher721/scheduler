@@ -25,14 +25,18 @@ class ResizeObserverMock {
 
 global.ResizeObserver = ResizeObserverMock;
 
-// Mock IntersectionObserver
-class IntersectionObserverMock {
+// Mock IntersectionObserver (satisfies lib.dom IntersectionObserver shape)
+class IntersectionObserverMock implements IntersectionObserver {
+  readonly root: Element | null = null;
+  readonly rootMargin = '';
+  readonly thresholds: ReadonlyArray<number> = [];
   observe = vi.fn();
   unobserve = vi.fn();
   disconnect = vi.fn();
+  takeRecords = (): IntersectionObserverEntry[] => [];
 }
 
-global.IntersectionObserver = IntersectionObserverMock;
+global.IntersectionObserver = IntersectionObserverMock as typeof IntersectionObserver;
 
 // Mock scrollTo
 window.scrollTo = vi.fn();

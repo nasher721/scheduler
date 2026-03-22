@@ -11,8 +11,6 @@ import {
   MemorySnapshot,
   SyncStatus,
   SharedMemoryConfig,
-  SyncOptions,
-  ConflictResolution,
 } from './types';
 
 // In-memory storage
@@ -235,8 +233,9 @@ export function query(query: MemoryQuery): MemoryEntry[] {
     results = results.filter((e) => e.source === query.source);
   }
 
-  if (query.since) {
-    results = results.filter((e) => e.timestamp >= query.since);
+  if (query.since !== undefined) {
+    const since = query.since;
+    results = results.filter((e) => e.timestamp >= since);
   }
 
   return results;
@@ -256,7 +255,7 @@ export function snapshot(): MemorySnapshot {
 /**
  * Restore from a snapshot
  */
-export function restore(snapshot: MemorySnapshot, options?: { source?: string }): void {
+export function restore(snapshot: MemorySnapshot, _options?: { source?: string }): void {
   memoryStore.clear();
 
   for (const entry of snapshot.entries) {

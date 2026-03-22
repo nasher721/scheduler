@@ -5,9 +5,6 @@ import {
   Send, 
   X, 
   User, 
-  Circle,
-  ChevronDown,
-  MoreHorizontal,
   Phone,
   Video
 } from 'lucide-react';
@@ -113,7 +110,7 @@ function ConversationList({
     return provider?.name || 'Unknown';
   };
 
-  const getParticipantStatus = (conversation: Conversation) => {
+  const getParticipantStatus = (_conversation: Conversation) => {
     // Would check online status from presence system
     return Math.random() > 0.5; // Placeholder
   };
@@ -200,8 +197,7 @@ export function InAppMessaging() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
-  const [showNewChat, setShowNewChat] = useState(false);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load mock data on mount

@@ -80,7 +80,7 @@ export interface AnalyticsDashboard {
  */
 export function predictCoverage(
   slots: ShiftSlot[],
-  providers: Provider[],
+  _providers: Provider[],
   daysAhead: number = 14
 ): CoveragePrediction[] {
   const predictions: CoveragePrediction[] = [];
@@ -316,7 +316,7 @@ export function assessBurnoutRisk(
  */
 export function generateStaffingRecommendations(
   slots: ShiftSlot[],
-  providers: Provider[],
+  _providers: Provider[],
   forecasts: DemandForecast[]
 ): StaffingRecommendation[] {
   const recommendations: StaffingRecommendation[] = [];
@@ -326,7 +326,6 @@ export function generateStaffingRecommendations(
       s.date >= forecast.period.start && s.date <= forecast.period.end
     );
 
-    const uniqueDays = new Set(periodSlots.map(s => s.date)).size;
     const currentStaffing = periodSlots.filter(s => s.providerId).length;
     const recommendedStaffing = forecast.expectedDemand;
     const gap = recommendedStaffing - currentStaffing;

@@ -7,7 +7,6 @@ import { requestJson } from "./client";
 import {
   type CopilotMessage,
   type CopilotContext,
-  type CopilotConversation,
 } from "../../types";
 
 export interface CopilotChatResponse {

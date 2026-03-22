@@ -250,6 +250,11 @@ export function usePreferenceLearning() {
 
 // ============ ANOMALY DETECTION HOOK ============
 
+/** Shape stored under shared-memory key `anomaly:status` */
+type AnomalyMemoryStatus = {
+  lastCheck?: string | number;
+};
+
 export function useAnomalyDetection() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -257,7 +262,7 @@ export function useAnomalyDetection() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Get stored status from shared memory
-  const [status] = useSharedMemory('anomaly:status');
+  const [status] = useSharedMemory<AnomalyMemoryStatus>('anomaly:status');
 
   const startMonitoring = useCallback(async () => {
     try {

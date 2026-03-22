@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
 import { sharedMemory, subscribe, watch, getSyncStatus, syncWithServer } from './sharedMemory';
 import { eventBus } from './eventBus';
-import { MemoryChangeEvent, SyncStatus, MemoryKey, MEMORY_KEYS } from './types';
+import { MemoryChangeEvent, SyncStatus, MEMORY_KEYS } from './types';
 
 /**
  * Hook to read and write a value from shared memory
@@ -174,7 +174,7 @@ export function useOptimisticUpdate<T>(
   resetError: () => void;
 } {
   const { syncDuration = 500, onError, onSuccess } = options;
-  const [value, setValue] = useSharedMemory<T>(key);
+  const [value, _setValue] = useSharedMemory<T>(key);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const rollbackValue = useRef<T | undefined>(undefined);

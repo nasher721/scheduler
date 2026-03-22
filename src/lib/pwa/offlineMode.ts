@@ -23,6 +23,27 @@ export interface SyncStatus {
   lastSync: Date | null;
 }
 
+/** Resolves when an IDBRequest succeeds; rejects on error. */
+function idbRequest<T>(request: IDBRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result as T);
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
+  });
+}
+
+/** Resolves when the transaction has finished committing. */
+function idbTransactionDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    tx.onabort = () => reject(new Error('IndexedDB transaction aborted'));
+  });
+}
+
+type ServiceWorkerRegistrationWithSync = ServiceWorkerRegistration & {
+  sync?: { register(tag: string): Promise<void> };
+};
+
 /**
  * Check if browser is online
  */
@@ -45,7 +66,8 @@ export async function queueRequest(request: Omit<QueuedRequest, 'id' | 'timestam
 
   const tx = db.transaction('requests', 'readwrite');
   const store = tx.objectStore('requests');
-  await store.add(queuedRequest);
+  await idbRequest(store.add(queuedRequest));
+  await idbTransactionDone(tx);
 }
 
 /**
@@ -55,7 +77,9 @@ export async function getQueuedRequests(): Promise<QueuedRequest[]> {
   const db = await openSyncDB();
   const tx = db.transaction('requests', 'readonly');
   const store = tx.objectStore('requests');
-  return store.getAll();
+  const rows = await idbRequest<QueuedRequest[]>(store.getAll());
+  await idbTransactionDone(tx);
+  return rows;
 }
 
 /**
@@ -65,7 +89,8 @@ export async function removeQueuedRequest(id: string): Promise<void> {
   const db = await openSyncDB();
   const tx = db.transaction('requests', 'readwrite');
   const store = tx.objectStore('requests');
-  await store.delete(id);
+  await idbRequest(store.delete(id));
+  await idbTransactionDone(tx);
 }
 
 /**
@@ -104,9 +129,8 @@ export async function processQueue(): Promise<{ success: number; failed: number 
 export async function registerBackgroundSync(tag: string = 'sync-queue'): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
 
-  const registration = await navigator.serviceWorker.ready;
-  
-  if ('sync' in registration) {
+  const registration = (await navigator.serviceWorker.ready) as ServiceWorkerRegistrationWithSync;
+  if (registration.sync) {
     await registration.sync.register(tag);
   }
 }

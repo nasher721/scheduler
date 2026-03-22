@@ -6,7 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export interface PushSubscription {
+/** Serialized push subscription (`PushSubscription#toJSON()`), not the live DOM type */
+export interface PushSubscriptionJSON {
   endpoint: string;
   expirationTime: number | null;
   keys: {
@@ -61,7 +62,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 /**
  * Subscribe to push notifications
  */
-export async function subscribeToPushNotifications(): Promise<PushSubscription | null> {
+export async function subscribeToPushNotifications(): Promise<PushSubscriptionJSON | null> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     throw new Error('Push notifications not supported');
   }
@@ -75,14 +76,14 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     // Create new subscription
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY),
+      applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY) as BufferSource,
     });
   }
 
   // Send subscription to server
   await saveSubscription(subscription);
 
-  return subscription.toJSON() as PushSubscription;
+  return subscription.toJSON() as PushSubscriptionJSON;
 }
 
 /**
@@ -141,11 +142,11 @@ export async function sendLocalNotification(
 /**
  * Save subscription to server
  */
-async function saveSubscription(subscription: PushSubscription): Promise<void> {
+async function saveSubscription(subscription: globalThis.PushSubscription): Promise<void> {
   const response = await fetch('/api/notifications/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(subscription),
+    body: JSON.stringify(subscription.toJSON()),
   });
 
   if (!response.ok) {
@@ -156,7 +157,7 @@ async function saveSubscription(subscription: PushSubscription): Promise<void> {
 /**
  * Delete subscription from server
  */
-async function deleteSubscription(subscription: PushSubscription): Promise<void> {
+async function deleteSubscription(subscription: globalThis.PushSubscription): Promise<void> {
   await fetch('/api/notifications/unsubscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -168,7 +169,7 @@ async function deleteSubscription(subscription: PushSubscription): Promise<void>
  * Hook for push notifications
  */
 export function usePushNotifications() {
-  const [subscription, setSubscription] = useState<PushSubscription | null>(null);
+  const [subscription, setSubscription] = useState<PushSubscriptionJSON | null>(null);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [supported, setSupported] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -185,7 +186,7 @@ export function usePushNotifications() {
           const registration = await navigator.serviceWorker.ready;
           const existingSub = await registration.pushManager.getSubscription();
           if (existingSub) {
-            setSubscription(existingSub.toJSON() as PushSubscription);
+            setSubscription(existingSub.toJSON() as PushSubscriptionJSON);
           }
         } catch (err) {
           console.error('Failed to get subscription:', err);

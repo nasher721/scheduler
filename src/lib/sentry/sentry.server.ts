@@ -35,10 +35,17 @@ export function sentryErrorHandler(): ReturnType<typeof Sentry.expressErrorHandl
 }
 
 /**
- * Request handler middleware (must be first)
+ * Placeholder middleware for ordering with {@link initSentryServer}.
+ * Sentry v8 traces Express via {@link Sentry.expressIntegration} — no separate request handler.
  */
-export function sentryRequestHandler(): ReturnType<typeof Sentry.expressRequestHandler> {
-  return Sentry.expressRequestHandler();
+export function sentryRequestHandler(): (
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  next: () => void,
+) => void {
+  return (_req, _res, next) => {
+    next();
+  };
 }
 
 /**
