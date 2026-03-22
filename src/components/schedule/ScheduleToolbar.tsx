@@ -89,7 +89,6 @@ export function ScheduleToolbar() {
           </div>
 
           <select
-            title="Shift type filter"
             aria-label="Shift type filter"
             value={scheduleViewport.shiftTypeFilter}
             onChange={(event) => setShiftTypeFilter(event.target.value as ShiftTypeFilter)}

@@ -406,7 +406,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* Action Toolbar — horizontal scroll on narrow viewports (iPhone / small Safari) */}
             <div className="max-w-full overflow-x-auto touch-scroll scrollbar-hide rounded-xl border border-border bg-secondary/60 p-1.5 [-webkit-overflow-scrolling:touch]">
               <div className="flex min-w-min items-center gap-1.5">
                 <input
