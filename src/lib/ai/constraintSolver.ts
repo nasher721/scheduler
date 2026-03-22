@@ -81,18 +81,16 @@ const DEFAULT_CONSTRAINTS: OptimizationConstraints = {
 export class ConstraintSolver {
   private providers: Provider[];
   private slots: ShiftSlot[];
-  private rules: CustomRule[];
   private constraints: OptimizationConstraints;
 
   constructor(
     providers: Provider[],
     slots: ShiftSlot[],
-    rules: CustomRule[] = [],
+    _rules: CustomRule[] = [],
     constraints: Partial<OptimizationConstraints> = {}
   ) {
     this.providers = providers;
     this.slots = slots;
-    this.rules = rules;
     this.constraints = { ...DEFAULT_CONSTRAINTS, ...constraints };
   }
 
@@ -100,8 +98,6 @@ export class ConstraintSolver {
    * Main solve method - finds optimal assignment
    */
   async solve(objective: OptimizationObjective = { type: 'BALANCED', weights: { fairness: 0.3, preference: 0.3, continuity: 0.2, cost: 0.2 } }): Promise<SolverSolution> {
-    const startTime = performance.now();
-    
     // Phase 1: Greedy initial assignment
     let assignments = this.greedyInitialAssignment();
     
@@ -112,9 +108,7 @@ export class ConstraintSolver {
     const violations = this.validateSolution(assignments);
     const metrics = this.calculateMetrics(assignments);
     const scores = this.calculateScores(assignments, objective);
-    
-    const duration = performance.now() - startTime;
-    
+
     return {
       assignments,
       score: scores.total,
@@ -232,7 +226,7 @@ export class ConstraintSolver {
    */
   private getEligibleProviders(
     slot: ShiftSlot,
-    assignments: Map<string, string | null>
+    _assignments: Map<string, string | null>
   ): Provider[] {
     return this.providers.filter(provider => this.canAssign(provider, slot));
   }
@@ -381,7 +375,7 @@ export class ConstraintSolver {
    */
   private calculateScores(
     assignments: Map<string, string | null>,
-    objective: OptimizationObjective
+    _objective: OptimizationObjective
   ): { total: number; fairness: number; preference: number; continuity: number; cost: number } {
     const metrics = this.calculateMetrics(assignments);
     
@@ -411,15 +405,15 @@ export class ConstraintSolver {
   }
 
   private countConsecutiveNights(
-    provider: Provider,
-    date: string,
-    assignments: Map<string, string | null>
+    _provider: Provider,
+    _date: string,
+    _assignments: Map<string, string | null>
   ): number {
     // Simplified implementation
     return 0;
   }
 
-  private isHoliday(date: string): boolean {
+  private isHoliday(_date: string): boolean {
     // Would check against holiday list
     return false;
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { X, Command, Keyboard } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { defaultShortcuts, groupShortcutsByCategory, formatShortcut } from '@/hooks/useKeyboardShortcuts';

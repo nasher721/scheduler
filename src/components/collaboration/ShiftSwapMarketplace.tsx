@@ -1,13 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   RefreshCw, 
-  Clock, 
   User, 
   Check, 
   X, 
   AlertCircle,
-  Filter,
   Search,
   Calendar
 } from 'lucide-react';

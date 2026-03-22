@@ -27,7 +27,6 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
   
   const providers = useScheduleStore(state => state.providers);
   const slots = useScheduleStore(state => state.slots);
-  const assignShift = useScheduleStore(state => state.assignShift);
 
   // Generate search results based on query
   const results: SearchResult[] = useMemo(() => {

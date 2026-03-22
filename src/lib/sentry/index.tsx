@@ -70,7 +70,7 @@ export function SentryErrorBoundary({ children }: { children: React.ReactNode })
   const ErrorBoundary = Sentry.ErrorBoundary;
   return (
     <ErrorBoundary
-      fallback={({ error, resetError }) => (
+      fallback={({ error: _error, resetError }) => (
         <div className="min-h-screen flex items-center justify-center p-4">
           <div className="max-w-md w-full text-center">
             <h1 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h1>

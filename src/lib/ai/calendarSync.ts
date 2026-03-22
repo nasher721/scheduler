@@ -260,7 +260,7 @@ export async function exportToOutlookCalendar(
  * Import time-off from external calendar
  */
 export async function importTimeOffFromCalendar(
-  providerId: string,
+  _providerId: string,
   auth: CalendarAuth,
   calendarProvider: CalendarProvider,
   dateRange: { start: string; end: string }

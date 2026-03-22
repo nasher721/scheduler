@@ -5,7 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 describe('useTheme', () => {
   beforeEach(() => {
     // Reset localStorage
-    localStorage.clear();
+    window.localStorage.clear();
     
     // Reset document class
     document.documentElement.classList.remove('dark');
@@ -13,7 +13,7 @@ describe('useTheme', () => {
     // Mock matchMedia
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
-      value: vi.fn().mockImplementation(query => ({
+      value: vi.fn().mockImplementation(_query => ({
         matches: false,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),

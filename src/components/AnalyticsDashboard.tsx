@@ -425,7 +425,14 @@ export function AnalyticsDashboard() {
                                             <span className="font-bold text-amber-800 uppercase tracking-wider">{a.severity ?? a.type ?? "Alert"}</span>
                                             {a.detectedAt && <span className="text-slate-500">{format(parseISO(a.detectedAt), "MMM d")}</span>}
                                         </div>
-                                        <p className="mt-1 text-slate-700">{a.message ?? a.description ?? (a as Record<string, unknown>).title ?? "No description"}</p>
+                                        <p className="mt-1 text-slate-700">
+                                          {String(
+                                            a.message ??
+                                              a.description ??
+                                              (a as Record<string, unknown>).title ??
+                                              "No description"
+                                          )}
+                                        </p>
                                     </div>
                                 ))
                             )}

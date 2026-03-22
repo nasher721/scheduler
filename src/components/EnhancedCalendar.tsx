@@ -37,6 +37,8 @@ import { BulkAssignmentMode } from './BulkAssignmentMode';
 import { CoverageAlertDashboard, AlertBadge } from './CoverageAlertDashboard';
 import { ShiftHistoryView } from './ShiftHistoryView';
 import { PrintScheduleView, PrintButton } from './PrintScheduleView';
+import { ShiftIssuesDrawer } from './ShiftIssuesDrawer';
+import { getShiftIssueMarkers, pickMonthDayRepresentativeSlot, shouldOpenIssuesDrawerFirst } from '../lib/shiftConflictUtils';
 
 // Service priority configuration
 const servicePriorityConfig: Record<ServicePriority, {
@@ -157,17 +159,42 @@ function PriorityBadge({ priority, showLabel = false }: { priority: ServicePrior
   );
 }
 
+function ShiftIssueMarkersInline({ slot, conflicts }: { slot: ShiftSlot; conflicts: Conflict[] }) {
+  const markers = getShiftIssueMarkers(slot, conflicts);
+  if (!markers.hasUnresolvedConflict && !markers.isCriticalCoverageGap) return null;
+  return (
+    <div className="flex items-center gap-0.5 shrink-0" aria-hidden>
+      {markers.isCriticalCoverageGap && (
+        <span className="h-2 w-2 rounded-full bg-rose-500 ring-1 ring-white shadow-sm" title="Critical coverage gap" />
+      )}
+      {markers.hasUnresolvedConflict && markers.maxSeverity && (
+        <span
+          className={`h-2 w-2 rounded-full ring-1 ring-white shadow-sm ${
+            markers.maxSeverity === "CRITICAL"
+              ? "bg-rose-600"
+              : markers.maxSeverity === "WARNING"
+                ? "bg-amber-500"
+                : "bg-sky-500"
+          }`}
+          title={`Issue: ${markers.maxSeverity}`}
+        />
+      )}
+    </div>
+  );
+}
+
 // Shift Card Component with Click-to-Edit
 interface ShiftCardProps {
   slot: ShiftSlot;
   provider?: Provider;
   hasConflict?: boolean;
+  conflicts: Conflict[];
   onClick: (slot: ShiftSlot) => void;
   compact?: boolean;
   showWorkload?: boolean;
 }
 
-function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, showWorkload = false }: ShiftCardProps) {
+function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = false, showWorkload = false }: ShiftCardProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: slot.id,
     data: { slotId: slot.id }
@@ -194,9 +221,12 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, show
         <div className="flex items-center gap-2">
           <span className={`w-1 h-6 rounded-full ${priorityConfig.indicatorColor}`} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
-              {config.icon}
-              <span className={`text-[10px] font-bold ${config.colorClass}`}>{slot.serviceLocation}</span>
+            <div className="flex items-center gap-1 justify-between">
+              <div className="flex items-center gap-1 min-w-0">
+                {config.icon}
+                <span className={`text-[10px] font-bold truncate ${config.colorClass}`}>{slot.serviceLocation}</span>
+              </div>
+              <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
             </div>
             {provider ? (
               <div className="flex items-center gap-1">
@@ -241,6 +271,7 @@ function ShiftCard({ slot, provider, hasConflict, onClick, compact = false, show
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
           {slot.notes && (
             <span className="p-1 bg-amber-100 text-amber-600 rounded-full" title={slot.notes}>
               <StickyNote className="w-3 h-3" />
@@ -386,6 +417,7 @@ function GridView({
                             slot={slot}
                             provider={provider}
                             hasConflict={hasConflict}
+                            conflicts={conflicts}
                             onClick={onShiftClick}
                             showWorkload={showWorkload}
                           />
@@ -471,6 +503,8 @@ function ListView({
                 </span>
               )}
             </div>
+
+            <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
 
             {isCriticalUnfilled && (
               <span className="px-2 py-1 bg-rose-100 text-rose-600 text-[9px] font-bold rounded-full">
@@ -568,6 +602,7 @@ function BarView({
                       <span className={`text-[10px] font-bold ${config.colorClass} truncate px-1`}>
                         {slot.serviceLocation}
                       </span>
+                      <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
                     </motion.div>
                   </div>
                 );
@@ -702,6 +737,7 @@ function WeekView({
                       slot={slot}
                       provider={provider}
                       hasConflict={hasConflict}
+                      conflicts={conflicts}
                       onClick={onShiftClick}
                       compact
                       showWorkload={showWorkload}
@@ -721,6 +757,7 @@ function WeekView({
                       slot={slot}
                       provider={provider}
                       hasConflict={hasConflict}
+                      conflicts={conflicts}
                       onClick={onShiftClick}
                       compact
                       showWorkload={showWorkload}
@@ -740,6 +777,7 @@ function WeekView({
                       slot={slot}
                       provider={provider}
                       hasConflict={hasConflict}
+                      conflicts={conflicts}
                       onClick={onShiftClick}
                       compact
                       showWorkload={showWorkload}
@@ -758,11 +796,11 @@ function WeekView({
 function MonthView({
   slots,
   anchorDate,
+  conflicts,
   onShiftClick
 }: {
   slots: ShiftSlot[];
   anchorDate: Date;
-  providers: Provider[];
   conflicts: Conflict[];
   onShiftClick: (slot: ShiftSlot) => void;
 }) {
@@ -825,9 +863,8 @@ function MonthView({
               key={dateStr}
               whileHover={{ scale: 1.02 }}
               onClick={() => {
-                if (daySlots.length > 0) {
-                  onShiftClick(daySlots[0]);
-                }
+                const rep = pickMonthDayRepresentativeSlot(daySlots, conflicts);
+                if (rep) onShiftClick(rep);
               }}
               className={`min-h-[100px] p-2 rounded-xl border cursor-pointer transition-all ${!isCurrentMonth
                 ? 'bg-slate-50 border-slate-100 opacity-50'
@@ -891,12 +928,14 @@ function TimelineView({
   slots,
   providers,
   conflicts,
-  weekDates
+  weekDates,
+  onShiftClick,
 }: {
   slots: ShiftSlot[];
   providers: Provider[];
   conflicts: Conflict[];
   weekDates: Date[];
+  onShiftClick: (slot: ShiftSlot) => void;
 }) {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const priorityOrder: ServicePriority[] = ["CRITICAL", "STANDARD", "FLEXIBLE"];
@@ -940,16 +979,43 @@ function TimelineView({
               const provider = providers.find(p => p.id === slot.providerId);
               const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
               const priorityConfig = servicePriorityConfig[slot.servicePriority];
+              const isCriticalUnfilled = slot.servicePriority === "CRITICAL" && !slot.providerId;
+              const cellBg = slot.providerId
+                ? shiftConfig[slot.type].bgClass
+                : isCriticalUnfilled
+                  ? "bg-rose-50/70"
+                  : "bg-slate-50/50";
 
               return (
-                <div key={`${dateStr}-${hour}`} className={`flex-1 border-l border-slate-100 p-1 ${slot.providerId ? shiftConfig[slot.type].bgClass : ''}`}>
-                  {slot.providerId && provider && (
-                    <div className="flex items-center gap-1">
-                      <span className={`w-2 h-2 rounded-full ${priorityConfig.indicatorColor}`} />
-                      <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
-                      <span className="text-[10px] truncate">{provider.name.split(" ")[0]}</span>
+                <div
+                  key={`${dateStr}-${hour}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onShiftClick(slot)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onShiftClick(slot);
+                    }
+                  }}
+                  className={`flex-1 border-l border-slate-100 p-1 ${cellBg} cursor-pointer rounded-sm hover:ring-1 hover:ring-primary/30 focus:outline-none focus:ring-2 focus:ring-primary`}
+                >
+                  <div className="flex items-center justify-between gap-1 min-h-[1.75rem]">
+                    <div className="flex items-center gap-1 min-w-0 flex-1">
+                      {slot.providerId && provider ? (
+                        <>
+                          <span className={`w-2 h-2 shrink-0 rounded-full ${priorityConfig.indicatorColor}`} />
+                          <ProviderAvatar provider={provider} size="sm" showConflict={hasConflict} />
+                          <span className="text-[10px] truncate">{provider.name.split(" ")[0]}</span>
+                        </>
+                      ) : (
+                        <span className={`text-[10px] truncate italic ${isCriticalUnfilled ? "text-rose-600 font-medium" : "text-slate-500"}`}>
+                          {isCriticalUnfilled ? "Unfilled" : "Open"}
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
+                  </div>
                 </div>
               );
             })}
@@ -1043,6 +1109,7 @@ export function EnhancedCalendar() {
   // Edit modal state
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [issuesDrawerSlotId, setIssuesDrawerSlotId] = useState<string | null>(null);
   
   // Workload heatmap toggle
   const [showWorkload, setShowWorkload] = useState(false);
@@ -1087,6 +1154,10 @@ export function EnhancedCalendar() {
   }, [slots, weekDates, scheduleViewport, conflicts, providers]);
 
   const handleShiftClick = (slot: ShiftSlot) => {
+    if (shouldOpenIssuesDrawerFirst(slot, conflicts)) {
+      setIssuesDrawerSlotId(slot.id);
+      return;
+    }
     setEditingSlotId(slot.id);
     setSelectedDate(slot.date);
     setIsEditModalOpen(true);
@@ -1096,6 +1167,23 @@ export function EnhancedCalendar() {
     setIsEditModalOpen(false);
     setEditingSlotId(null);
   };
+
+  const handleCloseIssuesDrawer = () => {
+    setIssuesDrawerSlotId(null);
+  };
+
+  const handleEditFromIssuesDrawer = () => {
+    if (!issuesDrawerSlotId) return;
+    const slotId = issuesDrawerSlotId;
+    setIssuesDrawerSlotId(null);
+    const slot = slots.find((s) => s.id === slotId);
+    if (!slot) return;
+    setEditingSlotId(slot.id);
+    setSelectedDate(slot.date);
+    setIsEditModalOpen(true);
+  };
+
+  const issuesDrawerSlot = issuesDrawerSlotId ? slots.find((s) => s.id === issuesDrawerSlotId) ?? null : null;
 
   return (
     <motion.div
@@ -1243,7 +1331,6 @@ export function EnhancedCalendar() {
                 key={format(weekDates[0], "yyyy-MM")}
                 slots={visibleSlots}
                 anchorDate={weekDates[0]}
-                providers={providers}
                 conflicts={conflicts}
                 onShiftClick={handleShiftClick}
               />
@@ -1255,11 +1342,20 @@ export function EnhancedCalendar() {
                 providers={providers}
                 conflicts={conflicts}
                 weekDates={weekDates}
+                onShiftClick={handleShiftClick}
               />
             )}
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <ShiftIssuesDrawer
+        slot={issuesDrawerSlot}
+        conflicts={conflicts}
+        isOpen={issuesDrawerSlotId !== null && issuesDrawerSlot !== null}
+        onClose={handleCloseIssuesDrawer}
+        onEditShift={handleEditFromIssuesDrawer}
+      />
 
       {/* Edit Modal */}
       <ShiftEditModal

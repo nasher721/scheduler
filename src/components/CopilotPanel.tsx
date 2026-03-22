@@ -223,8 +223,7 @@ export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
   const injectHelpOrToolsReply = (userCommand: string, content: string) => {
     let cid = store.currentConversationId;
     if (!cid) {
-      store.createConversation();
-      cid = useScheduleStore.getState().currentConversationId ?? undefined;
+      cid = store.createConversation();
     }
     if (!cid) return;
     const userMsg = {

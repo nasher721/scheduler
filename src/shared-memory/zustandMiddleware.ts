@@ -3,8 +3,8 @@
  * Keeps Zustand store always in sync with shared memory
  */
 
-import { StateCreator, StoreMutatorIdentifier } from 'zustand';
-import { sharedMemory, subscribe, getSyncStatus, syncWithServer } from './sharedMemory';
+import { StateCreator } from 'zustand';
+import { sharedMemory, getSyncStatus, syncWithServer } from './sharedMemory';
 import { eventBus } from './eventBus';
 import { MemoryChangeEvent, SyncStatus } from './types';
 
@@ -55,11 +55,6 @@ interface SharedMemoryOptions<T> {
   onConflict?: (key: string, local: any, server: any) => 'local' | 'server' | 'merge';
 }
 
-type SharedMemory = <T>(
-  initializer: StateCreator<T, [], []>,
-  options: SharedMemoryOptions<T>
-) => StateCreator<T, [], []>;
-
 declare module 'zustand' {
   interface StoreApi<T> {
     syncWithMemory: () => Promise<void>;
@@ -105,12 +100,20 @@ export const sharedMemoryMiddleware = <T extends Record<string, any>>(
     // Enhanced set function that syncs to shared memory
     const enhancedSet: typeof set = (partial, replace) => {
       if (isSyncing) {
-        set(partial, replace);
+        if (replace === true) {
+          set(partial as T, true);
+        } else {
+          set(partial);
+        }
         return;
       }
 
       const prevState = get();
-      set(partial, replace);
+      if (replace === true) {
+        set(partial as T, true);
+      } else {
+        set(partial);
+      }
       const nextState = get();
 
       // Sync changed keys to shared memory

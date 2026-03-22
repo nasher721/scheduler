@@ -3,7 +3,7 @@
  * Comprehensive testing interface for all AI services
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   useAIOptimization,
   useDemandForecast,
@@ -485,7 +485,12 @@ function PreferencesTab() {
                 )}
                 {model.confidence && (
                   <div className="text-sm text-gray-500 mt-1">
-                    Confidence: {Math.round(Object.values(model.confidence).reduce((a: any, b: any) => a + b, 0) / Object.values(model.confidence).length * 100)}%
+                    Confidence: {Math.round(
+                      Object.values(model.confidence as Record<string, number>).reduce(
+                        (a, b) => a + b,
+                        0
+                      ) / Math.max(1, Object.keys(model.confidence).length) * 100
+                    )}%
                   </div>
                 )}
               </div>

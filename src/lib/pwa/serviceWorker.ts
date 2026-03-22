@@ -12,6 +12,9 @@
 
 declare const self: ServiceWorkerGlobalScope;
 
+/** Extendable sync events (Background Sync API). */
+type SyncEventLike = ExtendableEvent & { readonly tag: string };
+
 const CACHE_NAME = 'nicu-scheduler-v1';
 const STATIC_ASSETS = [
   '/',
@@ -81,9 +84,10 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Background sync - queue requests when offline
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-schedule-changes') {
-    event.waitUntil(syncScheduleChanges());
+self.addEventListener('sync', (event: Event) => {
+  const e = event as SyncEventLike;
+  if (e.tag === 'sync-schedule-changes') {
+    e.waitUntil(syncScheduleChanges());
   }
 });
 
@@ -92,19 +96,20 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
 
   const data = event.data.json();
-  const options: NotificationOptions = {
+  const baseOptions: NotificationOptions = {
     body: data.body,
     icon: '/icons/icon-192x192.png',
     badge: '/icons/badge-72x72.png',
     tag: data.tag || 'default',
     requireInteraction: data.requireInteraction || false,
-    actions: data.actions || [],
     data: data.data || {},
   };
+  const options = {
+    ...baseOptions,
+    ...(Array.isArray(data.actions) && data.actions.length > 0 ? { actions: data.actions } : {}),
+  } as NotificationOptions;
 
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
+  event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 // Notification click
@@ -135,9 +140,10 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // Periodic background sync
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'check-schedule-updates') {
-    event.waitUntil(checkScheduleUpdates());
+self.addEventListener('periodicsync', (event: Event) => {
+  const e = event as SyncEventLike;
+  if (e.tag === 'check-schedule-updates') {
+    e.waitUntil(checkScheduleUpdates());
   }
 });
 
@@ -203,23 +209,50 @@ async function networkFirst(request: Request): Promise<Response> {
 
 async function staleWhileRevalidate(request: Request): Promise<Response> {
   const cached = await caches.match(request);
-  
-  const fetchPromise = fetch(request).then((networkResponse) => {
+  const networkPromise = fetch(request).then((networkResponse) => {
     if (networkResponse.ok) {
-      const cache = caches.open(CACHE_NAME);
-      cache.then((c) => c.put(request, networkResponse.clone()));
+      void caches.open(CACHE_NAME).then((c) => c.put(request, networkResponse.clone()));
     }
     return networkResponse;
-  }).catch(() => cached);
-
-  return cached || fetchPromise;
+  });
+  if (cached) {
+    void networkPromise.catch(() => {});
+    return cached;
+  }
+  return networkPromise;
 }
 
 // Background sync functions
 
+interface QueuedScheduleChange {
+  id: string;
+  url: string;
+  method: string;
+  headers: HeadersInit;
+  body: unknown;
+}
+
+function idbRequest<T>(request: IDBRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result as T);
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
+  });
+}
+
+function idbTransactionDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    tx.onabort = () => reject(new Error('IndexedDB transaction aborted'));
+  });
+}
+
 async function syncScheduleChanges(): Promise<void> {
   const db = await openDB('sync-queue', 1);
-  const changes = await db.getAll('changes');
+  const readTx = db.transaction('changes', 'readonly');
+  const readStore = readTx.objectStore('changes');
+  const changes = await idbRequest<QueuedScheduleChange[]>(readStore.getAll());
+  await idbTransactionDone(readTx);
 
   for (const change of changes) {
     try {
@@ -230,7 +263,10 @@ async function syncScheduleChanges(): Promise<void> {
       });
 
       if (response.ok) {
-        await db.delete('changes', change.id);
+        const delTx = db.transaction('changes', 'readwrite');
+        const delStore = delTx.objectStore('changes');
+        await idbRequest(delStore.delete(change.id));
+        await idbTransactionDone(delTx);
       }
     } catch (error) {
       console.error('Sync failed for change:', change.id);

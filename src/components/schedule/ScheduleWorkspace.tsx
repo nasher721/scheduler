@@ -12,10 +12,10 @@ export function ScheduleWorkspace() {
   const prefersReducedMotion = useReducedMotion();
 
   useKeyboardShortcuts([
-    { key: "1", alt: true, handler: () => setScheduleSurfaceView("calendar") },
-    { key: "2", alt: true, handler: () => setScheduleSurfaceView("excel") },
-    { key: "ArrowLeft", alt: true, handler: () => shiftWeekOffset(-1) },
-    { key: "ArrowRight", alt: true, handler: () => shiftWeekOffset(1) },
+    { key: "1", alt: true, description: "Calendar view", action: () => setScheduleSurfaceView("calendar") },
+    { key: "2", alt: true, description: "Table view", action: () => setScheduleSurfaceView("excel") },
+    { key: "ArrowLeft", alt: true, description: "Previous week", action: () => shiftWeekOffset(-1) },
+    { key: "ArrowRight", alt: true, description: "Next week", action: () => shiftWeekOffset(1) },
   ]);
 
   return (

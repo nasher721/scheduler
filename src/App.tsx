@@ -19,7 +19,6 @@ import {
   Save,
   Trash,
   AlertCircle,
-  Zap,
   Sparkles,
   Undo2,
   Redo2,
