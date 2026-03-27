@@ -26,7 +26,7 @@ export function AnalyticsDashboard() {
 
     const coverageGaps = useMemo(() => {
         return slots
-            .filter(s => !s.providerId && s.priority === "CRITICAL")
+            .filter(s => !s.providerId && s.servicePriority === "CRITICAL")
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(0, 5);
     }, [slots]);

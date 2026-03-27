@@ -229,7 +229,7 @@ export default function App() {
       || (c.weekNights + c.weekendNights) > p.targetWeekNights
     );
   });
-  const criticalUnfilled = safeSlots.filter((slot) => slot?.priority === "CRITICAL" && !slot?.providerId).length;
+  const criticalUnfilled = safeSlots.filter((slot) => slot?.servicePriority === "CRITICAL" && !slot?.providerId).length;
   const skillMismatchRisk = safeSlots.filter((slot) => {
     if (!slot?.providerId) return false;
     const provider = safeProviders.find((p) => p.id === slot.providerId);
