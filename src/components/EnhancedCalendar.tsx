@@ -7,6 +7,7 @@ import {
   Sun,
   Moon,
   AlertTriangle,
+  AlertCircle,
   Sparkles,
   Activity,
   Stethoscope,
@@ -23,8 +24,9 @@ import {
   Clock4,
   StickyNote,
   ArrowRightLeft,
-  CheckSquare,
-  History
+  History,
+  Plus,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShiftEditModal } from './ShiftEditModal';
@@ -33,12 +35,14 @@ import { DayHandoffCard, DayHandoffIndicator } from './DayHandoffCard';
 import { SmartQuickAssign, ProviderWorkloadBadge, WorkloadHeatmapToggle } from './SmartQuickAssign';
 import { ShiftSwapBoard } from './ShiftSwapBoard';
 import { ProviderAvailabilityPanel } from './ProviderAvailabilityPanel';
+import { getShiftColorClasses } from '@/lib/shiftColors';
 import { BulkAssignmentMode } from './BulkAssignmentMode';
 import { CoverageAlertDashboard, AlertBadge } from './CoverageAlertDashboard';
 import { ShiftHistoryView } from './ShiftHistoryView';
 import { PrintScheduleView, PrintButton } from './PrintScheduleView';
 import { ShiftIssuesDrawer } from './ShiftIssuesDrawer';
 import { getShiftIssueMarkers, pickMonthDayRepresentativeSlot, shouldOpenIssuesDrawerFirst } from '../lib/shiftConflictUtils';
+import { cn, getInitials, getAvatarColor } from "@/lib/utils";
 
 // Service priority configuration
 const servicePriorityConfig: Record<ServicePriority, {
@@ -136,14 +140,22 @@ function ProviderAvatar({ provider, size = "md", showConflict = false }: {
   if (!provider) return null;
 
   const sizeClasses = {
-    sm: "w-6 h-6 text-[10px]",
-    md: "w-8 h-8 text-xs",
-    lg: "w-10 h-10 text-sm"
+    sm: "w-5 h-5 text-[9px]",
+    md: "w-6 h-6 text-[10px]",
+    lg: "w-8 h-8 text-xs"
   };
 
   return (
-    <div className={`relative ${sizeClasses[size]} rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold shadow-sm ${showConflict ? 'ring-2 ring-error' : ''}`}>
-      {provider.name.charAt(0).toUpperCase()}
+    <div 
+      className={cn(
+        "relative rounded-full flex items-center justify-center text-white font-bold shadow-sm",
+        sizeClasses[size],
+        getAvatarColor(provider.name),
+        showConflict && "ring-2 ring-error"
+      )}
+      title={provider.name}
+    >
+      {getInitials(provider.name)}
     </div>
   );
 }
@@ -204,19 +216,25 @@ function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = 
   const priorityConfig = servicePriorityConfig[slot.servicePriority];
   const isCriticalUnfilled = slot.servicePriority === "CRITICAL" && !provider;
 
+  const isUnassigned = !provider;
+  const visualState = hasConflict ? 'conflict' : isUnassigned ? 'unassigned' : 'normal';
+
   if (compact) {
     return (
       <motion.div
         ref={setNodeRef}
         whileHover={{ scale: 1.02 }}
         onClick={() => onClick(slot)}
-        className={`p-2 rounded-lg border cursor-pointer transition-all ${isOver ? 'border-primary bg-primary/5' : ''
-          } ${provider
-            ? `${config.bgClass} ${config.borderClass}`
-            : isCriticalUnfilled
-              ? 'bg-rose-50 border-rose-200'
-              : 'bg-white border-slate-200'
-          } ${hasConflict ? 'ring-1 ring-error' : ''}`}
+        className={cn(
+          "p-2 rounded-lg border cursor-pointer transition-all",
+          isOver ? 'border-primary bg-primary/5' : '',
+          visualState === 'conflict' && 'bg-red-50 border-red-200 border-solid',
+          visualState === 'unassigned' && 'border-dashed border-slate-300 bg-slate-50/50 dark:bg-slate-800/30',
+          visualState === 'normal' && provider && `${config.bgClass} ${config.borderClass}`,
+          visualState === 'normal' && isCriticalUnfilled && 'bg-rose-50 border-rose-200',
+          visualState === 'normal' && !provider && !isCriticalUnfilled && 'bg-white border-slate-200',
+          hasConflict && 'ring-1 ring-error'
+        )}
       >
         <div className="flex items-center gap-2">
           <span className={`w-1 h-6 rounded-full ${priorityConfig.indicatorColor}`} />
@@ -226,7 +244,11 @@ function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = 
                 {config.icon}
                 <span className={`text-[10px] font-bold truncate ${config.colorClass}`}>{slot.serviceLocation}</span>
               </div>
-              <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
+              <div className="flex items-center gap-1">
+                {visualState === 'conflict' && <AlertCircle className="w-3 h-3 text-red-500" />}
+                {visualState === 'unassigned' && <Plus className="w-3 h-3 text-slate-400" />}
+                <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
+              </div>
             </div>
             {provider ? (
               <div className="flex items-center gap-1">
@@ -253,13 +275,16 @@ function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = 
       layout
       whileHover={{ scale: 1.02, y: -2 }}
       onClick={() => onClick(slot)}
-      className={`relative p-3 rounded-2xl border-2 transition-all cursor-pointer ${isOver ? 'border-primary bg-primary/5 scale-105' : ''
-        } ${provider
-          ? `${config.bgClass} ${config.borderClass}`
-          : isCriticalUnfilled
-            ? 'bg-rose-50 border-rose-300'
-            : 'bg-white border-slate-200 hover:border-slate-300'
-        } ${hasConflict ? 'ring-2 ring-error/50' : ''}`}
+      className={cn(
+        "relative p-3 rounded-2xl border-2 transition-all cursor-pointer",
+        isOver ? 'border-primary bg-primary/5 scale-105' : '',
+        visualState === 'conflict' && 'bg-red-50 border-red-300',
+        visualState === 'unassigned' && 'border-dashed border-slate-300 bg-slate-50/50 dark:bg-slate-800/30',
+        visualState === 'normal' && provider && `${config.bgClass} ${config.borderClass}`,
+        visualState === 'normal' && isCriticalUnfilled && 'bg-rose-50 border-rose-300',
+        visualState === 'normal' && !provider && !isCriticalUnfilled && 'bg-white border-slate-200 hover:border-slate-300',
+        hasConflict && 'ring-2 ring-error/50'
+      )}
     >
       <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-full ${priorityConfig.indicatorColor}`} />
 
@@ -269,8 +294,13 @@ function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = 
           <span className={`text-[10px] font-bold uppercase tracking-wider ${config.colorClass}`}>
             {slot.serviceLocation}
           </span>
+          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-medium border ${getShiftColorClasses(slot.type)}`}>
+            {slot.type}
+          </span>
         </div>
         <div className="flex items-center gap-1">
+          {visualState === 'conflict' && <AlertCircle className="w-3 h-3 text-red-500" />}
+          {visualState === 'unassigned' && <Plus className="w-3 h-3 text-slate-400" />}
           <ShiftIssueMarkersInline slot={slot} conflicts={conflicts} />
           {slot.notes && (
             <span className="p-1 bg-amber-100 text-amber-600 rounded-full" title={slot.notes}>
@@ -1117,11 +1147,11 @@ export function EnhancedCalendar() {
   // New feature modals
   const [isSwapBoardOpen, setIsSwapBoardOpen] = useState(false);
   const [isAvailabilityPanelOpen, setIsAvailabilityPanelOpen] = useState(false);
-  const [selectedSlotForAvailability, _setSelectedSlotForAvailability] = useState<ShiftSlot | null>(null);
+  const [selectedSlotForAvailability] = useState<ShiftSlot | null>(null);
   const [isBulkModeOpen, setIsBulkModeOpen] = useState(false);
   const [isAlertDashboardOpen, setIsAlertDashboardOpen] = useState(false);
   const [isHistoryViewOpen, setIsHistoryViewOpen] = useState(false);
-  const [selectedSlotForHistory, _setSelectedSlotForHistory] = useState<string | null>(null);
+  const [selectedSlotForHistory] = useState<string | null>(null);
   const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
 
   const activeMonthLabel = useMemo(() => {
@@ -1239,11 +1269,12 @@ export function EnhancedCalendar() {
                 <span className="hidden sm:inline">Swaps</span>
               </button>
               <button
+                type="button"
                 onClick={() => setIsBulkModeOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-xs font-medium hover:bg-primary/20 hover:shadow-sm transition-all"
                 title="Bulk Assignment"
               >
-                <CheckSquare className="w-3.5 h-3.5" />
+                <Users className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Bulk</span>
               </button>
               <button

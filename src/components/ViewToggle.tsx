@@ -24,7 +24,7 @@ const operationsViews: Array<{ value: ViewMode; label: string }> = [
   { value: "strategy", label: "Strategy" },
   { value: "swaps", label: "Swaps" },
   { value: "holidays", label: "Holidays" },
-  { value: "conflicts", label: "Command" },
+  { value: "conflicts", label: "Conflicts" },
   { value: "templates", label: "Templates" },
 ];
 
@@ -52,7 +52,7 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
         </button>
         <button
           onClick={() => onChange("shift-requests")}
-          className={`nav-chip rounded-lg ${view === "shift-requests" ? "nav-chip-active" : ""}`}
+          className={`nav-chip rounded-lg ${view === "shift-requests" ? "nav-chip-active bg-primary/10 text-primary border-primary/20" : ""}`}
           aria-current={view === "shift-requests" ? "page" : undefined}
         >
           <Inbox className="w-3.5 h-3.5" />

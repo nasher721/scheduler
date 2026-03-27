@@ -49,7 +49,6 @@ export function CoverageAlertDashboard({ isOpen, onClose }: CoverageAlertDashboa
   } = useScheduleStore();
   
   const [filterSeverity, setFilterSeverity] = useState<AlertSeverity | 'all'>('all');
-  const [_showAcknowledged, _setShowAcknowledged] = useState(false);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
 
   // Generate alerts from conflicts and other sources

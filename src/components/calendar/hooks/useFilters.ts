@@ -197,7 +197,7 @@ export function useFilters() {
 
   // Apply a preset
   const applyPreset = useCallback((preset: FilterPreset) => {
-    let filtersToApply = { ...preset.filters };
+    const filtersToApply = { ...preset.filters };
     
     // Special handling for "My Shifts" preset
     if (preset.id === 'my-shifts' && currentUser) {

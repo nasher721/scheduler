@@ -4,6 +4,7 @@ import { CopilotPanel } from "./components/CopilotPanel";
 import { ScheduleChangePreview, type OptimizationPreview } from "./components/ScheduleChangePreview";
 import { SparkAnnotation } from "spark-banana";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
+import { NotificationBanner } from "./components/NotificationBanner";
 import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
 import { ErrorBoundary, ViewContent } from "./components/layout";
@@ -11,7 +12,10 @@ import { getProviderCounts, useScheduleStore } from "./store";
 import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { OnboardingTour, useOnboardingTour } from "./components/OnboardingTour";
+import { OnboardingTour } from "./components/OnboardingTour";
+import { useOnboardingTour } from "@/hooks/useOnboardingTour";
+import { TourPrompt } from "@/components/TourPrompt";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { useNetworkStatus } from "./hooks/usePWA";
 import { useAnomalyAlerts } from "./hooks/useAnomalyAlerts";
 import {
@@ -22,7 +26,11 @@ import {
   Sparkles,
   Undo2,
   Redo2,
-  Bot
+  Bot,
+  ChevronDown,
+  Layers,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
@@ -69,6 +77,9 @@ export default function App() {
     openChangePreviewWithMultiAgentResult,
   } = useScheduleStore();
 
+  // Mobile sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   useEffect(() => {
     initialize();
   }, [initialize]);
@@ -97,6 +108,8 @@ export default function App() {
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
   const [isAiMapping, setIsAiMapping] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showScenarios, setShowScenarios] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [isMultiAgentOptimizing, setIsMultiAgentOptimizing] = useState(false);
   const isOnline = useNetworkStatus();
@@ -208,7 +221,7 @@ export default function App() {
       strategy: "Strategy",
       swaps: "Swaps",
       holidays: "Holidays",
-      conflicts: "Command",
+      conflicts: "Conflicts",
       notifications: "Alerts",
       predictive: "ML Insights",
       templates: "Templates",
@@ -392,17 +405,68 @@ export default function App() {
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col gap-6"
+          className="flex flex-col gap-6 bg-surface/80 backdrop-blur-sm border-b border-border rounded-2xl px-4 py-4"
         >
           {/* Branding + Toolbar */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <h1 className="text-2xl sm:text-4xl md:text-5xl tracking-tight text-foreground leading-tight font-serif italic">
-                Neuro <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">ICU</span> Staffing
-              </h1>
-              <p className="text-sm text-foreground-muted mt-1.5 max-w-md">
-                Coverage, fatigue logic, risk-mitigated assignment.
-              </p>
+            <div className="flex items-start justify-between flex-1 min-w-0">
+              <div>
+                <h1 className="text-2xl sm:text-4xl md:text-5xl tracking-tight text-foreground leading-tight font-serif italic">
+                  Neuro <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">ICU</span> Staffing
+                </h1>
+                <p className="text-base text-foreground-secondary mt-1.5 max-w-md">
+                  Coverage, fatigue logic, risk-mitigated assignment.
+                </p>
+              </div>
+
+              {currentUser && (
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowUserMenu(v => !v)}
+                    className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 hover:bg-secondary/50 transition-colors"
+                    title="User menu"
+                    aria-label="Open user menu"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                      {currentUser.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                    </div>
+                    <span className="hidden sm:inline text-sm font-medium text-foreground">{currentUser.name?.split(' ')[0] || 'User'}</span>
+                  </button>
+
+                  {showUserMenu && (
+                    <>
+                      <button
+                        type="button"
+                        className="fixed inset-0 z-30 cursor-default"
+                        onClick={() => setShowUserMenu(false)}
+                        aria-label="Close menu"
+                      />
+                      <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-surface shadow-xl z-40 p-3 space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
+                            {currentUser.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{currentUser.name}</p>
+                            <p className="text-xs text-foreground-muted truncate">{currentUser.email}</p>
+                          </div>
+                        </div>
+                        <div className="border-t border-border pt-2">
+                          <span className={cn(
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                            currentUser.role === "ADMIN"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-success/10 text-success"
+                          )}>
+                            {currentUser.role === "ADMIN" ? "Admin" : "Clinician"}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="max-w-full overflow-x-auto touch-scroll scrollbar-hide rounded-xl border border-border bg-secondary/60 p-1.5 [-webkit-overflow-scrolling:touch]">
@@ -484,6 +548,8 @@ export default function App() {
                     <Bot className="w-4 h-4" />
                     <span className="hidden sm:inline">AI</span>
                   </button>
+                  <div className="w-px h-5 bg-border mx-0.5" />
+                  <ThemeToggle variant="icon" />
                 </div>
               </div>
               </div>
@@ -532,30 +598,58 @@ export default function App() {
 
 
           {/* Scenarios */}
-          <div className="flex items-center gap-3 no-print overflow-x-auto pb-1 scrollbar-hide">
-            <div className="flex items-center gap-2 shrink-0">
-              <input
-                value={scenarioName}
-                onChange={(e) => setScenarioName(e.target.value)}
-                placeholder="New scenario…"
-                className="bg-transparent border-b border-border py-1.5 text-sm font-medium text-foreground placeholder:text-foreground-muted focus:border-primary outline-none transition-colors w-36"
-              />
-              <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="p-2 text-foreground-muted hover:text-primary rounded-lg transition-colors"><Save className="w-4 h-4" /></button>
-            </div>
+          <div className="no-print">
+            {/* Toggle button */}
+            <button
+              type="button"
+              onClick={() => setShowScenarios(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground-muted hover:text-foreground rounded-lg transition-colors mb-1"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Scenarios
+              <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", showScenarios && "rotate-180")} />
+            </button>
+            
+            {/* Collapsible content */}
             <AnimatePresence>
-              {scenarios.map((scenario) => (
+              {showScenarios && (
                 <motion.div
-                  key={scenario.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface hover:border-primary/30 transition-all cursor-pointer group text-sm font-medium text-foreground"
-                  onClick={() => loadScenario(scenario.id)}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
                 >
-                  {scenario.name}
-                  <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-error hover:text-error"><Trash className="w-3 h-3" /></button>
+                  <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                    {/* Existing scenario input */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <input
+                        value={scenarioName}
+                        onChange={(e) => setScenarioName(e.target.value)}
+                        placeholder="New scenario…"
+                        className="bg-transparent border-b border-border py-1.5 text-sm font-medium text-foreground placeholder:text-foreground-muted focus:border-primary outline-none transition-colors w-36"
+                      />
+                      <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="p-2 text-foreground-muted hover:text-primary rounded-lg transition-colors"><Save className="w-4 h-4" /></button>
+                    </div>
+                    {/* Existing scenario chips */}
+                    <AnimatePresence>
+                      {scenarios.map((scenario) => (
+                        <motion.div
+                          key={scenario.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface hover:border-primary/30 transition-all cursor-pointer group text-sm font-medium text-foreground"
+                          onClick={() => loadScenario(scenario.id)}
+                        >
+                          {scenario.name}
+                          <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-error hover:text-error"><Trash className="w-3 h-3" /></button>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
                 </motion.div>
-              ))}
+              )}
             </AnimatePresence>
           </div>
 
@@ -587,14 +681,90 @@ export default function App() {
           transition={{ delay: 0.2, duration: 0.4 }}
           className="flex flex-col xl:flex-row gap-6 items-start flex-1 min-w-0"
         >
-          <aside className="w-full xl:w-72 shrink-0">
+          <NotificationBanner
+            criticalGaps={criticalUnfilled}
+            skillRisks={skillMismatchRisk}
+            fatigueExposures={fatigueExposure}
+            onViewDetails={() => setViewMode("analytics")}
+          />
+          {/* Mobile: Toggle button */}
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="xl:hidden fixed bottom-4 left-4 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
+            aria-label="Open staff sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Desktop: Always visible sidebar */}
+          <aside className="hidden xl:block w-72 shrink-0">
             <ProviderManager />
           </aside>
+
+          {/* Mobile: Overlay drawer */}
+          <AnimatePresence>
+            {isSidebarOpen && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="fixed inset-0 bg-black/50 z-40 xl:hidden"
+                  aria-hidden="true"
+                />
+                {/* Drawer */}
+                <motion.aside
+                  initial={{ x: "-100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "-100%" }}
+                  transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                  className="fixed left-0 top-0 bottom-0 w-72 bg-surface z-50 xl:hidden border-r border-border shadow-2xl overflow-y-auto"
+                >
+                  <div className="p-4 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-foreground">Staff</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsSidebarOpen(false)}
+                      className="p-1 rounded-md hover:bg-secondary transition-colors"
+                      aria-label="Close sidebar"
+                    >
+                      <X className="w-5 h-5 text-foreground-muted" />
+                    </button>
+                  </div>
+                  <ProviderManager />
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>
           <div className="flex-1 w-full min-w-0 flex flex-col gap-4">
             <div className="satin-panel p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <ViewToggle view={viewMode} onChange={setViewMode} />
               <ExportMenu />
             </div>
+            {/* Coverage Status Card — prominent in-context reminder */}
+            {viewMode === 'schedule' && coverage !== undefined && (
+              <div
+                className={cn(
+                  "rounded-xl border p-4 flex items-center gap-3 font-medium",
+                  coverage < 50 && "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200",
+                  coverage >= 50 && coverage < 95 && "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200",
+                  coverage >= 95 && "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200"
+                )}
+              >
+                {coverage < 50 && (
+                  <><span className="text-red-500 text-lg">⚠️</span> Coverage critically low — {coverage}% of shifts are unfilled.</>
+                )}
+                {coverage >= 50 && coverage < 95 && (
+                  <><span className="text-amber-500 text-lg">⚡</span> Coverage: {coverage}% — Some gaps remain.</>
+                )}
+                {coverage >= 95 && (
+                  <><span className="text-green-500 text-lg">✓</span> Coverage: {coverage}% — Schedule looks good.</>
+                )}
+              </div>
+            )}
             <div className="w-full pb-16">
               <ErrorBoundary>
                 <ViewContent viewMode={viewMode} />
@@ -686,6 +856,12 @@ export default function App() {
 
       <ToastContainer />
       <InstallPrompt />
+      {!onboarding.hasSeenTour && (
+        <TourPrompt
+          onStart={onboarding.startTour}
+          onDismiss={onboarding.completeTour}
+        />
+      )}
       <CopilotPanel isOpen={isCopilotOpen} onToggle={toggleCopilot} />
 
       <OnboardingTour

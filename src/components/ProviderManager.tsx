@@ -3,7 +3,7 @@ import { useScheduleStore, getProviderCounts, type TimeOffType, getProviderCrede
 import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun, X } from "lucide-react";
 import { DraggableProvider } from "./Calendar";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarColor, getInitials, maskPlaceholderEmail } from "@/lib/utils";
 
 function TimeOffForm({ onAdd }: { onAdd: (date: string, type: TimeOffType) => void }) {
   const [date, setDate] = useState("");
@@ -128,7 +128,7 @@ export function ProviderManager() {
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-      className="stone-panel p-5 flex flex-col gap-5 w-full h-fit sticky top-6"
+      className="stone-panel border-l-4 border-l-primary p-5 flex flex-col gap-5 w-full h-fit sticky top-6"
     >
       <div className="flex items-center justify-between border-b border-border pb-4">
         <div className="flex items-center gap-3">
@@ -248,9 +248,17 @@ export function ProviderManager() {
                     <div className="cursor-grab active:cursor-grabbing p-1.5 -ml-1 text-slate-200 group-hover:text-slate-400 transition-colors">
                       <GripVertical className="w-4 h-4 stroke-[2.5]" />
                     </div>
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0",
+                        getAvatarColor(p.name)
+                      )}
+                    >
+                      {getInitials(p.name)}
+                    </div>
                     <div className="min-w-0 overflow-hidden">
                       <DraggableProvider id={p.id} name={p.name} />
-                      {p.email ? <p className="text-[9px] text-slate-500 mt-1">{p.email}</p> : null}
+                      {p.email ? <p className="text-xs text-slate-400 mt-1">{maskPlaceholderEmail(p.email)}</p> : null}
                       {(() => {
                         const credentialSummary = getProviderCredentialSummary(p);
                         if (credentialSummary.hasExpiredCredentials) {
@@ -291,6 +299,11 @@ export function ProviderManager() {
                   </div>
                 </div>
 
+                {/* FTE Targets Summary */}
+                <p className="text-[10px] font-mono text-slate-400 mb-3 px-0.5">
+                  Wk Day: {p.targetWeekDays} | Wknd: {p.targetWeekendDays} | Nights: {p.targetWeekNights}
+                </p>
+
                 {/* Quick Stats Grid */}
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <ProgressBar
@@ -311,9 +324,9 @@ export function ProviderManager() {
                     target={p.targetWeekNights}
                     current={(providerCount?.weekNights || 0) + (providerCount?.weekendNights || 0)}
                   />
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Recovery Rule</p>
-                    <p className="mt-1 text-[10px] text-slate-500">Mon-Wed nights → Thu/Fri off. Thu-Sun nights → next week recovery.</p>
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span className="text-[10px] font-medium text-slate-500">Recovery</span>
                   </div>
                 </div>
 
@@ -381,6 +394,11 @@ export function ProviderManager() {
                               Recovery days are excluded from service/FTE totals.
                             </div>
                           </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
+                          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Recovery Rule</p>
+                          <p className="mt-1 text-[10px] text-slate-500">Mon-Wed nights → Thu/Fri off. Thu-Sun nights → next week recovery.</p>
                         </div>
 
                         {/* Fatigue Settings */}

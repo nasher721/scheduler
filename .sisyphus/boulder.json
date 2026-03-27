@@ -1,0 +1,99 @@
+{
+  "active_plan": "/Users/Nash/Scheduler/.sisyphus/plans/ui-ux-improvements.md",
+  "started_at": "2026-03-27T14:21:05.665Z",
+  "session_ids": [
+    "ses_2d31494a4ffeSxQOU97DHODpKX",
+    "ses_2d047b50affeRNoLLWQhABv7z3",
+    "ses_2d047a27effeqQPY3G3CT9steR",
+    "ses_2d047ff9cffeX5bYEIxORD0P7g",
+    "ses_2d0481b72ffe5xsTGi7tsizLb3",
+    "ses_2d0478a7cffedW6j97sFrX0Gtt",
+    "ses_2d047cf09ffeghsqeIsWYg0W5v",
+    "ses_2d047ea8effe0WMHR1SEb4Gx8S",
+    "ses_2d03ccbf1ffeSJIP6iizxiDYKI",
+    "ses_2d03ca706ffepCOLT0KSAJjsH9",
+    "ses_2d03c7926ffewU9pwTPKg4a87H",
+    "ses_2d03c7923ffe494S3q8RPx1Ex1",
+    "ses_2d0379c93ffeNNd9ADPedLSAYm",
+    "ses_2d037ce77ffe4v0y2NBERS3Rom",
+    "ses_2d036d7c5ffeGFQBQCCPKy92uW",
+    "ses_2d0373bb7ffeFgv1VzliYizPW4",
+    "ses_2d028444fffeXA26oumnrSc9OV",
+    "ses_2d01cc7d9ffeBtxoMQqYHS4hJL",
+    "ses_2d017e691ffe542osq3ANXp476",
+    "ses_2d017afbcffeSApJp5q2b8QgHZ",
+    "ses_2d01746c0ffed5z57qQiNj4O2b",
+    "ses_2d0177600ffeHE7GEkz3RdZt3u",
+    "ses_2cfba3323ffe4cJ6TJoFbNJoY7",
+    "ses_2cfb87926ffeX5hBwZxNLOcRPP",
+    "ses_2cfb69f0dffe5LHY26YWZmQpzf",
+    "ses_2cfb03becffeAFu2W3SI4fTsMT",
+    "ses_2cfac5bf6ffe7QogPb95rSRJNu",
+    "ses_2cfa69901ffecFGHwmvQXJ5fip",
+    "ses_2cfa66081ffeUDIW3W0rxMyouz",
+    "ses_2cfa38b29ffeIsM3NNWaDBC4Oi",
+    "ses_2cf84dd0effegFSMKQ2hq8xx77",
+    "ses_2cf766d6fffeDlERoeDCGMBvTz",
+    "ses_2cf767efeffenyxx0RqTonrXZg",
+    "ses_2cf7655c5ffeUPlVf8lTz6yvOD",
+    "ses_2cf76347effevpcAup4O4GHhzu"
+  ],
+  "plan_name": "ui-ux-improvements",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Clean test data + mask placeholder UUIDs",
+      "session_id": "ses_2d0481b72ffe5xsTGi7tsizLb3",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-03-27T14:39:24.297Z"
+    },
+    "todo:14": {
+      "task_key": "todo:14",
+      "task_label": "14",
+      "task_title": "Show FTE numeric values on provider cards",
+      "session_id": "ses_2d017e691ffe542osq3ANXp476",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-03-27T15:28:17.847Z"
+    },
+    "todo:18": {
+      "task_key": "todo:18",
+      "task_label": "18",
+      "task_title": "Visual hierarchy — sidebar accent + header differentiation",
+      "session_id": "ses_2cfac5bf6ffe7QogPb95rSRJNu",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-03-27T17:26:19.780Z"
+    },
+    "todo:23": {
+      "task_key": "todo:23",
+      "task_label": "23",
+      "task_title": "Responsive sidebar collapse",
+      "session_id": "ses_2cfa38b29ffeIsM3NNWaDBC4Oi",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-03-27T17:36:51.640Z"
+    },
+    "todo:27": {
+      "task_key": "todo:27",
+      "task_label": "27",
+      "task_title": "Build verification + lint + final polish",
+      "session_id": "ses_2cf84dd0effegFSMKQ2hq8xx77",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-03-27T18:22:35.434Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_2cf767efeffenyxx0RqTonrXZg",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-03-27T18:27:21.863Z"
+    }
+  }
+}

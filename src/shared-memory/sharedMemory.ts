@@ -28,7 +28,7 @@ const DEFAULT_CONFIG: SharedMemoryConfig = {
 
 let config: SharedMemoryConfig = { ...DEFAULT_CONFIG };
 let syncIntervalId: NodeJS.Timeout | null = null;
-let syncStatus: SyncStatus = {
+const syncStatus: SyncStatus = {
   status: 'idle',
   lastSync: null,
   pendingChanges: 0,

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+export { TourPrompt } from './TourPrompt';
 
 export interface TourStep {
   target: string;
@@ -300,56 +301,6 @@ export function OnboardingTour({
       )}
     </AnimatePresence>
   );
-}
-
-/**
- * Hook to manage tour state
- */
-export function useOnboardingTour() {
-  const [hasSeenTour, setHasSeenTour] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('nicu-scheduler-tour-seen') === 'true';
-  });
-
-  const [isOpen, setIsOpen] = useState(false);
-
-  const startTour = useCallback(() => {
-    setIsOpen(true);
-  }, []);
-
-  const closeTour = useCallback(() => {
-    setIsOpen(false);
-  }, []);
-
-  const completeTour = useCallback(() => {
-    localStorage.setItem('nicu-scheduler-tour-seen', 'true');
-    setHasSeenTour(true);
-    setIsOpen(false);
-  }, []);
-
-  const resetTour = useCallback(() => {
-    localStorage.removeItem('nicu-scheduler-tour-seen');
-    setHasSeenTour(false);
-  }, []);
-
-  // Auto-show on first visit
-  useEffect(() => {
-    if (!hasSeenTour && typeof window !== 'undefined') {
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [hasSeenTour]);
-
-  return {
-    isOpen,
-    hasSeenTour,
-    startTour,
-    closeTour,
-    completeTour,
-    resetTour,
-  };
 }
 
 export default OnboardingTour;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, X, Smartphone } from "lucide-react";
 
@@ -12,6 +12,7 @@ export function InstallPrompt() {
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const installTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check if already installed using useCallback to avoid dependency issues
   const checkInstalled = useCallback(() => {
@@ -35,13 +36,17 @@ export function InstallPrompt() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setIsInstallable(true);
+      // Delay showing the install banner by 2 minutes
+      installTimerRef.current = setTimeout(() => {
+        setIsInstallable(true);
+      }, 120000);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      if (installTimerRef.current) clearTimeout(installTimerRef.current);
     };
   }, [checkInstalled]);
 
