@@ -226,6 +226,7 @@ export default function App() {
       predictive: "ML Insights",
       templates: "Templates",
       "ai-test": "AI Test",
+      smarthub: "SmartHub",
     };
     const segment = titles[viewMode] ?? "Schedule";
     document.title = `${segment} · Neuro ICU Staffing`;

@@ -130,3 +130,34 @@ export async function getCopilotCapabilities(): Promise<CopilotCapabilitiesRespo
     "Load copilot capabilities"
   );
 }
+
+// Marketplace copilot query (Step 5)
+export interface CopilotQueryResponse {
+  query: string;
+  intent: 'coverage_request' | 'schedule_query' | 'availability_check' | 'unknown';
+  entities: {
+    providerName?: string;
+    date?: string;
+    shiftType?: string;
+  };
+  matches?: Array<{
+    providerId: string;
+    providerName: string;
+    score: number;
+    availability?: string[];
+  }>;
+  explanation?: string;
+}
+
+export async function queryCopilot(
+  query: string,
+  context?: { dateRange?: string[] }
+): Promise<CopilotQueryResponse> {
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/copilot/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, context }),
+  });
+  if (!res.ok) throw new Error('Failed to query copilot');
+  return res.json();
+}

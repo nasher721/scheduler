@@ -80,7 +80,11 @@ import {
   ShiftType, ProviderCredential, CredentialStatus,
   Provider, CustomRule, ShiftSlot, ScenarioSnapshot, AuditLogEntry,
   LocationGroup, ServicePriority, ServiceLocation,
-  type CopilotMessage, type CopilotConversation, type CopilotFeedbackEntry
+  type CopilotMessage, type CopilotConversation, type CopilotFeedbackEntry,
+  MarketplaceShift,
+  BroadcastHistoryEntry,
+  EscalationConfig,
+  BroadcastRecipient, ShiftLifecycleStatus, BroadcastChannel
 } from "./types";
 
 export interface ProviderCounts {
@@ -351,8 +355,10 @@ interface ScheduleState {
   mlSuggestions: MLSuggestion[];
   /** Saved schedule templates */
   scheduleTemplates: ScheduleTemplate[];
-  /** Day-level handoff notes */
   dayHandoffs: import("./types").DayHandoff[];
+  marketplaceShifts: MarketplaceShift[];
+  broadcastHistory: BroadcastHistoryEntry[];
+  escalationConfig: EscalationConfig;
   addProvider: (provider: Omit<Provider, "id">) => void;
   updateProvider: (id: string, provider: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
@@ -478,6 +484,16 @@ interface ScheduleState {
   setDayHandoff: (date: string, notes: string) => void;
   getDayHandoff: (date: string) => import("./types").DayHandoff | undefined;
   clearDayHandoff: (date: string) => void;
+
+  postShiftForCoverage: (slotId: string, postedByProviderId: string, notes?: string) => string;
+  transitionShiftLifecycle: (shiftId: string, newState: ShiftLifecycleStatus) => void;
+  cancelMarketplaceShift: (shiftId: string) => void;
+  claimShift: (shiftId: string, providerId: string) => void;
+  approveShift: (shiftId: string, approvedBy: string) => void;
+  escalateBroadcast: (shiftId: string) => void;
+  updateEscalationConfig: (config: Partial<EscalationConfig>) => void;
+  addBroadcastEntry: (shiftId: string, recipients: BroadcastRecipient[], channel: BroadcastChannel) => void;
+  updateBroadcastRecipientStatus: (entryId: string, providerId: string, status: "sent" | "delivered" | "failed") => void;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -1040,6 +1056,9 @@ export const useScheduleStore = create<ScheduleState>()(
       mlSuggestions: [],
       scheduleTemplates: [],
       dayHandoffs: [],
+      marketplaceShifts: [],
+      broadcastHistory: [],
+      escalationConfig: { autoEscalationDelayMinutes: 60, maxEscalationTiers: 3 },
       isCopilotOpen: false,
       selectedDate: null,
       selectedProviderId: null,
@@ -2800,6 +2819,166 @@ export const useScheduleStore = create<ScheduleState>()(
           lastActionMessage: `Cleared handoff notes for ${date}`,
         });
       },
+
+      postShiftForCoverage: (slotId, postedByProviderId, notes = "") => {
+        const state = get();
+        const slot = state.slots.find(s => s.id === slotId);
+        if (!slot) throw new Error(`Slot ${slotId} not found`);
+        const id = `mp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newShift: MarketplaceShift = {
+          id,
+          slotId,
+          postedByProviderId,
+          date: slot.date,
+          shiftType: slot.type,
+          location: slot.location || "",
+          lifecycleState: "POSTED",
+          postedAt: new Date().toISOString(),
+          claimedByProviderId: null,
+          claimedAt: null,
+          approvedBy: null,
+          approvedAt: null,
+          broadcastRecipients: [],
+          notes,
+        };
+        set({
+          marketplaceShifts: [...state.marketplaceShifts, newShift],
+          lastActionMessage: `Shift posted for coverage: ${id}`,
+        });
+        return id;
+      },
+
+      transitionShiftLifecycle: (shiftId, newState) => {
+        const state = get();
+        const validTransitions: Record<string, ShiftLifecycleStatus[]> = {
+          POSTED: ["AI_EVALUATING", "CANCELLED"],
+          AI_EVALUATING: ["BROADCASTING", "CANCELLED"],
+          BROADCASTING: ["CLAIMED", "CANCELLED"],
+          CLAIMED: ["APPROVED", "CANCELLED"],
+          APPROVED: [],
+          CANCELLED: [],
+        };
+        const shift = state.marketplaceShifts.find(s => s.id === shiftId);
+        if (!shift) throw new Error(`Marketplace shift ${shiftId} not found`);
+        const allowed = validTransitions[shift.lifecycleState] || [];
+        if (!allowed.includes(newState)) {
+          throw new Error(`Invalid transition: ${shift.lifecycleState} → ${newState}`);
+        }
+        const updated = state.marketplaceShifts.map(s =>
+          s.id === shiftId ? { ...s, lifecycleState: newState } : s
+        );
+        set({
+          marketplaceShifts: updated,
+          lastActionMessage: `Shift ${shiftId} transitioned to ${newState}`,
+        });
+      },
+
+      cancelMarketplaceShift: (shiftId) => {
+        const state = get();
+        const updated = state.marketplaceShifts.map(s =>
+          s.id === shiftId ? { ...s, lifecycleState: "CANCELLED" as const } : s
+        );
+        set({
+          marketplaceShifts: updated,
+          lastActionMessage: `Marketplace shift ${shiftId} cancelled`,
+        });
+      },
+
+      claimShift: (shiftId: string, providerId: string) => {
+        const state = get();
+        const updated = state.marketplaceShifts.map(s =>
+          s.id === shiftId
+            ? {
+                ...s,
+                lifecycleState: "CLAIMED" as ShiftLifecycleStatus,
+                claimedByProviderId: providerId,
+                claimedAt: new Date().toISOString(),
+              }
+            : s
+        );
+        set({
+          marketplaceShifts: updated,
+          lastActionMessage: `Shift ${shiftId} claimed by provider ${providerId}`,
+        });
+      },
+
+      approveShift: (shiftId: string, approvedBy: string) => {
+        const state = get();
+        const updated = state.marketplaceShifts.map(s =>
+          s.id === shiftId
+            ? {
+                ...s,
+                lifecycleState: "APPROVED" as ShiftLifecycleStatus,
+                approvedBy,
+                approvedAt: new Date().toISOString(),
+              }
+            : s
+        );
+        set({
+          marketplaceShifts: updated,
+          lastActionMessage: `Shift ${shiftId} approved by ${approvedBy}`,
+        });
+      },
+
+      escalateBroadcast: (shiftId: string) => {
+        const state = get();
+        const existingTiers = state.broadcastHistory.filter(e => e.marketplaceShiftId === shiftId);
+        const newTier = existingTiers.length + 1;
+        const id = `bh-escalated-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const entry: BroadcastHistoryEntry = {
+          id,
+          marketplaceShiftId: shiftId,
+          tier: newTier,
+          recipients: [],
+          sentAt: new Date().toISOString(),
+          channel: "push",
+          status: "sent",
+        };
+        set({
+          broadcastHistory: [...state.broadcastHistory, entry],
+          lastActionMessage: `Broadcast escalated to tier ${newTier} for shift ${shiftId}`,
+        });
+      },
+
+      updateEscalationConfig: (config) => {
+        const state = get();
+        set({
+          escalationConfig: { ...state.escalationConfig, ...config },
+          lastActionMessage: "Escalation config updated",
+        });
+      },
+
+      addBroadcastEntry: (shiftId, recipients, channel) => {
+        const state = get();
+        const existingTiers = state.broadcastHistory.filter(e => e.marketplaceShiftId === shiftId);
+        const tier = existingTiers.length + 1;
+        const id = `bh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const entry: BroadcastHistoryEntry = {
+          id,
+          marketplaceShiftId: shiftId,
+          tier,
+          recipients,
+          sentAt: new Date().toISOString(),
+          channel,
+          status: "sent",
+        };
+        set({
+          broadcastHistory: [...state.broadcastHistory, entry],
+          lastActionMessage: `Broadcast tier ${tier} sent for shift ${shiftId}`,
+        });
+      },
+
+      updateBroadcastRecipientStatus: (entryId, _providerId, status) => {
+        const state = get();
+        const updated = state.broadcastHistory.map(entry => {
+          if (entry.id !== entryId) return entry;
+          return { ...entry, status: status as "sent" | "delivered" | "failed" };
+        });
+        set({
+          broadcastHistory: updated,
+          lastActionMessage: `Broadcast status updated to ${status} for entry ${entryId}`,
+        });
+      },
     }),
     {
       name: "nicu-schedule-store-v4",
@@ -2823,6 +3002,9 @@ export const useScheduleStore = create<ScheduleState>()(
         // ML suggestions are regenerated on demand — do not persist.
         scheduleTemplates: state.scheduleTemplates,
         dayHandoffs: state.dayHandoffs,
+        marketplaceShifts: state.marketplaceShifts,
+        broadcastHistory: state.broadcastHistory.slice(-50),
+        escalationConfig: state.escalationConfig,
         scheduleViewport: state.scheduleViewport,
         // Keep only the 5 most recent AI conversations.
         copilotConversations: state.copilotConversations.slice(-5),

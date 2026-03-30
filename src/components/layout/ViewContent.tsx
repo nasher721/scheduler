@@ -40,6 +40,9 @@ const ScheduleTemplates = lazy(() =>
 const AITestPanel = lazy(() =>
   import('../AITestPanel').then((m) => ({ default: m.AITestPanel }))
 );
+const SmartHub = lazy(() =>
+  import('../SmartHub').then((m) => ({ default: m.SmartHub }))
+);
 
 interface ViewContentProps {
   viewMode: ViewMode;
@@ -71,6 +74,8 @@ function ViewSwitch({ viewMode }: ViewContentProps) {
       return <ScheduleTemplates />;
     case 'ai-test':
       return <AITestPanel />;
+    case 'smarthub':
+      return <SmartHub />;
     default:
       return <ScheduleWorkspace />;
   }

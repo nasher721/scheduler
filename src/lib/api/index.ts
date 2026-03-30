@@ -74,3 +74,9 @@ export {
   type AgentToolsResponse,
   type AgentToolDescriptor,
 } from "./scheduleApi";
+
+// Marketplace API (Step 5)
+export * from "./marketplace";
+
+// Broadcast API (Step 5)
+export * from "./broadcast";

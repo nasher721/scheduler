@@ -1765,11 +1765,13 @@ app.get("/api/copilot/stream", (req, res) => {
 import { registerAIServicesRoutes } from './server/ai-services-routes.js';
 import { registerSharedMemoryRoutes } from './server/shared-memory-routes.js';
 import { registerAgentsRoutes } from './server/agents-routes.js';
+import { registerMarketplaceRoutes } from './server/marketplace-routes.js';
 
 // Register routes
 registerAIServicesRoutes(app);
 registerSharedMemoryRoutes(app);
 registerAgentsRoutes(app);
+registerMarketplaceRoutes(app, supabase);
 
 console.log('[Server] AI services routes registered');
 

@@ -73,6 +73,9 @@ export interface Provider {
     role?: "ADMIN" | "SCHEDULER" | "CLINICIAN";
     schedulingRestrictions?: SchedulingRestrictions;
     notes?: string;
+    communicationPreferences?: CommunicationPreferences;
+    fatigueMetrics?: FatigueMetrics;
+    autoApproveClaims?: boolean;
 }
 
 export type CustomRuleType = 'AVOID_PAIRING' | 'MAX_SHIFTS_PER_WEEK';
@@ -199,6 +202,87 @@ export interface CopilotFeedbackEntry {
   timestamp: string;
   context?: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// Marketplace & Broadcast Types
+// ---------------------------------------------------------------------------
+
+/** Communication channel for broadcast dispatch */
+export type BroadcastChannel = "sms" | "email" | "push";
+
+/** Shift lifecycle state machine in the marketplace
+ * POSTED → AI_EVALUATING → BROADCASTING → CLAIMED → APPROVED
+ */
+export type ShiftLifecycleStatus =
+  | "POSTED"
+  | "AI_EVALUATING"
+  | "BROADCASTING"
+  | "CLAIMED"
+  | "APPROVED"
+  | "CANCELLED";
+
+/** Communication preferences for a provider */
+export interface CommunicationPreferences {
+  sms: boolean;
+  email: boolean;
+  push: boolean;
+}
+
+/** Fatigue metrics for days assigned (not hours) */
+export interface FatigueMetrics {
+  consecutiveShiftsWorked: number;
+  shiftsThisMonth: number;
+  riskLevel: 'low' | 'medium' | 'high';
+}
+
+/** Recipient in a broadcast dispatch */
+export interface BroadcastRecipient {
+  id: string;
+  providerId: string;
+  channel: BroadcastChannel;
+  sentAt: string | null;
+  viewedAt: string | null;
+  respondedAt: string | null;
+}
+
+/** A marketplace shift posted by a provider requesting coverage */
+export interface MarketplaceShift {
+  id: string;
+  slotId: string;
+  postedByProviderId: string;
+  date: string;
+  shiftType: ShiftType;
+  location: string;
+  lifecycleState: ShiftLifecycleStatus;
+  postedAt: string;
+  claimedByProviderId: string | null;
+  claimedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  broadcastRecipients: BroadcastRecipient[];
+  notes: string;
+}
+
+/** Broadcast history entry for tracking notification delivery */
+export interface BroadcastHistoryEntry {
+  id: string;
+  marketplaceShiftId: string;
+  tier: number;
+  recipients: BroadcastRecipient[];
+  sentAt: string;
+  channel: BroadcastChannel;
+  status: "sent" | "delivered" | "failed";
+}
+
+/** Escalation configuration */
+export interface EscalationConfig {
+  autoEscalationDelayMinutes: number;
+  maxEscalationTiers: number;
+}
+
+// ---------------------------------------------------------------------------
+// Existing types (unchanged)
+// ---------------------------------------------------------------------------
 
 // Notification types
 export type NotificationSeverity = 'info' | 'warning' | 'critical';

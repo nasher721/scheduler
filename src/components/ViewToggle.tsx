@@ -12,7 +12,8 @@ export type ViewMode =
   | "notifications"
   | "predictive"
   | "templates"
-  | "ai-test";
+  | "ai-test"
+  | "smarthub";
 
 interface ViewToggleProps {
   view: ViewMode;
@@ -33,6 +34,7 @@ const insightsViews: Array<{ value: ViewMode; label: string }> = [
   { value: "notifications", label: "Alerts" },
   { value: "predictive", label: "ML Insights" },
   { value: "ai-test", label: "AI Test" },
+  { value: "smarthub", label: "SmartHub" },
 ];
 
 export function ViewToggle({ view, onChange }: ViewToggleProps) {

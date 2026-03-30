@@ -116,6 +116,38 @@ CREATE TABLE IF NOT EXISTS email_events (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 10. Marketplace Shifts (Shift coverage marketplace)
+CREATE TABLE IF NOT EXISTS marketplace_shifts (
+  id TEXT PRIMARY KEY,
+  slot_id TEXT REFERENCES slots(id),
+  posted_by_provider_id TEXT REFERENCES providers(id),
+  date DATE NOT NULL,
+  shift_type TEXT NOT NULL,
+  location TEXT,
+  lifecycle_state TEXT CHECK (lifecycle_state IN ('POSTED','AI_EVALUATING','BROADCASTING','CLAIMED','APPROVED','CANCELLED')) NOT NULL DEFAULT 'POSTED',
+  posted_at TIMESTAMPTZ DEFAULT NOW(),
+  claimed_by_provider_id TEXT,
+  claimed_at TIMESTAMPTZ,
+  approved_by TEXT,
+  approved_at TIMESTAMPTZ,
+  broadcast_recipients JSONB DEFAULT '[]'::jsonb,
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. Broadcast History (Notification delivery tracking)
+CREATE TABLE IF NOT EXISTS broadcast_history (
+  id TEXT PRIMARY KEY,
+  marketplace_shift_id TEXT REFERENCES marketplace_shifts(id),
+  tier INTEGER NOT NULL DEFAULT 1,
+  recipients JSONB DEFAULT '[]'::jsonb,
+  sent_at TIMESTAMPTZ DEFAULT NOW(),
+  channel TEXT CHECK (channel IN ('sms','email','push')) NOT NULL,
+  status TEXT CHECK (status IN ('sent','delivered','failed')) NOT NULL DEFAULT 'sent',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE providers ENABLE ROW LEVEL SECURITY;
@@ -125,7 +157,11 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE marketplace_shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE broadcast_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE marketplace_shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE broadcast_history ENABLE ROW LEVEL SECURITY;
 
 -- Basic Policies (Allow all for rapid prototyping, can be hardened later)
 DROP POLICY IF EXISTS "Allow all" ON profiles;
@@ -148,6 +184,9 @@ CREATE POLICY "Allow all" ON custom_rules FOR ALL USING (true);
 CREATE POLICY "Allow all" ON audit_logs FOR ALL USING (true);
 CREATE POLICY "Allow all" ON global_settings FOR ALL USING (true);
 
+CREATE POLICY "Allow all" ON marketplace_shifts FOR ALL USING (true);
+CREATE POLICY "Allow all" ON broadcast_history FOR ALL USING (true);
+
 
 -- Functions
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -164,7 +203,8 @@ DROP TRIGGER IF EXISTS update_slots_updated_at ON slots;
 
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 CREATE TRIGGER update_providers_updated_at BEFORE UPDATE ON providers FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_slots_updated_at BEFORE UPDATE ON slots FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER update_marketplace_shifts_updated_at BEFORE UPDATE ON marketplace_shifts FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER update_broadcast_history_updated_at BEFORE UPDATE ON broadcast_history FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
  
  -- 10. Auth Trigger for Profiles
  CREATE OR REPLACE FUNCTION public.handle_new_user()
