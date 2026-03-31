@@ -1,6 +1,8 @@
+import { lazy, Suspense } from "react";
+const CopilotPanel = lazy(() => import("./components/CopilotPanel").then(m => ({ default: m.CopilotPanel })));
+
 import { ProviderManager } from "./components/ProviderManager";
 import { LandingPage } from "./components/LandingPage";
-import { CopilotPanel } from "./components/CopilotPanel";
 import { ScheduleChangePreview, type OptimizationPreview } from "./components/ScheduleChangePreview";
 import { SparkAnnotation } from "spark-banana";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
@@ -863,7 +865,11 @@ export default function App() {
           onDismiss={onboarding.completeTour}
         />
       )}
-      <CopilotPanel isOpen={isCopilotOpen} onToggle={toggleCopilot} />
+      {isCopilotOpen && (
+        <Suspense fallback={<div className="w-80 bg-card p-4">Loading...</div>}>
+          <CopilotPanel isOpen={isCopilotOpen} onToggle={toggleCopilot} />
+        </Suspense>
+      )}
 
       <OnboardingTour
         isOpen={onboarding.isOpen}

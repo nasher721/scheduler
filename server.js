@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
@@ -55,15 +57,48 @@ const app = express();
 const port = Number(process.env.PORT || 4000);
 
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(requestContextMiddleware);
 app.use(httpLogMiddleware);
+
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 100,
+  message: { error: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(globalLimiter);
+
+const stateCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 5000,
+};
+
+function getCachedState() {
+  const now = Date.now();
+  if (stateCache.data && now - stateCache.timestamp < stateCache.ttl) {
+    return stateCache.data;
+  }
+  return null;
+}
+
+function setCachedState(data) {
+  stateCache.data = data;
+  stateCache.timestamp = Date.now();
+}
+
+function invalidateCache() {
+  stateCache.data = null;
+  stateCache.timestamp = 0;
+}
 
 const isArray = (value) => Array.isArray(value);
 
 const VALID_CREDENTIAL_STATUSES = new Set(["active", "expiring_soon", "expired", "pending_verification"]);
 
-// ISO 8601 date regex (YYYY-MM-DD format)
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidDateString(dateStr) {
@@ -217,6 +252,11 @@ async function setSupabaseSetting(key, value) {
 }
 
 async function readState() {
+  const cached = getCachedState();
+  if (cached) {
+    return cached;
+  }
+
   const { data: configData, error: configError } = await supabase
     .from('global_settings')
     .select('value')
@@ -268,7 +308,7 @@ async function readState() {
     serviceLocation: s.service_location,
   }));
 
-  return {
+  const result = {
     providers,
     slots,
     startDate: baseState.startDate || new Date().toISOString().split("T")[0],
@@ -277,6 +317,9 @@ async function readState() {
     customRules: baseState.customRules || [],
     auditLog: baseState.auditLog || [],
   };
+  
+  setCachedState(result);
+  return result;
 }
 
 /** Primitive: persist schedule state to DB only. No email or audit. Use queueScheduleChangeEmails for notify. */
@@ -359,6 +402,8 @@ async function writeState(state) {
     key: "schedule_config",
     value: configValues,
   });
+  
+  invalidateCache();
 }
 
 async function readApplyHistory() {
