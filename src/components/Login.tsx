@@ -37,50 +37,56 @@ export function Login() {
     const [showAdminPassword, setShowAdminPassword] = useState(false);
     const [adminLoginError, setAdminLoginError] = useState("");
     const showToast = useScheduleStore((state) => state.showToast);
-    const providers = useScheduleStore((state) => state.providers);
 
-    const handleAdminLogin = (e: React.FormEvent) => {
+    const handleAdminLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setAdminLoginError("");
 
-        if (validateDefaultAdmin(adminEmail, adminPassword)) {
-            const existingProvider = providers.find(
-                p => p.email?.toLowerCase() === DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase()
-            );
+        if (!validateDefaultAdmin(adminEmail, adminPassword)) {
+            setAdminLoginError("Invalid admin credentials");
+            return;
+        }
 
-            if (existingProvider) {
-                if (existingProvider.role !== "ADMIN") {
-                    useScheduleStore.getState().updateProvider(existingProvider.id, { role: "ADMIN" });
-                }
-                useScheduleStore.getState().login(DEFAULT_ADMIN_CREDENTIALS.email);
-            } else {
-                const adminProvider = {
-                    id: crypto.randomUUID(),
-                    name: DEFAULT_ADMIN_CREDENTIALS.name,
-                    email: DEFAULT_ADMIN_CREDENTIALS.email,
-                    role: "ADMIN" as const,
-                    targetWeekDays: 0,
-                    targetWeekendDays: 0,
-                    targetWeekNights: 0,
-                    targetWeekendNights: 0,
-                    timeOffRequests: [],
-                    preferredDates: [],
-                    skills: ["ADMINISTRATIVE", "SCHEDULING"],
-                    maxConsecutiveNights: 0,
-                    minDaysOffAfterNight: 0,
-                };
-                useScheduleStore.getState().register(adminProvider);
+        const state = useScheduleStore.getState();
+        const existingProvider = state.providers.find(
+            p => p.email?.toLowerCase() === DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase()
+        );
+
+        if (existingProvider) {
+            if (existingProvider.role !== "ADMIN") {
+                state.updateProvider(existingProvider.id, { role: "ADMIN" });
             }
-
+            state.login(DEFAULT_ADMIN_CREDENTIALS.email);
             showToast({
                 type: "success",
                 title: "Admin Access Granted",
-                message: `Welcome, ${DEFAULT_ADMIN_CREDENTIALS.name}`
+                message: `Welcome, ${existingProvider.name || DEFAULT_ADMIN_CREDENTIALS.name}`
             });
             return;
         }
 
-        setAdminLoginError("Invalid admin credentials");
+        const adminProvider = {
+            id: crypto.randomUUID(),
+            name: DEFAULT_ADMIN_CREDENTIALS.name,
+            email: DEFAULT_ADMIN_CREDENTIALS.email,
+            role: "ADMIN" as const,
+            targetWeekDays: 0,
+            targetWeekendDays: 0,
+            targetWeekNights: 0,
+            targetWeekendNights: 0,
+            timeOffRequests: [],
+            preferredDates: [],
+            skills: ["ADMINISTRATIVE", "SCHEDULING"],
+            maxConsecutiveNights: 0,
+            minDaysOffAfterNight: 0,
+        };
+
+        await state.register(adminProvider);
+        showToast({
+            type: "success",
+            title: "Admin Access Granted",
+            message: `Welcome, ${DEFAULT_ADMIN_CREDENTIALS.name}`
+        });
     };
 
     // Check if we're in dev mode with bypass available
