@@ -1,6 +1,33 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
+// ─── Default Admin Credentials ────────────────────────────────────────────────
+// These credentials are for the administrative portal default login
+// In production, use environment variables or a secure backend auth system
+export const DEFAULT_ADMIN_CREDENTIALS = {
+  email: 'admin@neuroicu.com',
+  password: 'NeuroAdmin2024!', // Default password - should be changed on first login
+  name: 'Administrator',
+  role: 'ADMIN' as const,
+};
+
+// Check if provided credentials match default admin
+export function validateDefaultAdmin(email: string, password: string): boolean {
+  const normalizedEmail = email.toLowerCase().trim();
+  const isDevMode = import.meta.env.DEV || 
+    window.location.hostname === 'localhost' ||
+    !import.meta.env.VITE_SUPABASE_URL ||
+    import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co';
+  
+  // Only allow default admin in dev mode or when Supabase is not configured
+  if (!isDevMode) return false;
+  
+  return (
+    normalizedEmail === DEFAULT_ADMIN_CREDENTIALS.email &&
+    password === DEFAULT_ADMIN_CREDENTIALS.password
+  );
+}
+
 // ─── Safe localStorage wrapper ────────────────────────────────────────────────
 // Wraps every setItem in a try/catch so a QuotaExceededError never crashes the
 // app.  When quota is exceeded the handler prunes the largest state slices

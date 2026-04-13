@@ -3,13 +3,17 @@ import { useScheduleStore } from "../store";
 import { motion } from "framer-motion";
 import { ShieldCheck, User, Mail, Landmark, Key, Eye, EyeOff } from "lucide-react";
 
+const ADMIN_ACCESS_KEY = import.meta.env.VITE_ADMIN_ACCESS_KEY as string | undefined;
+
 interface AdminRegisterProps {
     onBackToLogin: () => void;
 }
 
 export function AdminRegister({ onBackToLogin }: AdminRegisterProps) {
     const register = useScheduleStore((state) => state.register);
+    const showToast = useScheduleStore((state) => state.showToast);
     const [showKey, setShowKey] = useState(false);
+    const [keyError, setKeyError] = useState("");
     const [formData, setFormData] = useState({
         name: "",
         email: "",
@@ -18,16 +22,35 @@ export function AdminRegister({ onBackToLogin }: AdminRegisterProps) {
         department: "NEURO_ICU",
     });
 
+    const validateAccessKey = (key: string): boolean => {
+        if (!ADMIN_ACCESS_KEY) return true;
+        return key === ADMIN_ACCESS_KEY;
+    };
+
+    const handleAccessKeyChange = (key: string) => {
+        setFormData({ ...formData, accessKey: key });
+        setKeyError("");
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validateAccessKey(formData.accessKey)) {
+            setKeyError("Invalid department access key");
+            showToast({
+                type: "error",
+                title: "Access Denied",
+                message: "The department access key is invalid."
+            });
+            return;
+        }
+
         if (formData.name && formData.email) {
-            // For demo, we just accept any admin registration, 
-            // but we "verify" the role as ADMIN or SCHEDULER.
             register({
                 name: formData.name,
                 email: formData.email,
                 role: formData.role,
-                targetWeekDays: 0, // Admins typically don't have shift targets unless they also practice
+                targetWeekDays: 0,
                 targetWeekendDays: 0,
                 targetWeekNights: 0,
                 targetWeekendNights: 0,
@@ -137,9 +160,10 @@ export function AdminRegister({ onBackToLogin }: AdminRegisterProps) {
                                                 type={showKey ? "text" : "password"}
                                                 required
                                                 value={formData.accessKey}
-                                                onChange={(e) => setFormData({ ...formData, accessKey: e.target.value })}
-                                                placeholder="••••••••••••"
-                                                className="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-mono"
+                                                onChange={(e) => handleAccessKeyChange(e.target.value)}
+                                                placeholder={ADMIN_ACCESS_KEY ? "••••••••••••" : "No key configured"}
+                                                disabled={!ADMIN_ACCESS_KEY}
+                                                className={`w-full pl-11 pr-12 py-3 bg-slate-50 border rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-mono ${keyError ? 'border-red-400 focus:border-red-400 focus:ring-red-200' : 'border-slate-200'}`}
                                             />
                                             <Key className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                                             <button
@@ -150,6 +174,14 @@ export function AdminRegister({ onBackToLogin }: AdminRegisterProps) {
                                                 {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                             </button>
                                         </div>
+                                        {keyError && (
+                                            <p className="text-[10px] text-red-500 font-medium mt-1 px-1">{keyError}</p>
+                                        )}
+                                        {!ADMIN_ACCESS_KEY && (
+                                            <p className="text-[10px] text-slate-400 font-medium mt-1 px-1">
+                                                Access key not configured - registration open
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
