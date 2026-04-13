@@ -14,18 +14,36 @@ export const DEFAULT_ADMIN_CREDENTIALS = {
 // Check if provided credentials match default admin
 export function validateDefaultAdmin(email: string, password: string): boolean {
   const normalizedEmail = email.toLowerCase().trim();
+  
+  // Allow admin login if:
+  // 1. Dev mode is enabled
+  // 2. Running on localhost
+  // 3. Supabase URL is not configured or is a placeholder/example value
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const isPlaceholderUrl = 
+    !supabaseUrl ||
+    supabaseUrl.includes('placeholder') ||
+    supabaseUrl.includes('your_') ||
+    supabaseUrl === 'https://placeholder.supabase.co';
+  
   const isDevMode = import.meta.env.DEV || 
     window.location.hostname === 'localhost' ||
-    !import.meta.env.VITE_SUPABASE_URL ||
-    import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co';
+    isPlaceholderUrl;
   
   // Only allow default admin in dev mode or when Supabase is not configured
-  if (!isDevMode) return false;
+  if (!isDevMode) {
+    console.log('[Admin Auth] Dev mode disabled. isDevMode:', isDevMode, 'supabaseUrl:', supabaseUrl);
+    return false;
+  }
   
-  return (
-    normalizedEmail === DEFAULT_ADMIN_CREDENTIALS.email &&
-    password === DEFAULT_ADMIN_CREDENTIALS.password
-  );
+  const emailMatch = normalizedEmail === DEFAULT_ADMIN_CREDENTIALS.email;
+  const passwordMatch = password === DEFAULT_ADMIN_CREDENTIALS.password;
+  
+  if (!emailMatch || !passwordMatch) {
+    console.log('[Admin Auth] Credentials mismatch. Email:', normalizedEmail, 'Password match:', passwordMatch);
+  }
+  
+  return emailMatch && passwordMatch;
 }
 
 // ─── Safe localStorage wrapper ────────────────────────────────────────────────
