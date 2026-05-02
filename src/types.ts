@@ -34,6 +34,9 @@ export type ServiceLocation =
 
 export type TimeOffType = "PTO" | "CME" | "SICK" | "UNAVAILABLE";
 
+/** Provider availability status, computed from current assignments */
+export type ProviderStatus = "AVAILABLE" | "ON_SHIFT" | "ON_LEAVE" | "ON_CALL" | "UNAVAILABLE";
+
 export interface TimeOffRequest {
     date: string;
     type: TimeOffType;

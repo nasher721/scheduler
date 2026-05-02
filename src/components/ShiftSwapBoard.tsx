@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence, useMotionValue, transform } from "framer-motion";
 import { useScheduleStore, type SwapRequest } from "../store";
 import { format, parseISO } from "date-fns";
 import { 
@@ -20,6 +20,126 @@ interface ShiftSwapBoardProps {
 }
 
 type SwapStatusColumn = 'pending' | 'approved' | 'rejected';
+
+const SWIPE_THRESHOLD = 80;
+
+// Detect if we're on mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return isMobile;
+}
+
+// Swipeable card component for mobile
+interface SwipeableCardProps {
+  request: SwapRequest;
+  isSelected: boolean;
+  onSelect: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+  children: React.ReactNode;
+}
+
+function SwipeableSwapCard({ 
+  request, 
+  isSelected, 
+  onSelect, 
+  onApprove, 
+  onReject, 
+  children 
+}: SwipeableCardProps) {
+  const isMobile = useIsMobile();
+  const x = useMotionValue(0);
+  
+  const isSwipeable = isMobile && request.status === 'pending';
+  
+  const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
+    const offsetX = info.offset.x;
+    
+    if (offsetX < -SWIPE_THRESHOLD) {
+      onApprove();
+    } else if (offsetX > SWIPE_THRESHOLD) {
+      onReject();
+    }
+  };
+  
+  const leftBgOpacity = transform(x.get(), [-SWIPE_THRESHOLD, 0], [0.8, 0]);
+  const rightBgOpacity = transform(x.get(), [0, SWIPE_THRESHOLD], [0, 0.8]);
+  
+  if (!isSwipeable) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`bg-white rounded-xl p-4 border shadow-sm cursor-pointer transition-all hover:shadow-md ${
+          isSelected ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'
+        }`}
+        onClick={onSelect}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+  
+  return (
+    <div className="relative overflow-hidden rounded-xl">
+      <motion.div
+        className="absolute inset-0 bg-emerald-500 flex items-center justify-start pl-4"
+        style={{ opacity: leftBgOpacity }}
+      >
+        <motion.div 
+          className="text-white p-2 bg-white/20 rounded-full"
+          animate={{ scale: x.get() < -40 ? 1.1 : 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        >
+          <Check className="w-6 h-6" />
+        </motion.div>
+      </motion.div>
+      
+      <motion.div
+        className="absolute inset-0 bg-rose-500 flex items-center justify-end pr-4"
+        style={{ opacity: rightBgOpacity }}
+      >
+        <motion.div 
+          className="text-white p-2 bg-white/20 rounded-full"
+          animate={{ scale: x.get() > 40 ? 1.1 : 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        >
+          <X className="w-6 h-6" />
+        </motion.div>
+      </motion.div>
+      
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.7}
+        onDragEnd={handleDragEnd}
+        onClick={() => {
+          if (Math.abs(x.get()) < 5) {
+            onSelect();
+          }
+        }}
+        style={{ x }}
+        className={`relative bg-white rounded-xl p-4 border shadow-sm cursor-pointer transition-all hover:shadow-md ${
+          isSelected ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'
+        }`}
+      >
+        {children}
+      </motion.div>
+    </div>
+  );
+}
 
 const columnConfig: Record<SwapStatusColumn, {
   label: string;
@@ -173,15 +293,13 @@ export function ShiftSwapBoard({ isOpen, onClose }: ShiftSwapBoardProps) {
                     <div className={`flex-1 p-3 rounded-b-xl min-h-[400px] ${columnConfig[status].bgColor} bg-opacity-50`}>
                       <div className="space-y-3">
                         {groupedRequests[status].map((request) => (
-                          <motion.div
+                          <SwipeableSwapCard
                             key={request.id}
-                            layout
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`bg-white rounded-xl p-4 border shadow-sm cursor-pointer transition-all hover:shadow-md ${
-                              selectedSwap?.id === request.id ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'
-                            }`}
-                            onClick={() => setSelectedSwap(selectedSwap?.id === request.id ? null : request)}
+                            request={request}
+                            isSelected={selectedSwap?.id === request.id}
+                            onSelect={() => setSelectedSwap(selectedSwap?.id === request.id ? null : request)}
+                            onApprove={() => handleApprove(request.id)}
+                            onReject={() => handleReject(request.id)}
                           >
                             {/* Swap Header */}
                             <div className="flex items-center justify-between mb-3">
@@ -294,7 +412,7 @@ export function ShiftSwapBoard({ isOpen, onClose }: ShiftSwapBoardProps) {
                                 </p>
                               </div>
                             )}
-                          </motion.div>
+                          </SwipeableSwapCard>
                         ))}
 
                         {groupedRequests[status].length === 0 && (

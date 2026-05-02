@@ -6,7 +6,8 @@ import {
   User,
   CheckCircle2,
   XCircle,
-  ArrowRight
+  ArrowRight,
+  ChevronLeft
 } from 'lucide-react';
 import { format, parseISO, isToday, isTomorrow, isPast } from 'date-fns';
 import type { MarketplaceShift, ShiftLifecycleStatus } from '@/types';
@@ -150,6 +151,10 @@ export function ShiftCard({
         </div>
       )}
 
+      <div className="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 -translate-x-full pr-2 opacity-30 pointer-events-none">
+        <ChevronLeft className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+      </div>
+
       {/* Header */}
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between gap-2 mb-3">
@@ -160,10 +165,10 @@ export function ShiftCard({
               <Calendar className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
             </div>
             <div>
-              <p className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <p className={`font-semibold text-base sm:text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 {formatDateLabel(shiftDate)}
               </p>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className={`text-xs sm:text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {format(shiftDate, 'yyyy-MM-dd')}
               </p>
             </div>

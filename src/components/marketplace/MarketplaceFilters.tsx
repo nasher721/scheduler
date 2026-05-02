@@ -4,7 +4,8 @@ import {
   Filter, 
   ChevronDown,
   RotateCcw,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import { format, addDays, startOfDay } from 'date-fns';
 import { useTheme } from '@/hooks/useTheme';
@@ -38,6 +39,7 @@ export function MarketplaceFilters({
   const isDark = resolvedTheme === 'dark';
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>({
     start: null,
     end: null,
@@ -129,10 +131,46 @@ export function MarketplaceFilters({
     <div className={`rounded-xl border overflow-hidden ${
       isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
     }`}>
+      <div className="lg:hidden p-3 border-b border-inherit overflow-x-auto -mx-1 px-1">
+        <div className="flex gap-2 min-w-max">
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters(true)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+              isDark
+                ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            } ${hasActiveFilters ? 'ring-2 ring-blue-500' : ''}`}
+          >
+            <Filter className="w-4 h-4" />
+            Filters
+            {hasActiveFilters && (
+              <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-blue-600 text-white">
+                {selectedShiftTypes.length + selectedLocations.length + (dateRange.start ? 1 : 0)}
+              </span>
+            )}
+          </button>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                isDark
+                  ? 'text-slate-400 hover:text-slate-300'
+                  : 'text-slate-500 hover:text-slate-600'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`w-full flex items-center justify-between p-4 text-left ${
+        className={`hidden lg:flex w-full items-center justify-between p-4 text-left ${
           isDark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'
         } transition-colors`}
       >
@@ -333,6 +371,196 @@ export function MarketplaceFilters({
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Filter Sheet */}
+      <AnimatePresence>
+        {showMobileFilters && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 lg:hidden"
+            onClick={() => setShowMobileFilters(false)}
+          >
+            <div className="absolute inset-0 bg-black/50" />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className={`absolute bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl overflow-y-auto ${
+                isDark ? 'bg-slate-800' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`sticky top-0 flex items-center justify-between p-4 border-b ${
+                isDark ? 'border-slate-700' : 'border-slate-200'
+              }`}>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Filters
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileFilters(false)}
+                  className={`p-2 rounded-lg min-w-[44px] min-h-[44px] ${
+                    isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'
+                  }`}
+                >
+                  <X className={`w-5 h-5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    Date Range
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {[
+                      { key: 'today', label: 'Today' },
+                      { key: 'tomorrow', label: 'Tomorrow' },
+                      { key: 'week', label: 'This Week' },
+                      { key: 'nextweek', label: 'Next Week' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        onClick={() => handleDatePreset(preset.key as 'today' | 'tomorrow' | 'week' | 'nextweek')}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                          isDark
+                            ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label htmlFor="mobile-filter-start-date" className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        Start Date
+                      </label>
+                      <input
+                        id="mobile-filter-start-date"
+                        type="date"
+                        value={dateRange.start || ''}
+                        onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value || null }))}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm mt-1 min-h-[44px] ${
+                          isDark
+                            ? 'bg-slate-700 border-slate-600 text-white'
+                            : 'bg-white border-slate-200 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label htmlFor="mobile-filter-end-date" className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        End Date
+                      </label>
+                      <input
+                        id="mobile-filter-end-date"
+                        type="date"
+                        value={dateRange.end || ''}
+                        onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value || null }))}
+                        min={dateRange.start || undefined}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm mt-1 min-h-[44px] ${
+                          isDark
+                            ? 'bg-slate-700 border-slate-600 text-white'
+                            : 'bg-white border-slate-200 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    Shift Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableShiftTypes.map((shiftType) => (
+                      <button
+                        key={shiftType}
+                        type="button"
+                        onClick={() => handleShiftTypeToggle(shiftType)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                          selectedShiftTypes.includes(shiftType)
+                            ? 'bg-blue-600 text-white'
+                            : isDark
+                              ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {selectedShiftTypes.includes(shiftType) && <Check className="w-3.5 h-3.5" />}
+                        {shiftType}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {availableLocations.length > 0 && (
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-slate-300' : 'text-slate-700'
+                    }`}>
+                      Locations
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableLocations.map((location) => (
+                        <button
+                          key={location}
+                          type="button"
+                          onClick={() => handleLocationToggle(location)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                            selectedLocations.includes(location)
+                              ? 'bg-blue-600 text-white'
+                              : isDark
+                                ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {selectedLocations.includes(location) && <Check className="w-3.5 h-3.5" />}
+                          {location}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={handleClearAll}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors min-h-[44px] ${
+                        isDark
+                          ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                          : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                      }`}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Clear All
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleApply();
+                      setShowMobileFilters(false);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors min-h-[44px]"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

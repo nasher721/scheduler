@@ -26,18 +26,10 @@ export function ScheduleToolbar() {
   const { setScheduleSurfaceView, setCalendarPresentationMode } = useScheduleStore();
 
   return (
-    <section className="satin-panel p-4 rounded-2xl border border-slate-200/50 mb-5">
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Schedule Workspace</p>
-          <p className="text-xs text-slate-500 mt-1">Use one control plane for both calendar and table editing.</p>
-        </div>
-        <p className="hidden lg:block text-[10px] text-slate-400">Shortcuts: Alt+1 Calendar, Alt+2 Table, Alt+Left/Right Week</p>
-      </div>
-
+    <section className="satin-panel mb-4 rounded-lg border border-border/70 p-3">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-lg">
             <button
               onClick={() => setScheduleSurfaceView("calendar")}
               className={`nav-chip px-3 py-1.5 rounded-lg ${
@@ -61,7 +53,7 @@ export function ScheduleToolbar() {
           <button onClick={() => shiftWeekOffset(-1)} className="soft-icon-btn" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="px-3 py-1.5 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200/60">
+          <div className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 border border-slate-200/60">
             {format(weekDates[0], "MMM d")} - {format(weekDates[6], "MMM d, yyyy")}
           </div>
           <button onClick={() => shiftWeekOffset(1)} className="soft-icon-btn" aria-label="Next week">

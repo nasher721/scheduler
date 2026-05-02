@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
+import { useState, useEffect } from "react";
 const CopilotPanel = lazy(() => import("./components/CopilotPanel").then(m => ({ default: m.CopilotPanel })));
+const ProviderAvailabilityPanel = lazy(() => import("./components/ProviderAvailabilityPanel").then(m => ({ default: m.ProviderAvailabilityPanel })));
 
 import { ProviderManager } from "./components/ProviderManager";
 import { LandingPage } from "./components/LandingPage";
@@ -33,14 +35,16 @@ import {
   Layers,
   Menu,
   X,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState, loadScheduleState, multiAgentOptimize, buildOptimizationPreview } from "./lib/api";
+import { AutoScheduleButton } from "./components/AutoScheduleButton";
 import { supabase } from "./lib/supabase";
-import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import { useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function App() {
@@ -114,12 +118,16 @@ export default function App() {
   const [showScenarios, setShowScenarios] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [isMultiAgentOptimizing, setIsMultiAgentOptimizing] = useState(false);
+  const [showAvailabilityPanel, setShowAvailabilityPanel] = useState(() => {
+    const stored = localStorage.getItem('nicu-availability-panel-open');
+    return stored !== 'false';
+  });
   const isOnline = useNetworkStatus();
   const { alerts: anomalyAlerts } = useAnomalyAlerts();
   const onboarding = useOnboardingTour();
 
-  const safeSlots = Array.isArray(slots) ? slots : [];
-  const safeProviders = Array.isArray(providers) ? providers : [];
+  const safeSlots = useMemo(() => Array.isArray(slots) ? slots : [], [slots]);
+  const safeProviders = useMemo(() => Array.isArray(providers) ? providers : [], [providers]);
 
   const runMultiAgentOptimize = useCallback(async () => {
     setIsMultiAgentOptimizing(true);
@@ -403,77 +411,96 @@ export default function App() {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="relative z-10 mx-auto flex min-h-dvh max-w-[1600px] flex-col gap-6 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-8 sm:px-4 sm:py-6 lg:px-8">
+      <div className="relative min-h-dvh bg-background text-foreground">
         <motion.header
-          initial={{ opacity: 0, y: -12 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col gap-6 bg-surface/80 backdrop-blur-sm border-b border-border rounded-2xl px-4 py-4"
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="command-shell sticky top-0 z-30 border-b border-border/80 bg-surface/95 px-3 py-3 shadow-sm backdrop-blur-xl no-print sm:px-5"
         >
-          {/* Branding + Toolbar */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div className="flex items-start justify-between flex-1 min-w-0">
-              <div>
-                <h1 className="text-2xl sm:text-4xl md:text-5xl tracking-tight text-foreground leading-tight font-serif italic">
-                  Neuro <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">ICU</span> Staffing
-                </h1>
-                <p className="text-base text-foreground-secondary mt-1.5 max-w-md">
-                  Coverage, fatigue logic, risk-mitigated assignment.
-                </p>
+          <div className="mx-auto flex max-w-[1800px] flex-col gap-3">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground-muted">Neuro ICU Staffing</p>
+                  <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
+                    Admin Command Center
+                  </h1>
+                </div>
+
+                {currentUser && (
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowUserMenu(v => !v)}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 text-sm font-medium text-foreground hover:bg-secondary/70 transition-colors"
+                      title="User menu"
+                      aria-label="Open user menu"
+                    >
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">
+                        {currentUser.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                      </div>
+                      <span className="hidden sm:inline">{currentUser.name?.split(' ')[0] || 'User'}</span>
+                    </button>
+
+                    {showUserMenu && (
+                      <>
+                        <button
+                          type="button"
+                          className="fixed inset-0 z-30 cursor-default"
+                          onClick={() => setShowUserMenu(false)}
+                          aria-label="Close menu"
+                        />
+                        <div className="absolute right-0 z-40 mt-2 w-64 rounded-lg border border-border bg-surface p-3 shadow-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+                              {currentUser.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-foreground">{currentUser.name}</p>
+                              <p className="truncate text-xs text-foreground-muted">{currentUser.email}</p>
+                            </div>
+                          </div>
+                          <div className="mt-3 border-t border-border pt-3">
+                            <span className={cn(
+                              "inline-flex items-center rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider",
+                              currentUser.role === "ADMIN"
+                                ? "bg-primary/10 text-primary"
+                                : "bg-success/10 text-success"
+                            )}>
+                              {currentUser.role === "ADMIN" ? "Admin" : "Clinician"}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {currentUser && (
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowUserMenu(v => !v)}
-                    className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 hover:bg-secondary/50 transition-colors"
-                    title="User menu"
-                    aria-label="Open user menu"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                      {currentUser.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
-                    </div>
-                    <span className="hidden sm:inline text-sm font-medium text-foreground">{currentUser.name?.split(' ')[0] || 'User'}</span>
-                  </button>
-
-                  {showUserMenu && (
-                    <>
-                      <button
-                        type="button"
-                        className="fixed inset-0 z-30 cursor-default"
-                        onClick={() => setShowUserMenu(false)}
-                        aria-label="Close menu"
-                      />
-                      <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-surface shadow-xl z-40 p-3 space-y-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
-                            {currentUser.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{currentUser.name}</p>
-                            <p className="text-xs text-foreground-muted truncate">{currentUser.email}</p>
-                          </div>
-                        </div>
-                        <div className="border-t border-border pt-2">
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                            currentUser.role === "ADMIN"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-success/10 text-success"
-                          )}>
-                            {currentUser.role === "ADMIN" ? "Admin" : "Clinician"}
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  )}
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:min-w-[620px]">
+                <div className="ops-stat">
+                  <span className="ops-stat-label">Coverage</span>
+                  <span className="ops-stat-value">{coverage}%</span>
+                  <span className={cn("ops-stat-dot", coverage >= 95 ? "bg-success" : "bg-warning")} />
                 </div>
-              )}
+                <div className="ops-stat">
+                  <span className="ops-stat-label">Filled</span>
+                  <span className="ops-stat-value">{assigned}/{safeSlots.length}</span>
+                </div>
+                <div className="ops-stat">
+                  <span className="ops-stat-label">Critical gaps</span>
+                  <span className={cn("ops-stat-value", criticalUnfilled > 0 ? "text-error" : "text-success")}>{criticalUnfilled}</span>
+                </div>
+                <div className="ops-stat">
+                  <span className="ops-stat-label">Skill risk</span>
+                  <span className={cn("ops-stat-value", skillMismatchRisk > 0 ? "text-warning" : "text-success")}>{skillMismatchRisk}</span>
+                </div>
+              </div>
             </div>
 
-            <div className="max-w-full overflow-x-auto touch-scroll scrollbar-hide rounded-xl border border-border bg-secondary/60 p-1.5 [-webkit-overflow-scrolling:touch]">
-              <div className="flex min-w-min items-center gap-1.5">
+            <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-center 2xl:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   title="Import"
                   type="file"
@@ -483,298 +510,279 @@ export default function App() {
                   onChange={handleImport}
                 />
 
-                <div className="flex items-center gap-0.5 rounded-lg bg-surface p-0.5 border border-border">
-                  <button onClick={handleUndo} disabled={!canUndo()} className="p-2 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 text-foreground-muted" title="Undo" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
-                  <button onClick={handleRedo} disabled={!canRedo()} className="p-2 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 text-foreground-muted" title="Redo" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
+                <div className="command-group">
+                  <button onClick={handleUndo} disabled={!canUndo()} className="command-icon" title="Undo" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
+                  <button onClick={handleRedo} disabled={!canRedo()} className="command-icon" title="Redo" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
                 </div>
-                <div className="w-px h-5 bg-border mx-0.5" />
-                <div className="flex items-center gap-0.5">
-                  <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm font-medium text-foreground-muted hover:text-foreground rounded-lg transition-colors">Import</button>
-                  <button onClick={handleRollbackImport} disabled={!canRollbackImport} className="px-3 py-2 text-sm font-medium text-foreground-muted hover:text-foreground disabled:opacity-40 rounded-lg transition-colors">Rollback</button>
+
+                <div className="command-group">
+                  <label className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-foreground-secondary">
+                    <span>Start</span>
+                    <input type="date" title="Start Date" aria-label="Start Date" value={startDate} onChange={(e) => setScheduleRange(e.target.value, numWeeks)} className="w-[8.75rem] rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  </label>
+                  <label className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-foreground-secondary">
+                    <input type="number" min={1} max={12} title="Weeks" aria-label="Weeks" value={numWeeks} onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} className="w-10 rounded-md border border-border bg-surface px-1 py-1 text-center text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    <span>wks</span>
+                  </label>
                 </div>
-                <div className="w-px h-5 bg-border mx-0.5" />
-                <div className="flex items-center gap-1.5">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={autoAssign}
-                    className="px-4 py-2 bg-surface border border-primary/20 text-primary rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 hover:bg-primary/5 transition-colors"
-                  >
+
+                <div className="command-group">
+                  <button onClick={() => fileInputRef.current?.click()} className="command-button">Import</button>
+                  <button onClick={handleRollbackImport} disabled={!canRollbackImport} className="command-button disabled:opacity-40">Rollback</button>
+                  <ExportMenu />
+                </div>
+
+                <div className="command-group">
+                  <AutoScheduleButton />
+                  <motion.button type="button" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={autoAssign} className="command-button text-primary">
                     <Sparkles className="w-3.5 h-3.5" />
                     Auto-Fill
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={runMultiAgentOptimize}
-                    disabled={isMultiAgentOptimizing}
-                    className="px-4 py-2 bg-surface border border-primary/20 text-primary rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 disabled:opacity-50 hover:bg-primary/5 transition-colors"
-                  >
+                  <motion.button type="button" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={runMultiAgentOptimize} disabled={isMultiAgentOptimizing} className="command-button text-primary disabled:opacity-50">
                     <Bot className="w-3.5 h-3.5" />
-                    {isMultiAgentOptimizing ? "Optimizing…" : "Optimize (AI)"}
+                    {isMultiAgentOptimizing ? "Optimizing..." : "Optimize"}
                   </motion.button>
-                  {autoSaveStatus !== "idle" && (
-                    <span className={cn(
-                      "text-xs font-medium px-2.5 py-1 rounded-full",
-                      (autoSaveStatus === "saving" || autoSaveStatus === "pending") && "bg-primary/10 text-primary animate-pulse",
-                      autoSaveStatus === "saved" && "bg-success/10 text-success",
-                      autoSaveStatus === "error" && "bg-error/10 text-error"
-                    )}>
-                      {autoSaveStatus === "pending" ? "Pending" : autoSaveStatus === "saving" ? "Saving" : autoSaveStatus === "saved" ? "Saved" : "Save failed"}
-                    </span>
-                  )}
-                  <button onClick={handleServerSave} className="p-2 text-foreground-muted hover:text-primary rounded-lg transition-colors" title="Sync to server" aria-label="Save to server"><Save className="w-4 h-4" /></button>
-                  <button onClick={handleClearSchedule} className="p-2 text-foreground-muted hover:text-warning rounded-lg transition-colors" title="Clear schedule" aria-label="Clear schedule"><Trash className="w-4 h-4" /></button>
-                  <button onClick={handleClearStaff} className="p-2 text-foreground-muted hover:text-error rounded-lg transition-colors" title="Clear staff" aria-label="Clear staff"><AlertTriangle className="w-4 h-4" /></button>
-                  <div className="w-px h-5 bg-border mx-0.5" />
-                  {anomalyAlerts.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("analytics")}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-warning/10 text-warning border border-warning/20 text-sm font-medium hover:opacity-90 transition-opacity"
-                      title="View anomaly alerts"
-                    >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      {anomalyAlerts.length} alert{anomalyAlerts.length !== 1 ? "s" : ""}
-                    </button>
-                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="command-group">
+                  <button onClick={handleServerSave} className="command-icon" title="Sync to server" aria-label="Save to server"><Save className="w-4 h-4" /></button>
+                  <button onClick={handleClearSchedule} className="command-icon hover:text-warning" title="Clear schedule" aria-label="Clear schedule"><Trash className="w-4 h-4" /></button>
+                  <button onClick={handleClearStaff} className="command-icon hover:text-error" title="Clear staff" aria-label="Clear staff"><AlertTriangle className="w-4 h-4" /></button>
+                </div>
+
+                {autoSaveStatus !== "idle" && (
+                  <span className={cn(
+                    "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+                    (autoSaveStatus === "saving" || autoSaveStatus === "pending") && "bg-primary/10 text-primary animate-pulse",
+                    autoSaveStatus === "saved" && "bg-success/10 text-success",
+                    autoSaveStatus === "error" && "bg-error/10 text-error"
+                  )}>
+                    {autoSaveStatus === "pending" ? "Pending" : autoSaveStatus === "saving" ? "Saving" : autoSaveStatus === "saved" ? "Saved" : "Save failed"}
+                  </span>
+                )}
+
+                <div className="command-group">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("analytics")}
+                    className={cn("command-button", anomalyAlerts.length > 0 && "bg-warning/10 text-warning")}
+                    title="View anomaly alerts"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {anomalyAlerts.length} alerts
+                  </button>
                   <button
                     type="button"
                     onClick={toggleCopilot}
-                    className={cn(
-                      "copilot-trigger p-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium",
-                      isCopilotOpen ? "bg-primary text-primary-foreground" : "text-foreground-muted hover:text-primary"
-                    )}
+                    className={cn("command-button", isCopilotOpen && "bg-primary text-primary-foreground")}
                     title="AI Assistant"
                     aria-label="Toggle AI assistant"
                   >
-                    <Bot className="w-4 h-4" />
-                    <span className="hidden sm:inline">AI</span>
+                    <Bot className="w-3.5 h-3.5" />
+                    AI
                   </button>
-                  <div className="w-px h-5 bg-border mx-0.5" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newValue = !showAvailabilityPanel;
+                      setShowAvailabilityPanel(newValue);
+                      localStorage.setItem('nicu-availability-panel-open', String(newValue));
+                    }}
+                    className={cn("command-button", showAvailabilityPanel && "bg-primary text-primary-foreground")}
+                    title="Staff Dashboard"
+                    aria-label="Toggle staff dashboard"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Staff
+                  </button>
                   <ThemeToggle variant="icon" />
                 </div>
-              </div>
-              </div>
-            </div>
 
-          {/* One compact awareness strip */}
-          <div className="stone-panel p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 no-print">
-            <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-light tracking-tight text-foreground">{coverage}%</span>
-                <span className="text-xs text-foreground-muted">coverage</span>
-                <div className={cn("w-2 h-2 rounded-full", coverage >= 95 ? "bg-success" : "bg-warning")} />
-              </div>
-              <div className="flex items-center gap-1.5 text-sm">
-                <span className="font-medium text-foreground">{assigned}</span>
-                <span className="text-foreground-muted">/ {safeSlots.length} slots</span>
-              </div>
-              <div className="h-4 w-px bg-border hidden sm:block" />
-              <div className="flex items-center gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <span className="text-foreground-muted">Start</span>
-                  <input type="date" title="Start Date" aria-label="Start Date" value={startDate} onChange={(e) => setScheduleRange(e.target.value, numWeeks)} className="bg-transparent border-none p-0 text-sm font-medium text-foreground focus:ring-0 focus:outline-none" />
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <input type="number" min={1} max={12} title="Weeks" aria-label="Weeks" value={numWeeks} onChange={(e) => setScheduleRange(startDate, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} className="bg-transparent border-none p-0 w-8 text-sm font-medium text-foreground text-center focus:ring-0 focus:outline-none" />
-                  <span className="text-foreground-muted">wks</span>
-                </label>
-              </div>
-              <div className="h-4 w-px bg-border hidden sm:block" />
-              <div className="flex items-center gap-2">
-                <div className={cn("w-2 h-2 rounded-full", isOnline ? "bg-success" : "bg-error")} />
-                <span className={cn("text-sm font-medium", isOnline ? "text-success" : "text-error")}>{isOnline ? "Online" : "Offline"}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-error">{criticalUnfilled}</span>
-                <span className="text-xs text-foreground-muted">critical gaps</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-warning">{skillMismatchRisk}</span>
-                <span className="text-xs text-foreground-muted">skill risk</span>
-              </div>
-            </div>
-          </div>
-
-
-          {/* Scenarios */}
-          <div className="no-print">
-            {/* Toggle button */}
-            <button
-              type="button"
-              onClick={() => setShowScenarios(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground-muted hover:text-foreground rounded-lg transition-colors mb-1"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Scenarios
-              <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", showScenarios && "rotate-180")} />
-            </button>
-            
-            {/* Collapsible content */}
-            <AnimatePresence>
-              {showScenarios && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-hide">
-                    {/* Existing scenario input */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <input
-                        value={scenarioName}
-                        onChange={(e) => setScenarioName(e.target.value)}
-                        placeholder="New scenario…"
-                        className="bg-transparent border-b border-border py-1.5 text-sm font-medium text-foreground placeholder:text-foreground-muted focus:border-primary outline-none transition-colors w-36"
-                      />
-                      <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="p-2 text-foreground-muted hover:text-primary rounded-lg transition-colors"><Save className="w-4 h-4" /></button>
-                    </div>
-                    {/* Existing scenario chips */}
-                    <AnimatePresence>
-                      {scenarios.map((scenario) => (
-                        <motion.div
-                          key={scenario.id}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface hover:border-primary/30 transition-all cursor-pointer group text-sm font-medium text-foreground"
-                          onClick={() => loadScenario(scenario.id)}
-                        >
-                          {scenario.name}
-                          <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-error hover:text-error"><Trash className="w-3 h-3" /></button>
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Alerts */}
-          <AnimatePresence>
-            {(lastActionMessage || overloaded.length > 0 || fatigueExposure > 0) && (
-              <motion.div
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                className="stone-panel bg-warning/5 border-warning/20 p-4 flex items-start gap-3"
-              >
-                <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                <div className="flex-1 text-sm text-foreground-secondary leading-relaxed">
-                  {lastActionMessage && <p className="font-semibold text-foreground">{lastActionMessage}</p>}
-                  {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.name).join(", ")}</p>}
-                  {fatigueExposure > 0 && <p>Fatigue: {fatigueExposure} exposure(s).</p>}
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2">
+                  <div className={cn("h-2 w-2 rounded-full", isOnline ? "bg-success" : "bg-error")} />
+                  <span className={cn("text-xs font-semibold", isOnline ? "text-success" : "text-error")}>{isOnline ? "Online" : "Offline"}</span>
                 </div>
-                <button onClick={clearMessage} className="text-sm font-medium text-warning hover:text-foreground transition-colors shrink-0">Dismiss</button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => setShowScenarios(v => !v)}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-semibold text-foreground-muted transition-colors hover:text-foreground"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Scenarios
+                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", showScenarios && "rotate-180")} />
+                </button>
+                <AnimatePresence>
+                  {showScenarios && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-2 scrollbar-hide">
+                        <div className="flex shrink-0 items-center gap-2">
+                          <input
+                            value={scenarioName}
+                            onChange={(e) => setScenarioName(e.target.value)}
+                            placeholder="New scenario..."
+                            className="w-40 rounded-md border border-border bg-surface px-2.5 py-2 text-sm font-medium text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none"
+                          />
+                          <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="command-icon"><Save className="w-4 h-4" /></button>
+                        </div>
+                        <AnimatePresence>
+                          {scenarios.map((scenario) => (
+                            <motion.div
+                              key={scenario.id}
+                              initial={{ opacity: 0, x: -8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, scale: 0.98 }}
+                              className="group flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground transition-all hover:border-primary/30"
+                              onClick={() => loadScenario(scenario.id)}
+                            >
+                              {scenario.name}
+                              <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="p-0.5 text-error opacity-0 transition-opacity group-hover:opacity-100"><Trash className="w-3 h-3" /></button>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <AnimatePresence>
+                {(lastActionMessage || overloaded.length > 0 || fatigueExposure > 0) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="flex max-w-3xl items-start gap-3 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-foreground-secondary"
+                  >
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <div className="min-w-0 flex-1 leading-relaxed">
+                      {lastActionMessage && <p className="font-semibold text-foreground">{lastActionMessage}</p>}
+                      {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.name).join(", ")}</p>}
+                      {fatigueExposure > 0 && <p>Fatigue: {fatigueExposure} exposure(s).</p>}
+                    </div>
+                    <button onClick={clearMessage} className="shrink-0 text-xs font-semibold text-warning hover:text-foreground">Dismiss</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
         </motion.header>
 
-        {/* Main content */}
-        <motion.main
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.4 }}
-          className="flex flex-col xl:flex-row gap-6 items-start flex-1 min-w-0"
-        >
-          <NotificationBanner
-            criticalGaps={criticalUnfilled}
-            skillRisks={skillMismatchRisk}
-            fatigueExposures={fatigueExposure}
-            onViewDetails={() => setViewMode("analytics")}
-          />
-          {/* Mobile: Toggle button */}
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="xl:hidden fixed bottom-4 left-4 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
-            aria-label="Open staff sidebar"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          {/* Desktop: Always visible sidebar */}
-          <aside className="hidden xl:block w-72 shrink-0">
+        <div className="mx-auto grid max-w-[1800px] grid-cols-1 gap-4 px-3 py-4 sm:px-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="hidden min-w-0 flex-col gap-4 xl:flex">
             <ProviderManager />
+            {showAvailabilityPanel && (
+              <Suspense fallback={<div className="rounded-lg border border-border bg-surface p-4 text-sm text-foreground-muted">Loading staff dashboard...</div>}>
+                <ProviderAvailabilityPanel
+                  isOpen={true}
+                  onClose={() => setShowAvailabilityPanel(false)}
+                  displayMode="inline"
+                  defaultView="dashboard"
+                />
+              </Suspense>
+            )}
           </aside>
 
-          {/* Mobile: Overlay drawer */}
-          <AnimatePresence>
-            {isSidebarOpen && (
-              <>
-                {/* Backdrop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="fixed inset-0 bg-black/50 z-40 xl:hidden"
-                  aria-hidden="true"
-                />
-                {/* Drawer */}
-                <motion.aside
-                  initial={{ x: "-100%" }}
-                  animate={{ x: 0 }}
-                  exit={{ x: "-100%" }}
-                  transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                  className="fixed left-0 top-0 bottom-0 w-72 bg-surface z-50 xl:hidden border-r border-border shadow-2xl overflow-y-auto"
-                >
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-foreground">Staff</span>
-                    <button
-                      type="button"
-                      onClick={() => setIsSidebarOpen(false)}
-                      className="p-1 rounded-md hover:bg-secondary transition-colors"
-                      aria-label="Close sidebar"
-                    >
-                      <X className="w-5 h-5 text-foreground-muted" />
-                    </button>
-                  </div>
-                  <ProviderManager />
-                </motion.aside>
-              </>
-            )}
-          </AnimatePresence>
-          <div className="flex-1 w-full min-w-0 flex flex-col gap-4">
-            <div className="satin-panel p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <motion.main
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.3 }}
+            className="min-w-0 flex flex-col gap-4"
+          >
+            <NotificationBanner
+              criticalGaps={criticalUnfilled}
+              skillRisks={skillMismatchRisk}
+              fatigueExposures={fatigueExposure}
+              onViewDetails={() => setViewMode("analytics")}
+            />
+
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg xl:hidden"
+              aria-label="Open staff sidebar"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <AnimatePresence>
+              {isSidebarOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="fixed inset-0 z-40 bg-black/45 xl:hidden"
+                    aria-hidden="true"
+                  />
+                  <motion.aside
+                    initial={{ x: "-100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "-100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                    className="fixed bottom-0 left-0 top-0 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-y-auto border-r border-border bg-surface shadow-2xl xl:hidden"
+                  >
+                    <div className="flex items-center justify-between border-b border-border p-4">
+                      <span className="text-sm font-semibold text-foreground">Staff rail</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsSidebarOpen(false)}
+                        className="rounded-md p-1 transition-colors hover:bg-secondary"
+                        aria-label="Close sidebar"
+                      >
+                        <X className="w-5 h-5 text-foreground-muted" />
+                      </button>
+                    </div>
+                    <div className="p-4">
+                      <ProviderManager />
+                    </div>
+                  </motion.aside>
+                </>
+              )}
+            </AnimatePresence>
+
+            <div className="satin-panel flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
               <ViewToggle view={viewMode} onChange={setViewMode} />
-              <ExportMenu />
             </div>
-            {/* Coverage Status Card — prominent in-context reminder */}
-            {viewMode === 'schedule' && coverage !== undefined && (
+
+            {viewMode === 'schedule' && (
               <div
                 className={cn(
-                  "rounded-xl border p-4 flex items-center gap-3 font-medium",
-                  coverage < 50 && "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200",
-                  coverage >= 50 && coverage < 95 && "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200",
-                  coverage >= 95 && "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200"
+                  "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-semibold",
+                  coverage < 50 && "border-error/25 bg-error/10 text-error",
+                  coverage >= 50 && coverage < 95 && "border-warning/25 bg-warning/10 text-warning",
+                  coverage >= 95 && "border-success/25 bg-success/10 text-success"
                 )}
               >
-                {coverage < 50 && (
-                  <><span className="text-red-500 text-lg">⚠️</span> Coverage critically low — {coverage}% of shifts are unfilled.</>
-                )}
-                {coverage >= 50 && coverage < 95 && (
-                  <><span className="text-amber-500 text-lg">⚡</span> Coverage: {coverage}% — Some gaps remain.</>
-                )}
-                {coverage >= 95 && (
-                  <><span className="text-green-500 text-lg">✓</span> Coverage: {coverage}% — Schedule looks good.</>
-                )}
+                <span className={cn("h-2 w-2 shrink-0 rounded-full", coverage >= 95 ? "bg-success" : coverage >= 50 ? "bg-warning" : "bg-error")} />
+                <span>
+                  {coverage < 50 && `Coverage critically low: ${coverage}% of shifts are filled.`}
+                  {coverage >= 50 && coverage < 95 && `Coverage ${coverage}%: some gaps remain.`}
+                  {coverage >= 95 && `Coverage ${coverage}%: schedule looks good.`}
+                </span>
               </div>
             )}
+
             <div className="w-full pb-16">
               <ErrorBoundary>
                 <ViewContent viewMode={viewMode} />
               </ErrorBoundary>
             </div>
-          </div>
-        </motion.main>
+          </motion.main>
+        </div>
       </div>
 
       <AnimatePresence>
