@@ -43,6 +43,8 @@ import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSe
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState, loadScheduleState, multiAgentOptimize, buildOptimizationPreview } from "./lib/api";
 import { AutoScheduleButton } from "./components/AutoScheduleButton";
+import { AdminReadinessBanner } from "./components/schedule/AdminReadinessBanner";
+import { useScheduleReadiness } from "./components/schedule/useScheduleReadiness";
 import { supabase } from "./lib/supabase";
 import { useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -260,6 +262,13 @@ export default function App() {
     return provider ? !(provider.skills ?? []).includes(slot.requiredSkill) : false;
   }).length;
   const fatigueExposure = safeProviders.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights).length;
+  const scheduleReadiness = useScheduleReadiness({
+    slots: safeSlots,
+    providers: safeProviders,
+    anomalyAlertCount: anomalyAlerts.length,
+    autoSaveStatus,
+    isOnline,
+  });
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -707,6 +716,31 @@ export default function App() {
               fatigueExposures={fatigueExposure}
               onViewDetails={() => setViewMode("analytics")}
             />
+
+            {viewMode === 'schedule' && (
+              <AdminReadinessBanner
+                readiness={scheduleReadiness}
+                canRollbackImport={canRollbackImport}
+                isOptimizeBusy={isMultiAgentOptimizing}
+                isAiOpen={isCopilotOpen}
+                isStaffPanelOpen={showAvailabilityPanel}
+                canUndo={canUndo()}
+                canRedo={canRedo()}
+                exportAction={<ExportMenu />}
+                onImport={() => fileInputRef.current?.click()}
+                onRollbackImport={handleRollbackImport}
+                onAutoFill={autoAssign}
+                onOptimize={runMultiAgentOptimize}
+                onSave={handleServerSave}
+                onViewAlerts={() => setViewMode("analytics")}
+                onToggleAi={toggleCopilot}
+                onToggleStaff={() => {
+                  const newValue = !showAvailabilityPanel;
+                  setShowAvailabilityPanel(newValue);
+                  localStorage.setItem('nicu-availability-panel-open', String(newValue));
+                }}
+              />
+            )}
 
             <button
               type="button"
