@@ -48,6 +48,7 @@ import { useScheduleReadiness } from "./components/schedule/useScheduleReadiness
 import { supabase } from "./lib/supabase";
 import { useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { buildScheduleRiskDigest } from "@/lib/scheduleRisk";
 
 export default function App() {
   const {
@@ -244,8 +245,12 @@ export default function App() {
     document.title = `${segment} · Neuro ICU Staffing`;
   }, [currentUser, viewMode]);
 
-  const assigned = safeSlots.filter((slot) => slot?.providerId).length;
-  const coverage = Math.round((assigned / Math.max(safeSlots.length, 1)) * 100);
+  const riskDigest = useMemo(
+    () => buildScheduleRiskDigest(safeSlots, safeProviders, customRules),
+    [safeSlots, safeProviders, customRules],
+  );
+  const assigned = riskDigest.filledSlots;
+  const coverage = riskDigest.coveragePercent;
   const counts = useMemo(() => getProviderCounts(safeSlots, safeProviders), [safeSlots, safeProviders]);
   const overloaded = safeProviders.filter((p) => {
     const c = counts[p.id];
@@ -255,12 +260,8 @@ export default function App() {
       || (c.weekNights + c.weekendNights) > p.targetWeekNights
     );
   });
-  const criticalUnfilled = safeSlots.filter((slot) => slot?.servicePriority === "CRITICAL" && !slot?.providerId).length;
-  const skillMismatchRisk = safeSlots.filter((slot) => {
-    if (!slot?.providerId) return false;
-    const provider = safeProviders.find((p) => p.id === slot.providerId);
-    return provider ? !(provider.skills ?? []).includes(slot.requiredSkill) : false;
-  }).length;
+  const criticalUnfilled = riskDigest.criticalUnfilled.length;
+  const skillMismatchRisk = riskDigest.skillMismatches.length;
   const fatigueExposure = safeProviders.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights).length;
   const scheduleReadiness = useScheduleReadiness({
     slots: safeSlots,
