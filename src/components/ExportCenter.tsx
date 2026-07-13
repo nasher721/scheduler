@@ -5,7 +5,7 @@ import { useScheduleStore } from '../store';
 import { generateProviderICal } from '../lib/icalUtils';
 
 export const ExportCenter: React.FC = () => {
-    const { providers, slots } = useScheduleStore();
+    const { providers, slots, showToast } = useScheduleStore();
 
     const handlePrint = () => {
         window.print();
@@ -14,7 +14,10 @@ export const ExportCenter: React.FC = () => {
     const handlePersonalExport = (providerId: string) => {
         const provider = providers.find(p => p.id === providerId);
         if (provider) {
-            generateProviderICal(provider, slots);
+            const result = generateProviderICal(provider, slots);
+            if (!result.ok) {
+                showToast({ type: "info", title: "Nothing to export", message: result.error });
+            }
         }
     };
 

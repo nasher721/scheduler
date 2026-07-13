@@ -82,7 +82,7 @@ function ProgressBar({ target, current, label, icon }: { target: number; current
 const parseCsv = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 
 export function ProviderManager() {
-  const { providers, addProvider, removeProvider, slots, updateProvider } = useScheduleStore();
+  const { providers, addProvider, removeProvider, slots, updateProvider, showToast } = useScheduleStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -280,7 +280,12 @@ export function ProviderManager() {
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        import("../lib/icalUtils").then((m) => m.generateProviderICal(p, slots));
+                        import("../lib/icalUtils").then((m) => {
+                          const result = m.generateProviderICal(p, slots);
+                          if (!result.ok) {
+                            showToast({ type: "info", title: "Nothing to export", message: result.error });
+                          }
+                        });
                       }}
                       title="Export Schedule to iCal"
                       className="opacity-0 group-hover:opacity-100 p-2 text-primary hover:bg-primary-muted rounded-xl transition-all"
