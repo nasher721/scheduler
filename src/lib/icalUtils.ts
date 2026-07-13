@@ -3,12 +3,17 @@ import { saveAs } from "file-saver";
 import { parseISO } from "date-fns";
 import { Provider, ShiftSlot } from "../store";
 
-export const generateProviderICal = (provider: Provider, slots: ShiftSlot[]) => {
+export interface ICalExportResult {
+    ok: boolean;
+    count: number;
+    error?: string;
+}
+
+export const generateProviderICal = (provider: Provider, slots: ShiftSlot[]): ICalExportResult => {
     const providerSlots = slots.filter((s) => s.providerId === provider.id);
 
     if (providerSlots.length === 0) {
-        alert("No shifts assigned to this provider.");
-        return;
+        return { ok: false, count: 0, error: "No shifts assigned to this provider." };
     }
 
     const events: EventAttributes[] = providerSlots.map((slot) => {
@@ -43,6 +48,7 @@ export const generateProviderICal = (provider: Provider, slots: ShiftSlot[]) => 
             start: startParams,
             end: endParams,
             description: `Shift ID: ${slot.id}`,
+            location: slot.location,
         };
     });
 
@@ -50,10 +56,11 @@ export const generateProviderICal = (provider: Provider, slots: ShiftSlot[]) => 
 
     if (error || !value) {
         console.error(error);
-        alert("Failed to generate calendar file.");
-        return;
+        return { ok: false, count: 0, error: "Failed to generate calendar file." };
     }
 
+    const safeName = provider.name.trim().replace(/[^\w-]+/g, "_") || "provider";
     const blob = new Blob([value], { type: "text/calendar;charset=utf-8" });
-    saveAs(blob, `${provider.name.replace(/\w+/g, "")}_schedule.ics`);
+    saveAs(blob, `${safeName}_schedule.ics`);
+    return { ok: true, count: events.length };
 };

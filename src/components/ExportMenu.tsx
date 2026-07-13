@@ -5,13 +5,16 @@ import { generateProviderICal } from "../lib/icalUtils";
 import { useScheduleStore } from "../store";
 
 export function ExportMenu() {
-  const { providers, slots } = useScheduleStore();
+  const { providers, slots, showToast } = useScheduleStore();
   const [isOpen, setIsOpen] = useState(false);
 
   const handlePersonalExport = (providerId: string) => {
     const provider = providers.find((entry) => entry.id === providerId);
     if (!provider) return;
-    generateProviderICal(provider, slots);
+    const result = generateProviderICal(provider, slots);
+    if (!result.ok) {
+      showToast({ type: "info", title: "Nothing to export", message: result.error });
+    }
     setIsOpen(false);
   };
 
