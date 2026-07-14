@@ -826,8 +826,11 @@ const getConsecutiveNights = (slots: ShiftSlot[], providerId: string, targetDate
     .map((s) => s.date)
     .sort();
 
+  // Count the streak of nights ending the day BEFORE the target date: at
+  // canAssign time the target slot is not yet assigned to this provider, so
+  // starting the walk at targetDate would always return 0.
   let consecutive = 0;
-  let cursorDate = parseISO(targetDate);
+  let cursorDate = addDays(parseISO(targetDate), -1);
   while (nights.includes(format(cursorDate, "yyyy-MM-dd"))) {
     consecutive += 1;
     cursorDate = addDays(cursorDate, -1);
@@ -914,8 +917,8 @@ const canAssignProvider = (
       return { canAssign: false, reason: "Provider restricted from holidays" };
     }
 
-    // Check maxShiftsPerWeek restriction
-    if (restrictions.maxShiftsPerWeek) {
+    // Check maxShiftsPerWeek restriction (0 is a valid cap, so don't use truthiness)
+    if (restrictions.maxShiftsPerWeek != null) {
       for (let i = 0; i < 7; i++) {
         const windowStartObj = addDays(parseISO(slot.date), -i);
         const windowStart = format(windowStartObj, "yyyy-MM-dd");
@@ -1856,17 +1859,57 @@ export const useScheduleStore = create<ScheduleState>()(
         const request = state.swapRequests.find(r => r.id === id);
         if (!request || request.status !== 'pending') return;
 
+        // Locate both legs before touching anything, so a stale request (a
+        // side reassigned or deleted since it was created) can't apply a
+        // one-sided swap.
+        const fromSlot = state.slots.find(
+          s => s.date === request.fromDate && s.providerId === request.requestorId
+        );
+        const toSlot = request.targetProviderId
+          ? state.slots.find(s => s.date === request.toDate && s.providerId === request.targetProviderId)
+          : undefined;
+
+        if (!fromSlot || (request.targetProviderId && !toSlot)) {
+          get().showToast({
+            type: "error",
+            title: "Swap No Longer Valid",
+            message: "One of the shifts has changed since this request was made. Reject the request and ask for a new one.",
+          });
+          return;
+        }
+
         // Perform the swap in slots
         const newSlots = state.slots.map(slot => {
-          // Swap the providers
-          if (slot.date === request.fromDate && slot.providerId === request.requestorId) {
+          if (slot.id === fromSlot.id) {
             return { ...slot, providerId: request.targetProviderId || null };
           }
-          if (slot.date === request.toDate && slot.providerId === request.targetProviderId) {
+          if (toSlot && slot.id === toSlot.id) {
             return { ...slot, providerId: request.requestorId };
           }
           return slot;
         });
+
+        // Re-validate both providers against the post-swap schedule (time
+        // off, double-booking, rest rules) before committing.
+        const validations: { providerId: string; slot: ShiftSlot }[] = [];
+        if (request.targetProviderId) {
+          validations.push({ providerId: request.targetProviderId, slot: fromSlot });
+        }
+        if (toSlot) {
+          validations.push({ providerId: request.requestorId, slot: toSlot });
+        }
+        for (const { providerId, slot } of validations) {
+          const provider = state.providers.find(p => p.id === providerId);
+          const result = canAssignProvider(newSlots, provider, slot, state.customRules, slot.id);
+          if (!result.canAssign) {
+            get().showToast({
+              type: "error",
+              title: "Swap Blocked",
+              message: `${provider?.name || 'Provider'} can't take ${slot.date}: ${result.reason}`,
+            });
+            return;
+          }
+        }
 
         set({
           slots: newSlots,
@@ -2118,7 +2161,18 @@ export const useScheduleStore = create<ScheduleState>()(
           });
         });
 
-        set({ conflicts });
+        // Carry over identity and acknowledged state from the previous run,
+        // so re-detecting doesn't resurrect conflicts the team already
+        // acknowledged. Conflicts are identified by what they describe, not
+        // by their generated UUID.
+        const conflictKey = (c: Conflict) => `${c.type}|${c.providerId ?? ''}|${c.slotId ?? ''}`;
+        const previousByKey = new Map(state.conflicts.map(c => [conflictKey(c), c]));
+        const mergedConflicts = conflicts.map(c => {
+          const prev = previousByKey.get(conflictKey(c));
+          return prev ? { ...c, id: prev.id, acknowledged: prev.acknowledged, detectedAt: prev.detectedAt } : c;
+        });
+
+        set({ conflicts: mergedConflicts });
       },
 
       acknowledgeConflict: (id) => {
@@ -2467,25 +2521,31 @@ export const useScheduleStore = create<ScheduleState>()(
         if (!template) return;
 
         const start = parseISO(startDate);
-        const newSlots = [...state.slots];
-
+        // Collect assignments first, then rebuild the array immutably —
+        // mutating slot objects in place corrupts history/undo snapshots
+        // that share the same object references.
+        const assignmentsBySlotId = new Map<string, string>();
         template.pattern.forEach(patternSlot => {
+          if (patternSlot.assignment === "ROTATE") return;
           const slotDate = format(addDays(start, patternSlot.dayOffset), "yyyy-MM-dd");
-          const targetSlot = newSlots.find(s =>
+          const targetSlot = state.slots.find(s =>
             s.date === slotDate &&
             s.type === patternSlot.shiftType &&
             s.location === patternSlot.location
           );
-
-          if (targetSlot && patternSlot.assignment !== "ROTATE") {
-            // Find provider by name if it's a group reference
-            const provider = state.providers.find(p =>
-              p.id === patternSlot.assignment || p.name === patternSlot.assignment
-            );
-            if (provider) {
-              targetSlot.providerId = provider.id;
-            }
+          if (!targetSlot) return;
+          // Find provider by name if it's a group reference
+          const provider = state.providers.find(p =>
+            p.id === patternSlot.assignment || p.name === patternSlot.assignment
+          );
+          if (provider) {
+            assignmentsBySlotId.set(targetSlot.id, provider.id);
           }
+        });
+
+        const newSlots = state.slots.map(s => {
+          const providerId = assignmentsBySlotId.get(s.id);
+          return providerId ? { ...s, providerId } : s;
         });
 
         set({ slots: newSlots });

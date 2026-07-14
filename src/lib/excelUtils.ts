@@ -2,6 +2,7 @@ import { format, parseISO, addDays, startOfWeek, differenceInCalendarDays } from
 import * as XLSX from "xlsx";
 import { useScheduleStore, generateInitialSlots } from "../store.ts";
 import type { Provider, ShiftSlot } from "../store.ts";
+import { API_BASE } from "./api/client";
 
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
 const WORKER_PARSE_TIMEOUT_MS = 120_000;
@@ -377,15 +378,14 @@ export const excelSerialToDate = (serial: number): string | null => {
     return null;
   }
 
-  // Excel's epoch starts at December 30, 1899
+  // Excel's epoch is December 30, 1899: this (rather than Dec 31) already
+  // absorbs Excel's 1900 leap-year bug for serials past Feb 1900, so no
+  // further adjustment is needed — subtracting an extra day here shifted
+  // every imported date one day early.
   const EXCEL_EPOCH = new Date(Date.UTC(1899, 11, 30));
   const msPerDay = 24 * 60 * 60 * 1000;
 
-  // Handle Excel's leap year bug (Excel thinks 1900 was a leap year)
-  // For dates after February 28, 1900, we need to subtract 1 day
-  const adjustedSerial = serial > 60 ? serial - 1 : serial;
-
-  const date = new Date(EXCEL_EPOCH.getTime() + adjustedSerial * msPerDay);
+  const date = new Date(EXCEL_EPOCH.getTime() + serial * msPerDay);
 
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -846,7 +846,7 @@ export const getAiHeaderMapping = async (
   sampleRows: WorksheetRow[],
 ): Promise<{ mapping: Partial<Record<ImportFieldKey, string>>; confidence: number }> => {
   try {
-    const response = await fetch("http://localhost:4000/api/ai/parse-excel", {
+    const response = await fetch(`${API_BASE}/api/ai/parse-excel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

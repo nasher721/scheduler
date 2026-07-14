@@ -221,6 +221,22 @@ export function registerMarketplaceRoutes(app, supabase) {
         return res.status(409).json({ error: 'Shift is not in CLAIMED state' });
       }
 
+      const { data: slot, error: slotFetchError } = await supabase
+        .from('slots')
+        .select('provider_id')
+        .eq('id', shift.slot_id)
+        .single();
+
+      if (slotFetchError || !slot) {
+        return res.status(404).json({ error: 'Slot for this shift no longer exists' });
+      }
+
+      if (slot.provider_id && slot.provider_id !== shift.posted_by_provider_id) {
+        return res.status(409).json({
+          error: 'Slot has been reassigned since this shift was posted; approve would overwrite the current assignment'
+        });
+      }
+
       const { data: updatedShift, error: updateError } = await supabase
         .from('marketplace_shifts')
         .update({

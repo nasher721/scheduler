@@ -43,7 +43,7 @@ export async function claimShift(shiftId: string, providerId: string): Promise<v
 
 export async function approveShift(shiftId: string, approvedBy: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/marketplace/shifts/${shiftId}/approve`, {
-    method: 'POST',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ approvedBy }),
   });
@@ -51,14 +51,8 @@ export async function approveShift(shiftId: string, approvedBy: string): Promise
 }
 
 export async function cancelMarketplaceShift(shiftId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/marketplace/shifts/${shiftId}/cancel`, {
-    method: 'POST',
+  const res = await fetch(`${API_BASE}/api/marketplace/shifts/${shiftId}`, {
+    method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to cancel shift');
-}
-
-export async function getMyShifts(): Promise<{ posted: MarketplaceShift[]; claimed: MarketplaceShift[] }> {
-  const res = await fetch(`${API_BASE}/api/marketplace/my-shifts`);
-  if (!res.ok) throw new Error('Failed to fetch my shifts');
-  return res.json();
 }

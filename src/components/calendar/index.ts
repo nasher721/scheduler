@@ -43,16 +43,6 @@ export {
   type AISuggestionsPanelProps
 } from './features/AI/AISuggestionsPanel';
 
-export {
-  NaturalLanguageInterface,
-  type NaturalLanguageInterfaceProps
-} from './features/AI/NaturalLanguageInterface';
-
-export {
-  PredictiveAnalyticsDashboard,
-  type PredictiveAnalyticsDashboardProps
-} from './features/AI/PredictiveAnalyticsDashboard';
-
 // ============================================================================
 // Hooks
 // ============================================================================

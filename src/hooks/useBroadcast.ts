@@ -32,7 +32,7 @@ export function useBroadcast() {
     setIsDispatching(true);
     setError(null);
     try {
-      const result = await broadcastApi.escalateBroadcast(shiftId, _currentTier);
+      const result = await broadcastApi.escalateBroadcast(shiftId);
       escalateBroadcast(shiftId);
       return result;
     } catch (err) {
