@@ -16,13 +16,10 @@ export async function dispatchBroadcast(
 }
 
 export async function escalateBroadcast(
-  shiftId: string,
-  currentTier: number
+  shiftId: string
 ): Promise<{ entryId: string; tier: number; recipients: number }> {
-  const res = await fetch(`${API_BASE}/api/broadcast/escalate`, {
+  const res = await fetch(`${API_BASE}/api/broadcast/escalate/${shiftId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shiftId, currentTier }),
   });
   if (!res.ok) throw new Error('Failed to escalate broadcast');
   return res.json();
@@ -32,17 +29,4 @@ export async function getBroadcastHistory(shiftId: string): Promise<{ entries: B
   const res = await fetch(`${API_BASE}/api/broadcast/history?shiftId=${shiftId}`);
   if (!res.ok) throw new Error('Failed to fetch broadcast history');
   return res.json();
-}
-
-export async function updateBroadcastRecipientStatus(
-  entryId: string,
-  providerId: string,
-  status: 'sent' | 'delivered' | 'failed'
-): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/broadcast/recipients/${entryId}/status`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ providerId, status }),
-  });
-  if (!res.ok) throw new Error('Failed to update recipient status');
 }

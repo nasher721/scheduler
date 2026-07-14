@@ -177,20 +177,34 @@ export function ExcelGridView() {
     return slots.filter(s => dateStrs.includes(s.date));
   }, [slots, weekDates]);
 
+  // Precompute cell lookups: getCellData runs twice per cell per render, so
+  // linear scans over weekSlots/providers/conflicts made each render O(cells × slots).
+  const cellDataByKey = useMemo(() => {
+    const providerById = new Map(providers.map(p => [p.id, p]));
+    const conflictBySlotId = new Map<string, (typeof conflicts)[number]>();
+    conflicts.forEach(c => {
+      if (c.slotId && !c.resolvedAt && !conflictBySlotId.has(c.slotId)) {
+        conflictBySlotId.set(c.slotId, c);
+      }
+    });
+
+    const map = new Map<string, { slot: (typeof weekSlots)[number]; provider?: (typeof providers)[number]; conflict?: (typeof conflicts)[number] }>();
+    weekSlots.forEach(slot => {
+      const key = `${slot.date}|${slot.serviceLocation}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          slot,
+          provider: slot.providerId ? providerById.get(slot.providerId) : undefined,
+          conflict: conflictBySlotId.get(slot.id),
+        });
+      }
+    });
+    return map;
+  }, [weekSlots, providers, conflicts]);
+
   // Get cell value for date + service location
-  const getCellData = (date: Date, serviceLocation: string) => {
-    const dateStr = format(date, "yyyy-MM-dd");
-    const slot = weekSlots.find(s => 
-      s.date === dateStr && 
-      s.serviceLocation === serviceLocation
-    );
-    if (!slot) return null;
-    
-    const provider = providers.find(p => p.id === slot.providerId);
-    const conflict = conflicts.find(c => c.slotId === slot.id && !c.resolvedAt);
-    
-    return { slot, provider, conflict };
-  };
+  const getCellData = (date: Date, serviceLocation: string) =>
+    cellDataByKey.get(`${format(date, "yyyy-MM-dd")}|${serviceLocation}`) ?? null;
 
   // Handle cell edit
   const handleCellEdit = (slotId: string, providerName: string) => {

@@ -47,10 +47,14 @@ import { AdminReadinessBanner } from "./components/schedule/AdminReadinessBanner
 import { useScheduleReadiness } from "./components/schedule/useScheduleReadiness";
 import { supabase } from "./lib/supabase";
 import { useMemo, useRef, useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { motion, AnimatePresence } from "framer-motion";
 import { buildScheduleRiskDigest } from "@/lib/scheduleRisk";
 
 export default function App() {
+  // Select only the fields this component uses (shallow-compared) — a bare
+  // useScheduleStore() subscribes to the whole store and re-renders the
+  // entire admin tree on every toast, copilot, or marketplace mutation.
   const {
     autoAssign,
     assignShift,
@@ -84,7 +88,42 @@ export default function App() {
     applyAllAISuggestions,
     rejectAISuggestions,
     openChangePreviewWithMultiAgentResult,
-  } = useScheduleStore();
+  } = useScheduleStore(
+    useShallow((s) => ({
+      autoAssign: s.autoAssign,
+      assignShift: s.assignShift,
+      startDate: s.startDate,
+      numWeeks: s.numWeeks,
+      setScheduleRange: s.setScheduleRange,
+      slots: s.slots,
+      providers: s.providers,
+      scenarios: s.scenarios,
+      createScenario: s.createScenario,
+      loadScenario: s.loadScenario,
+      deleteScenario: s.deleteScenario,
+      lastActionMessage: s.lastActionMessage,
+      clearMessage: s.clearMessage,
+      undo: s.undo,
+      redo: s.redo,
+      canUndo: s.canUndo,
+      canRedo: s.canRedo,
+      clearStaff: s.clearStaff,
+      clearSchedule: s.clearSchedule,
+      customRules: s.customRules,
+      auditLog: s.auditLog,
+      showToast: s.showToast,
+      currentUser: s.currentUser,
+      initialize: s.initialize,
+      isCopilotOpen: s.isCopilotOpen,
+      toggleCopilot: s.toggleCopilot,
+      showChangePreview: s.showChangePreview,
+      changePreviewData: s.changePreviewData,
+      closeChangePreview: s.closeChangePreview,
+      applyAllAISuggestions: s.applyAllAISuggestions,
+      rejectAISuggestions: s.rejectAISuggestions,
+      openChangePreviewWithMultiAgentResult: s.openChangePreviewWithMultiAgentResult,
+    })),
+  );
 
   // Mobile sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

@@ -13,6 +13,7 @@ import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { useScheduleStore } from '@/store';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
+import { formatShiftType } from '@/components/calendar/utils/accessibilityUtils';
 import type { ShiftType } from '@/types';
 
 interface QuickSwapModalProps {
@@ -26,19 +27,6 @@ const isPastShift = (dateStr: string): boolean => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return date < today;
-};
-
-const formatShiftType = (type: ShiftType): string => {
-  const typeMap: Record<string, string> = {
-    DAY: 'Day',
-    NIGHT: 'Night',
-    NMET: 'NMET',
-    JEOPARDY: 'Jeopardy',
-    RECOVERY: 'Recovery',
-    CONSULTS: 'Consults',
-    VACATION: 'Vacation',
-  };
-  return typeMap[type] || type;
 };
 
 const formatTime = (type: ShiftType): string => {

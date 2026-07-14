@@ -9,9 +9,7 @@
  * 
  * Phase 5: AI Features
  * - AISuggestionsPanel: AI scheduling suggestions
- * - NaturalLanguageInterface: Natural language queries
- * - PredictiveAnalyticsDashboard: Predictive analytics
- * 
+ *
  * Part of Phase 4 & 5: Real-time Collaboration & AI
  */
 
@@ -19,8 +17,4 @@
 export { ShiftComments, CommentCount } from './ShiftComments';
 
 // Phase 5: AI Features
-export {
-  AISuggestionsPanel,
-  NaturalLanguageInterface,
-  PredictiveAnalyticsDashboard
-} from './AI';
+export { AISuggestionsPanel } from './AI';

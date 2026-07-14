@@ -32,38 +32,43 @@ interface ProviderMatch {
 
 export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { providers, slots, assignShift } = useScheduleStore();
+  // Field selectors: this component renders once per unfilled shift card, so
+  // a bare useScheduleStore() subscription re-renders every card on any
+  // store change.
+  const providers = useScheduleStore((s) => s.providers);
+  const slots = useScheduleStore((s) => s.slots);
+  const assignShift = useScheduleStore((s) => s.assignShift);
+
+  // Cheap eligibility check (time off + skill) — used for the closed-state
+  // button label without paying for the full week-load scoring below.
+  const eligibleProviders = useMemo(
+    () =>
+      providers.filter(
+        (p) =>
+          !p.timeOffRequests.some((r) => r.date === slot.date) &&
+          p.skills.includes(slot.requiredSkill),
+      ),
+    [providers, slot.date, slot.requiredSkill],
+  );
 
   const matches = useMemo((): ProviderMatch[] => {
+    // The scored ranking walks all slots per provider; with one instance per
+    // unfilled card that's O(cards × providers × slots) if computed eagerly,
+    // so defer it until the dropdown is actually open.
+    if (!isOpen) return [];
+
     // Get all slots for the current week to calculate load
     const slotDate = parseISO(slot.date);
     const weekStart = addDays(slotDate, -slotDate.getDay() + 1); // Monday
     const weekEnd = addDays(weekStart, 6);
-    
+
     const weekSlots = slots.filter(s => {
       const sDate = parseISO(s.date);
       return sDate >= weekStart && sDate <= weekEnd && s.providerId;
     });
-    
-    // Helper function to check if provider can be assigned
-    const checkCanAssign = (provider: Provider): { canAssign: boolean; reason?: string } => {
-      // Check time off
-      if (provider.timeOffRequests.some(r => r.date === slot.date)) {
-        return { canAssign: false, reason: "Time off" };
-      }
-      // Check skills
-      if (!provider.skills.includes(slot.requiredSkill)) {
-        return { canAssign: false, reason: "Missing skill" };
-      }
-      return { canAssign: true };
-    };
 
-    return providers
-      .map((provider): ProviderMatch | null => {
-        // Check basic eligibility
-        const canAssign = checkCanAssign(provider);
-        if (!canAssign.canAssign) return null;
-
+    return eligibleProviders
+      .map((provider): ProviderMatch => {
         // Calculate weekly load
         const providerWeekSlots = weekSlots.filter(s => s.providerId === provider.id);
         const weekDays = providerWeekSlots.filter(s => s.type === "DAY").length;
@@ -118,12 +123,11 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
           }
         };
       })
-      .filter((m): m is ProviderMatch => m !== null)
       .sort((a, b) => b.score - a.score);
-  }, [slot, providers, slots]);
+  }, [isOpen, slot, eligibleProviders, slots]);
 
   const topMatches = matches.slice(0, 5);
-  const hasMatches = topMatches.length > 0;
+  const hasMatches = eligibleProviders.length > 0;
 
   const handleAssign = (providerId: string) => {
     assignShift(slot.id, providerId);
@@ -143,7 +147,7 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
         }`}
       >
         <UserPlus className="w-3 h-3" />
-        {hasMatches ? `${matches.length} available` : 'No matches'}
+        {hasMatches ? `${eligibleProviders.length} available` : 'No matches'}
       </button>
 
       {/* Dropdown */}

@@ -2,7 +2,7 @@ import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from 
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday } from "date-fns";
 import { GripVertical, Sun, Moon, AlertTriangle, Sparkles, Info, MapPin, Activity, Stethoscope } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 
 const shiftConfig: Record<ShiftType, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string }> = {
@@ -153,17 +153,34 @@ export function DraggableProvider({ id, name }: { id: string; name: string }) {
 }
 
 export function Calendar() {
-  const { slots, providers, assignmentLogs } = useScheduleStore();
+  // Subscribe only to the fields used here; a bare useScheduleStore()
+  // re-renders this whole view on every store mutation (toasts included).
+  const slots = useScheduleStore((s) => s.slots);
+  const providers = useScheduleStore((s) => s.providers);
+  const assignmentLogs = useScheduleStore((s) => s.assignmentLogs);
 
-  // Group slots by date
-  const dates = Array.from(new Set(slots.map(s => s.date))).sort();
+  // Group slots by date with a single pass instead of a per-date filter
+  // (the old shape was O(dates × slots) on every render).
+  const { dates, slotsByDate, providerById } = useMemo(() => {
+    const byDate = new Map<string, typeof slots>();
+    slots.forEach((slot) => {
+      const list = byDate.get(slot.date);
+      if (list) list.push(slot);
+      else byDate.set(slot.date, [slot]);
+    });
+    return {
+      dates: Array.from(byDate.keys()).sort(),
+      slotsByDate: byDate,
+      providerById: new Map(providers.map((p) => [p.id, p])),
+    };
+  }, [slots, providers]);
 
   return (
     <div className="flex-1 glass-panel-heavy overflow-hidden flex flex-col">
       <div className="overflow-x-auto p-6 scrollbar-hide">
         <div className="min-w-[800px] space-y-6">
           {dates.map((dateStr, idx) => {
-            const daySlots = slots.filter(s => s.date === dateStr);
+            const daySlots = slotsByDate.get(dateStr) ?? [];
             const dateObj = parseISO(dateStr);
             const dayName = format(dateObj, 'EEEE');
             const isWeekend = daySlots[0]?.isWeekendLayout;
@@ -212,7 +229,7 @@ export function Calendar() {
                       >
                         <Slot
                           slot={slot}
-                          provider={providers.find(p => p.id === slot.providerId)}
+                          provider={slot.providerId ? providerById.get(slot.providerId) : undefined}
                           logs={slotLogs}
                         />
                       </motion.div>

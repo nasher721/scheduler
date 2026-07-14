@@ -1,7 +1,18 @@
 import { format, parseISO, addDays, startOfWeek, differenceInCalendarDays } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+
+// xlsx is ~400 kB minified; load it on demand so it stays out of the main
+// bundle (import/export are user-initiated actions, never startup work).
+let xlsxModule: typeof XLSXType | null = null;
+const loadXLSX = async (): Promise<typeof XLSXType> => {
+  if (!xlsxModule) {
+    xlsxModule = await import("xlsx");
+  }
+  return xlsxModule;
+};
 import { useScheduleStore, generateInitialSlots } from "../store.ts";
 import type { Provider, ShiftSlot } from "../store.ts";
+import { API_BASE } from "./api/client";
 
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
 const WORKER_PARSE_TIMEOUT_MS = 120_000;
@@ -377,15 +388,14 @@ export const excelSerialToDate = (serial: number): string | null => {
     return null;
   }
 
-  // Excel's epoch starts at December 30, 1899
+  // Excel's epoch is December 30, 1899: this (rather than Dec 31) already
+  // absorbs Excel's 1900 leap-year bug for serials past Feb 1900, so no
+  // further adjustment is needed — subtracting an extra day here shifted
+  // every imported date one day early.
   const EXCEL_EPOCH = new Date(Date.UTC(1899, 11, 30));
   const msPerDay = 24 * 60 * 60 * 1000;
 
-  // Handle Excel's leap year bug (Excel thinks 1900 was a leap year)
-  // For dates after February 28, 1900, we need to subtract 1 day
-  const adjustedSerial = serial > 60 ? serial - 1 : serial;
-
-  const date = new Date(EXCEL_EPOCH.getTime() + adjustedSerial * msPerDay);
+  const date = new Date(EXCEL_EPOCH.getTime() + serial * msPerDay);
 
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -543,7 +553,8 @@ export const resolveHeaderMapping = (
   }
 };
 
-const readWorkbookRows = (data: ArrayBuffer): WorksheetRow[] => {
+const readWorkbookRows = async (data: ArrayBuffer): Promise<WorksheetRow[]> => {
+  const XLSX = await loadXLSX();
   const workbook = XLSX.read(data, { type: "array", cellDates: true, dense: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) {
@@ -723,7 +734,7 @@ export const parseScheduleImportFile = async (
     const data = await file.arrayBuffer();
     reportProgress(onProgress, 20);
 
-    const rows = readWorkbookRows(data);
+    const rows = await readWorkbookRows(data);
     reportProgress(onProgress, 40);
 
     const preview = buildImportPreviewFromRows(rows, file.name, manualMapping, initialIssues, onProgress);
@@ -846,7 +857,7 @@ export const getAiHeaderMapping = async (
   sampleRows: WorksheetRow[],
 ): Promise<{ mapping: Partial<Record<ImportFieldKey, string>>; confidence: number }> => {
   try {
-    const response = await fetch("http://localhost:4000/api/ai/parse-excel", {
+    const response = await fetch(`${API_BASE}/api/ai/parse-excel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1087,8 +1098,9 @@ export const hasImportRollback = (): boolean => {
 };
 
 
-export const exportScheduleToExcel = (): ExcelOperationResult => {
+export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => {
   try {
+    const XLSX = await loadXLSX();
     const { slots, startDate, providers, swapRequests, holidayAssignments, dayHandoffs } = useScheduleStore.getState();
 
     const providerNamesById = new Map<string, string>();
@@ -1134,14 +1146,14 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     // Gold fill that matches master (FFFFC000)
     const goldFill = { patternType: "solid", fgColor: { rgb: "FFC000" } };
 
-    const ws: XLSX.WorkSheet = {};
+    const ws: XLSXType.WorkSheet = {};
     const addr = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
 
     const cell = (
-      v: XLSX.CellObject["v"],
-      t: XLSX.CellObject["t"],
-      extra?: Partial<XLSX.CellObject>,
-    ): XLSX.CellObject => ({ v, t, ...extra } as XLSX.CellObject);
+      v: XLSXType.CellObject["v"],
+      t: XLSXType.CellObject["t"],
+      extra?: Partial<XLSXType.CellObject>,
+    ): XLSXType.CellObject => ({ v, t, ...extra } as XLSXType.CellObject);
 
     let ri = 0; // current row index (0-based)
 
@@ -1192,7 +1204,7 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         t: "n",
         z: '[$-F800]dddd\\, mmmm dd\\, yyyy',
         ...rowStyle,
-      } as XLSX.CellObject;
+      } as XLSXType.CellObject;
 
       // Blank-fill remaining columns (carries gold fill for new-month row)
       for (let ci = 1; ci < NUM_COLS; ci++) {
