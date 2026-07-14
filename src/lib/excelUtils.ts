@@ -1,5 +1,15 @@
 import { format, parseISO, addDays, startOfWeek, differenceInCalendarDays } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+
+// xlsx is ~400 kB minified; load it on demand so it stays out of the main
+// bundle (import/export are user-initiated actions, never startup work).
+let xlsxModule: typeof XLSXType | null = null;
+const loadXLSX = async (): Promise<typeof XLSXType> => {
+  if (!xlsxModule) {
+    xlsxModule = await import("xlsx");
+  }
+  return xlsxModule;
+};
 import { useScheduleStore, generateInitialSlots } from "../store.ts";
 import type { Provider, ShiftSlot } from "../store.ts";
 import { API_BASE } from "./api/client";
@@ -543,7 +553,8 @@ export const resolveHeaderMapping = (
   }
 };
 
-const readWorkbookRows = (data: ArrayBuffer): WorksheetRow[] => {
+const readWorkbookRows = async (data: ArrayBuffer): Promise<WorksheetRow[]> => {
+  const XLSX = await loadXLSX();
   const workbook = XLSX.read(data, { type: "array", cellDates: true, dense: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) {
@@ -723,7 +734,7 @@ export const parseScheduleImportFile = async (
     const data = await file.arrayBuffer();
     reportProgress(onProgress, 20);
 
-    const rows = readWorkbookRows(data);
+    const rows = await readWorkbookRows(data);
     reportProgress(onProgress, 40);
 
     const preview = buildImportPreviewFromRows(rows, file.name, manualMapping, initialIssues, onProgress);
@@ -1087,8 +1098,9 @@ export const hasImportRollback = (): boolean => {
 };
 
 
-export const exportScheduleToExcel = (): ExcelOperationResult => {
+export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => {
   try {
+    const XLSX = await loadXLSX();
     const { slots, startDate, providers, swapRequests, holidayAssignments, dayHandoffs } = useScheduleStore.getState();
 
     const providerNamesById = new Map<string, string>();
@@ -1134,14 +1146,14 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
     // Gold fill that matches master (FFFFC000)
     const goldFill = { patternType: "solid", fgColor: { rgb: "FFC000" } };
 
-    const ws: XLSX.WorkSheet = {};
+    const ws: XLSXType.WorkSheet = {};
     const addr = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
 
     const cell = (
-      v: XLSX.CellObject["v"],
-      t: XLSX.CellObject["t"],
-      extra?: Partial<XLSX.CellObject>,
-    ): XLSX.CellObject => ({ v, t, ...extra } as XLSX.CellObject);
+      v: XLSXType.CellObject["v"],
+      t: XLSXType.CellObject["t"],
+      extra?: Partial<XLSXType.CellObject>,
+    ): XLSXType.CellObject => ({ v, t, ...extra } as XLSXType.CellObject);
 
     let ri = 0; // current row index (0-based)
 
@@ -1192,7 +1204,7 @@ export const exportScheduleToExcel = (): ExcelOperationResult => {
         t: "n",
         z: '[$-F800]dddd\\, mmmm dd\\, yyyy',
         ...rowStyle,
-      } as XLSX.CellObject;
+      } as XLSXType.CellObject;
 
       // Blank-fill remaining columns (carries gold fill for new-month row)
       for (let ci = 1; ci < NUM_COLS; ci++) {

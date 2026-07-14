@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type CalendarPresentationMode, type ShiftType, type ServicePriority } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday, isWeekend, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns";
@@ -132,6 +133,19 @@ const shiftConfig: Record<ShiftType, {
 
 
 // Provider Avatar Component
+
+// Per-render lookup indices: the subviews below render one card per slot, and
+// per-slot providers.find / conflicts.some scans made each render
+// O(slots x (providers + conflicts)).
+const buildProviderIndex = (providers: Provider[]) => new Map(providers.map((p) => [p.id, p]));
+const buildConflictIndex = (conflicts: Conflict[]) => {
+  const ids = new Set<string>();
+  conflicts.forEach((c) => {
+    if (c.slotId && !c.resolvedAt) ids.add(c.slotId);
+  });
+  return ids;
+};
+
 function ProviderAvatar({ provider, size = "md", showConflict = false }: {
   provider?: Provider;
   size?: "sm" | "md" | "lg";
@@ -363,6 +377,8 @@ function GridView({
   onShiftClick: (slot: ShiftSlot) => void;
   showWorkload?: boolean;
 }) {
+  const providerById = buildProviderIndex(providers);
+  const conflictedSlotIds = buildConflictIndex(conflicts);
   return (
     <div className="space-y-6">
       {weekDates.map((date, idx) => {
@@ -438,8 +454,8 @@ function GridView({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                       {prioritySlots.map((slot) => {
-                        const provider = providers.find(p => p.id === slot.providerId);
-                        const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                        const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
+                        const hasConflict = conflictedSlotIds.has(slot.id);
 
                         return (
                           <ShiftCard
@@ -479,6 +495,8 @@ function ListView({
   onShiftClick: (slot: ShiftSlot) => void;
   showWorkload?: boolean;
 }) {
+  const providerById = buildProviderIndex(providers);
+  const conflictedSlotIds = buildConflictIndex(conflicts);
   const sortedSlots = [...slots].sort((a, b) => {
     // Sort by date, then by priority
     const dateCompare = a.date.localeCompare(b.date);
@@ -491,8 +509,8 @@ function ListView({
   return (
     <div className="space-y-2">
       {sortedSlots.map((slot) => {
-        const provider = providers.find(p => p.id === slot.providerId);
-        const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+        const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
+        const hasConflict = conflictedSlotIds.has(slot.id);
         const config = shiftConfig[slot.type];
         const priorityConfig = servicePriorityConfig[slot.servicePriority];
         const isCriticalUnfilled = slot.servicePriority === "CRITICAL" && !provider;
@@ -562,6 +580,7 @@ function BarView({
   weekDates: Date[];
   onShiftClick: (slot: ShiftSlot) => void;
 }) {
+  const conflictedSlotIds = buildConflictIndex(conflicts);
   // Group by provider for a Gantt-like view
   const providerSlots = useMemo(() => {
     const byProvider = new Map<string, ShiftSlot[]>();
@@ -615,7 +634,7 @@ function BarView({
                   return <div key={dateStr} className="flex-1 border-l border-slate-100 p-1" />;
                 }
 
-                const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                const hasConflict = conflictedSlotIds.has(slot.id);
                 const config = shiftConfig[slot.type];
                 const priorityConfig = servicePriorityConfig[slot.servicePriority];
 
@@ -710,6 +729,8 @@ function WeekView({
   onShiftClick: (slot: ShiftSlot) => void;
   showWorkload?: boolean;
 }) {
+  const providerById = buildProviderIndex(providers);
+  const conflictedSlotIds = buildConflictIndex(conflicts);
   return (
     <div className="grid grid-cols-7 gap-3">
       {weekDates.map((date) => {
@@ -759,8 +780,8 @@ function WeekView({
               {daySlots
                 .filter(s => s.servicePriority === "CRITICAL")
                 .map((slot) => {
-                  const provider = providers.find(p => p.id === slot.providerId);
-                  const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                  const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
+                  const hasConflict = conflictedSlotIds.has(slot.id);
                   return (
                     <ShiftCard
                       key={slot.id}
@@ -779,8 +800,8 @@ function WeekView({
               {daySlots
                 .filter(s => s.servicePriority === "STANDARD")
                 .map((slot) => {
-                  const provider = providers.find(p => p.id === slot.providerId);
-                  const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                  const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
+                  const hasConflict = conflictedSlotIds.has(slot.id);
                   return (
                     <ShiftCard
                       key={slot.id}
@@ -799,8 +820,8 @@ function WeekView({
               {daySlots
                 .filter(s => s.servicePriority === "FLEXIBLE")
                 .map((slot) => {
-                  const provider = providers.find(p => p.id === slot.providerId);
-                  const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+                  const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
+                  const hasConflict = conflictedSlotIds.has(slot.id);
                   return (
                     <ShiftCard
                       key={slot.id}
@@ -967,6 +988,8 @@ function TimelineView({
   weekDates: Date[];
   onShiftClick: (slot: ShiftSlot) => void;
 }) {
+  const providerById = buildProviderIndex(providers);
+  const conflictedSlotIds = buildConflictIndex(conflicts);
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const priorityOrder: ServicePriority[] = ["CRITICAL", "STANDARD", "FLEXIBLE"];
 
@@ -1006,8 +1029,8 @@ function TimelineView({
 
               if (!slot) return <div key={`${dateStr}-${hour}`} className="flex-1 border-l border-slate-100" />;
 
-              const provider = providers.find(p => p.id === slot.providerId);
-              const hasConflict = conflicts.some(c => c.slotId === slot.id && !c.resolvedAt);
+              const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
+              const hasConflict = conflictedSlotIds.has(slot.id);
               const priorityConfig = servicePriorityConfig[slot.servicePriority];
               const isCriticalUnfilled = slot.servicePriority === "CRITICAL" && !slot.providerId;
               const cellBg = slot.providerId
@@ -1133,7 +1156,15 @@ function ViewSelector({
 
 // Main Enhanced Calendar Component
 export function EnhancedCalendar() {
-  const { slots, providers, conflicts, setSelectedDate, setCalendarPresentationMode } = useScheduleStore();
+  const { slots, providers, conflicts, setSelectedDate, setCalendarPresentationMode } = useScheduleStore(
+    useShallow((s) => ({
+      slots: s.slots,
+      providers: s.providers,
+      conflicts: s.conflicts,
+      setSelectedDate: s.setSelectedDate,
+      setCalendarPresentationMode: s.setCalendarPresentationMode,
+    })),
+  );
   const { scheduleViewport, weekDates } = useScheduleViewport();
 
   // Edit modal state
