@@ -70,7 +70,8 @@ export class DemandForecastService {
         isWeekend,
         ...adjustedPrediction,
         confidence: this.calculateConfidence(adjustedPrediction, patterns),
-        factors: externalFactors[dateStr],
+        factors: adjustedPrediction.dayShift?.factors || [],
+        externalFactors: externalFactors[dateStr] || {},
       });
     }
 

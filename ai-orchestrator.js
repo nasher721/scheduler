@@ -4,15 +4,51 @@ import { getOutcomePrompt } from './server/prompts/outcome-prompts.js';
 import { getConflictMessage } from './server/prompts/conflict-config.js';
 
 const DEFAULT_PROVIDERS = [
-  { id: "openai", label: "OpenAI", models: ["gpt-4.1-mini", "gpt-4.1"], envKey: "OPENAI_API_KEY" },
-  { id: "anthropic", label: "Anthropic", models: ["claude-3-5-sonnet-latest"], envKey: "ANTHROPIC_API_KEY" },
-  { id: "google", label: "Google Gemini", models: ["gemini-2.0-flash"], envKey: "GEMINI_API_KEY" },
+  {
+    id: "openai",
+    label: "OpenAI",
+    models: ["gpt-4o", "gpt-4o-mini", "o3-mini", "o1", "gpt-4-turbo"],
+    envKey: "OPENAI_API_KEY",
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    models: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
+    envKey: "ANTHROPIC_API_KEY",
+  },
+  {
+    id: "google",
+    label: "Google Gemini",
+    models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.0-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
+    envKey: "GEMINI_API_KEY",
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    models: ["deepseek-chat", "deepseek-reasoner"],
+    envKey: "DEEPSEEK_API_KEY",
+  },
+  {
+    id: "groq",
+    label: "Groq",
+    models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+    envKey: "GROQ_API_KEY",
+  },
+  {
+    id: "ollama",
+    label: "Ollama (Local)",
+    models: ["llama3.3", "qwen2.5", "mistral"],
+    envKey: "OLLAMA_BASE_URL",
+  },
 ];
 
 const PROVIDER_PRICING_USD_PER_1K_TOKENS = {
-  openai: 0.01,
-  anthropic: 0.012,
-  google: 0.005,
+  openai: 0.005,
+  anthropic: 0.006,
+  google: 0.001,
+  deepseek: 0.0005,
+  groq: 0.0008,
+  ollama: 0,
 };
 
 const providerMetrics = new Map();
@@ -38,7 +74,7 @@ function listProviders() {
   return DEFAULT_PROVIDERS.map((provider) => ({
     ...provider,
     configured: provider.id === configuredProvider,
-    enabled: Boolean(process.env[provider.envKey]),
+    enabled: Boolean(process.env[provider.envKey] || (provider.id === "ollama" && process.env.OLLAMA_BASE_URL)),
   }));
 }
 
@@ -501,6 +537,22 @@ function buildPrompt(task, payload) {
     const manifest = listCopilotCapabilities();
     return buildIntentPrompt(payload.text, payload.context || {}, manifest, payload.conversationHistory || []);
   }
+  if (task === "parse-excel" && payload?.sampleData) {
+    return `You are an expert hospital schedule data analyst. Analyze the following sample rows from an uploaded schedule spreadsheet:
+${JSON.stringify(payload.sampleData, null, 2)}
+
+Target standard schedule fields:
+${JSON.stringify(payload.targetFields || ["date", "dayG20", "dayH22", "dayAkron", "night", "consults", "nmet", "jeopardy", "recovery", "vacation"], null, 2)}
+
+Identify which columns in the uploaded file map to these target fields.
+Return ONLY valid JSON matching this schema:
+{
+  "mapping": {
+    "targetField": "UploadedColumnHeader"
+  },
+  "confidence": 0.95
+}`;
+  }
   const outcomePrompt = getOutcomePrompt(task, payload);
   if (outcomePrompt) return outcomePrompt;
   return `You are an ICU scheduling copilot. Task: ${task}. Return JSON only.\n${JSON.stringify(payload || {}, null, 2)}`;
@@ -510,78 +562,269 @@ async function callOpenAI(task, payload) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const model = payload?.requestedModel || getPreferredModel("openai");
+  const isReasoning = model.startsWith("o1") || model.startsWith("o3");
+  const prompt = typeof payload === "string" ? payload : buildPrompt(task, payload);
+  const messages = payload?.messages && Array.isArray(payload.messages)
+    ? payload.messages
+    : [{ role: "user", content: prompt }];
+
+  const reqBody = {
+    model,
+    messages,
+    ...(isReasoning ? { max_completion_tokens: 4000 } : { temperature: payload?.temperature ?? 0.2 }),
+  };
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: getPreferredModel("openai"), input: buildPrompt(task, payload), temperature: 0.2 }),
+    body: JSON.stringify(reqBody),
   });
 
-  if (!response.ok) throw new Error(`OpenAI request failed (${response.status})`);
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`OpenAI request failed (${response.status}): ${errorText}`);
+  }
 
   const data = await response.json();
-  return { provider: "openai", model: getPreferredModel("openai"), source: "llm", text: data?.output_text || "" };
+  const text = data?.choices?.[0]?.message?.content || "";
+  return { provider: "openai", model, source: "llm", text };
 }
 
 async function callAnthropic(task, payload) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
+  const model = payload?.requestedModel || getPreferredModel("anthropic");
+  const prompt = typeof payload === "string" ? payload : buildPrompt(task, payload);
+  let messages = payload?.messages && Array.isArray(payload.messages)
+    ? [...payload.messages]
+    : [{ role: "user", content: prompt }];
+
+  let system = payload?.systemPrompt;
+  const sysIdx = messages.findIndex((m) => m.role === "system");
+  if (sysIdx !== -1) {
+    system = (system ? system + "\n\n" : "") + messages[sysIdx].content;
+    messages = messages.filter((_, idx) => idx !== sysIdx);
+  }
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
     body: JSON.stringify({
-      model: getPreferredModel("anthropic"),
-      max_tokens: 600,
-      temperature: 0.2,
-      messages: [{ role: "user", content: buildPrompt(task, payload) }],
+      model,
+      max_tokens: 4000,
+      temperature: payload?.temperature ?? 0.2,
+      ...(system ? { system } : {}),
+      messages,
     }),
   });
 
-  if (!response.ok) throw new Error(`Anthropic request failed (${response.status})`);
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Anthropic request failed (${response.status}): ${errorText}`);
+  }
 
   const data = await response.json();
   const firstText = data?.content?.find((entry) => entry?.type === "text")?.text || "";
-  return { provider: "anthropic", model: getPreferredModel("anthropic"), source: "llm", text: firstText };
+  return { provider: "anthropic", model, source: "llm", text: firstText };
 }
 
 async function callGemini(task, payload) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const model = getPreferredModel("google");
+  const model = payload?.requestedModel || getPreferredModel("google");
+  const prompt = typeof payload === "string" ? payload : buildPrompt(task, payload);
+
+  let contents = [];
+  if (payload?.messages && Array.isArray(payload.messages)) {
+    contents = payload.messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }],
+    }));
+  } else {
+    contents = [{ parts: [{ text: prompt }] }];
+  }
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        generationConfig: { temperature: 0.2 },
-        contents: [{ parts: [{ text: buildPrompt(task, payload) }] }],
+        generationConfig: { temperature: payload?.temperature ?? 0.2 },
+        contents,
       }),
     },
   );
 
-  if (!response.ok) throw new Error(`Gemini request failed (${response.status})`);
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Gemini request failed (${response.status}): ${errorText}`);
+  }
 
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.map((entry) => entry?.text || "").join("\n") || "";
   return { provider: "google", model, source: "llm", text };
 }
 
+async function callDeepSeek(task, payload) {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) return null;
+
+  const model = payload?.requestedModel || getPreferredModel("deepseek");
+  const prompt = typeof payload === "string" ? payload : buildPrompt(task, payload);
+  const messages = payload?.messages && Array.isArray(payload.messages)
+    ? payload.messages
+    : [{ role: "user", content: prompt }];
+
+  const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: payload?.temperature ?? 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`DeepSeek request failed (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || "";
+  return { provider: "deepseek", model, source: "llm", text };
+}
+
+async function callGroq(task, payload) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
+  const model = payload?.requestedModel || getPreferredModel("groq");
+  const prompt = typeof payload === "string" ? payload : buildPrompt(task, payload);
+  const messages = payload?.messages && Array.isArray(payload.messages)
+    ? payload.messages
+    : [{ role: "user", content: prompt }];
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: payload?.temperature ?? 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Groq request failed (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || "";
+  return { provider: "groq", model, source: "llm", text };
+}
+
+async function callOllama(task, payload) {
+  const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const model = payload?.requestedModel || getPreferredModel("ollama");
+  const prompt = typeof payload === "string" ? payload : buildPrompt(task, payload);
+  const messages = payload?.messages && Array.isArray(payload.messages)
+    ? payload.messages
+    : [{ role: "user", content: prompt }];
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: payload?.temperature ?? 0.2,
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    return { provider: "ollama", model, source: "llm", text };
+  } catch {
+    return null;
+  }
+}
+
 async function callConfiguredProvider(task, payload) {
-  const provider = getConfiguredProvider();
+  const provider = (payload?.requestedProvider || getConfiguredProvider()).toLowerCase();
   if (provider === "anthropic") return callAnthropic(task, payload);
   if (provider === "google") return callGemini(task, payload);
+  if (provider === "deepseek") return callDeepSeek(task, payload);
+  if (provider === "groq") return callGroq(task, payload);
+  if (provider === "ollama") return callOllama(task, payload);
   return callOpenAI(task, payload);
+}
+
+export async function callLLM({ provider, model, messages, prompt, temperature = 0.2, systemPrompt } = {}) {
+  const selectedProvider = (provider || getConfiguredProvider()).toLowerCase();
+  const payload = {
+    requestedProvider: selectedProvider,
+    requestedModel: model,
+    messages: messages || (prompt ? [{ role: "user", content: prompt }] : []),
+    systemPrompt,
+    temperature,
+  };
+
+  const response = await callConfiguredProvider("general-chat", payload);
+  if (response && response.text) {
+    return {
+      content: response.text,
+      provider: response.provider,
+      model: response.model,
+      source: response.source || "llm",
+    };
+  }
+  return null;
 }
 
 function parseStructuredText(text) {
   if (!text || typeof text !== "string") return null;
+  const trimmed = text.trim();
+
   try {
-    return JSON.parse(text);
-  } catch {
-    return null;
+    return JSON.parse(trimmed);
+  } catch {}
+
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch {}
   }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+    } catch {}
+  }
+
+  const firstBracket = trimmed.indexOf("[");
+  const lastBracket = trimmed.lastIndexOf("]");
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    try {
+      return JSON.parse(trimmed.slice(firstBracket, lastBracket + 1));
+    } catch {}
+  }
+
+  return null;
 }
 
 function getMetricsKey(provider, model) {
@@ -1181,4 +1424,12 @@ async function buildCopilotResponse(intentResult, context, history) {
   return baseResponse;
 }
 
-export { listProviders, listProviderMetrics, recordAutomationOutcome, buildContextualRecommendations };
+export {
+  DEFAULT_PROVIDERS,
+  listProviders,
+  listProviderMetrics,
+  recordAutomationOutcome,
+  buildContextualRecommendations,
+  parseStructuredText,
+  callConfiguredProvider,
+};

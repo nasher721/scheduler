@@ -11,7 +11,7 @@ export class Agent {
     this.role = config.role;
     this.systemPrompt = config.systemPrompt;
     this.tools = config.tools || [];
-    this.model = config.model || 'gpt-4-turbo-preview';
+    this.model = config.model || process.env.AI_AGENT_MODEL || process.env.AI_MODEL || 'gpt-4o-mini';
     this.messageHistory = [];
   }
 
@@ -20,14 +20,14 @@ export class Agent {
     
     try {
       const response = await callAIProvider({
-        provider: 'openai',
+        provider: process.env.AI_DEFAULT_PROVIDER || 'openai',
         model: this.model,
         messages: [
           { role: 'system', content: this.systemPrompt },
           ...this.messageHistory,
           { role: 'user', content: prompt }
         ],
-        temperature: 0.3, // Lower temp for consistent structured output
+        temperature: 0.2, // Lower temp for consistent structured output
       });
 
       const content = response.content;

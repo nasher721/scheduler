@@ -44,18 +44,25 @@ dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-const hasValidSupabase = Boolean(supabaseUrl.startsWith('https://') && supabaseKey.length > 10);
+const hasValidSupabase = Boolean(supabaseUrl.startsWith('https://') && supabaseKey.length > 10 && !supabaseUrl.includes('placeholder'));
 const supabase = hasValidSupabase
   ? createClient(supabaseUrl, supabaseKey)
   : createClient('https://placeholder.supabase.co', 'placeholder-anon-key');
-
-
 
 const baseProviders = [
   { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
   { id: "2", name: "Dr. Baker", email: "baker@hospital.org", role: "CLINICIAN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "EEG", "NIGHT_FLOAT"], maxConsecutiveNights: 3, minDaysOffAfterNight: 1, credentials: [{ credentialType: "Stroke Certification", expiresAt: "2027-02-01", status: "active" }] },
   { id: "3", name: "Dr. Clark", email: "clark@hospital.org", role: "SCHEDULER", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "ECMO", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 2, credentials: [{ credentialType: "NIHSS", expiresAt: "2027-03-01", status: "active" }] },
 ];
+
+const inMemoryStore = {
+  settings: new Map(),
+  providers: [...baseProviders],
+  slots: [],
+  shiftRequests: [],
+  notifications: [],
+  emailEvents: [],
+};
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -207,7 +214,7 @@ const VALID_LOCATION_GROUPS = new Set(["MAIN_CAMPUS_UNIT", "MAIN_CAMPUS_SERVICE"
 const VALID_SERVICE_PRIORITIES = new Set(["CRITICAL", "STANDARD", "FLEXIBLE"]);
 
 function validateSlots(payload) {
-  if (!isArray(payload?.slots)) return null; // Let the main validation handle missing slots
+  if (!isArray(payload?.slots)) return null;
 
   for (const slot of payload.slots) {
     if (!slot || typeof slot !== "object") return "Each slot must be an object.";
@@ -217,17 +224,17 @@ function validateSlots(payload) {
     if (typeof slot.date !== "string" || !isValidDateString(slot.date)) {
       return `Slot ${slot.id || "unknown"} must have a valid \"date\" in YYYY-MM-DD format.`;
     }
-    if (!VALID_SHIFT_TYPES.has(slot.type)) {
+    if (slot.type && !VALID_SHIFT_TYPES.has(slot.type)) {
       return `Slot ${slot.id || "unknown"} has invalid \"type\". Must be one of: ${Array.from(VALID_SHIFT_TYPES).join(", ")}`;
     }
-    if (typeof slot.requiredSkill !== "string" || !slot.requiredSkill.trim()) {
+    if (slot.requiredSkill !== undefined && (typeof slot.requiredSkill !== "string" || !slot.requiredSkill.trim())) {
       return `Slot ${slot.id || "unknown"} must have a non-empty \"requiredSkill\".`;
     }
-    if (!VALID_SLOT_PRIORITIES.has(slot.priority)) {
+    if (slot.priority !== undefined && !VALID_SLOT_PRIORITIES.has(slot.priority)) {
       return `Slot ${slot.id || "unknown"} has invalid \"priority\". Must be one of: ${Array.from(VALID_SLOT_PRIORITIES).join(", ")}`;
     }
-    if (typeof slot.location !== "string" || !slot.location.trim()) {
-      return `Slot ${slot.id || "unknown"} must have a non-empty \"location\".`;
+    if (slot.location !== undefined && (typeof slot.location !== "string" || !slot.location.trim())) {
+      return `Slot ${slot.id || "unknown"} must have a valid non-empty \"location\".`;
     }
     if (slot.locationGroup !== undefined && !VALID_LOCATION_GROUPS.has(slot.locationGroup)) {
       return `Slot ${slot.id || "unknown"} has invalid \"locationGroup\".`;
@@ -278,21 +285,32 @@ function validateStatePayload(payload) {
 }
 
 async function getSupabaseSetting(key, defaultValue) {
-  const { data, error } = await supabase.from('global_settings')
-    .select('value')
-    .eq('key', key)
-    .single();
+  if (!hasValidSupabase) {
+    return inMemoryStore.settings.has(key) ? inMemoryStore.settings.get(key) : defaultValue;
+  }
+  try {
+    const { data, error } = await supabase.from('global_settings')
+      .select('value')
+      .eq('key', key)
+      .single();
 
-  if (error || !data) return defaultValue;
-  return data.value;
+    if (error || !data) return inMemoryStore.settings.has(key) ? inMemoryStore.settings.get(key) : defaultValue;
+    return data.value;
+  } catch {
+    return inMemoryStore.settings.has(key) ? inMemoryStore.settings.get(key) : defaultValue;
+  }
 }
 
 async function setSupabaseSetting(key, value) {
-  await supabase.from('global_settings').upsert({
-    key,
-    value,
-    updated_at: new Date().toISOString()
-  });
+  inMemoryStore.settings.set(key, value);
+  if (!hasValidSupabase) return;
+  try {
+    await supabase.from('global_settings').upsert({
+      key,
+      value,
+      updated_at: new Date().toISOString()
+    });
+  } catch {}
 }
 
 async function readState() {
@@ -301,151 +319,200 @@ async function readState() {
     return cached;
   }
 
-  const { data: configData, error: configError } = await supabase
-    .from('global_settings')
-    .select('value')
-    .eq('key', 'schedule_config')
-    .single();
+  if (!hasValidSupabase) {
+    const baseConfig = inMemoryStore.settings.get('schedule_config') || {
+      startDate: new Date().toISOString().split("T")[0],
+      numWeeks: 4,
+      scenarios: [],
+      customRules: [],
+      auditLog: []
+    };
+    const state = {
+      startDate: baseConfig.startDate || new Date().toISOString().split("T")[0],
+      numWeeks: baseConfig.numWeeks || 4,
+      scenarios: baseConfig.scenarios || [],
+      customRules: baseConfig.customRules || [],
+      auditLog: baseConfig.auditLog || [],
+      providers: inMemoryStore.providers.length > 0 ? inMemoryStore.providers : baseProviders,
+      slots: inMemoryStore.slots,
+    };
+    setCachedState(state);
+    return state;
+  }
 
-  const baseState = configData?.value || {
-    startDate: new Date().toISOString().split("T")[0],
-    numWeeks: 4,
-    scenarios: [],
-    customRules: [],
-    auditLog: []
-  };
+  try {
+    const { data: configData } = await supabase
+      .from('global_settings')
+      .select('value')
+      .eq('key', 'schedule_config')
+      .single();
 
-  const { data: providersData } = await supabase.from('providers').select('*');
-  const providers = (providersData || []).map(p => ({
-    id: p.id,
-    name: p.name,
-    email: p.email,
-    role: p.role,
-    targetWeekDays: p.target_week_days,
-    targetWeekendDays: p.target_weekend_days,
-    targetWeekNights: p.target_week_nights,
-    targetWeekendNights: p.target_weekend_nights,
-    timeOffRequests: p.time_off_requests || [],
-    preferredDates: p.preferred_dates || [],
-    skills: p.skills || [],
-    maxConsecutiveNights: p.max_consecutive_nights,
-    minDaysOffAfterNight: p.min_days_off_after_night,
-    credentials: p.credentials || [],
-    schedulingRestrictions: p.scheduling_restrictions || {},
-    notes: p.notes,
-  }));
+    const baseState = configData?.value || {
+      startDate: new Date().toISOString().split("T")[0],
+      numWeeks: 4,
+      scenarios: [],
+      customRules: [],
+      auditLog: []
+    };
 
-  const { data: slotsData } = await supabase.from('slots').select('*');
-  const slots = (slotsData || []).map(s => ({
-    id: s.id,
-    date: s.date,
-    type: s.type,
-    providerId: s.provider_id,
-    isWeekendLayout: s.is_weekend_layout,
-    requiredSkill: s.required_skill,
-    priority: s.priority,
-    location: s.location,
-    secondaryProviderIds: s.secondary_provider_ids || [],
-    isSharedAssignment: s.is_shared_assignment || false,
-    locationGroup: s.location_group,
-    servicePriority: s.service_priority,
-    serviceLocation: s.service_location,
-  }));
+    const { data: providersData } = await supabase.from('providers').select('*');
+    const providers = (providersData || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      role: p.role,
+      targetWeekDays: p.target_week_days,
+      targetWeekendDays: p.target_weekend_days,
+      targetWeekNights: p.target_week_nights,
+      targetWeekendNights: p.target_weekend_nights,
+      timeOffRequests: p.time_off_requests || [],
+      preferredDates: p.preferred_dates || [],
+      skills: p.skills || [],
+      maxConsecutiveNights: p.max_consecutive_nights,
+      minDaysOffAfterNight: p.min_days_off_after_night,
+      credentials: p.credentials || [],
+      schedulingRestrictions: p.scheduling_restrictions || {},
+      notes: p.notes,
+    }));
 
-  const result = {
-    providers,
-    slots,
-    startDate: baseState.startDate || new Date().toISOString().split("T")[0],
-    numWeeks: baseState.numWeeks || 4,
-    scenarios: baseState.scenarios || [],
-    customRules: baseState.customRules || [],
-    auditLog: baseState.auditLog || [],
-  };
-  
-  setCachedState(result);
-  return result;
+    const { data: slotsData } = await supabase.from('slots').select('*');
+    const slots = (slotsData || []).map(s => ({
+      id: s.id,
+      date: s.date,
+      type: s.type,
+      providerId: s.provider_id,
+      isWeekendLayout: s.is_weekend_layout,
+      requiredSkill: s.required_skill,
+      priority: s.priority,
+      location: s.location,
+      secondaryProviderIds: s.secondary_provider_ids || [],
+      isSharedAssignment: s.is_shared_assignment || false,
+      locationGroup: s.location_group,
+      servicePriority: s.service_priority,
+      serviceLocation: s.service_location,
+    }));
+
+    const result = {
+      providers: providers.length > 0 ? providers : baseProviders,
+      slots,
+      startDate: baseState.startDate || new Date().toISOString().split("T")[0],
+      numWeeks: baseState.numWeeks || 4,
+      scenarios: baseState.scenarios || [],
+      customRules: baseState.customRules || [],
+      auditLog: baseState.auditLog || [],
+    };
+    
+    setCachedState(result);
+    return result;
+  } catch {
+    const fallback = {
+      providers: inMemoryStore.providers.length > 0 ? inMemoryStore.providers : baseProviders,
+      slots: inMemoryStore.slots,
+      startDate: new Date().toISOString().split("T")[0],
+      numWeeks: 4,
+      scenarios: [],
+      customRules: [],
+      auditLog: [],
+    };
+    setCachedState(fallback);
+    return fallback;
+  }
 }
 
 /** Primitive: persist schedule state to DB only. No email or audit. Use queueScheduleChangeEmails for notify. */
 async function writeState(state) {
-  if (state.providers && state.providers.length > 0) {
-    const providersToUpsert = state.providers.map(p => ({
-      id: p.id,
-      name: p.name,
-      email: p.email || `${p.id}@placeholder.org`,
-      role: p.role || "CLINICIAN",
-      target_week_days: p.targetWeekDays,
-      target_weekend_days: p.targetWeekendDays,
-      target_week_nights: p.targetWeekNights,
-      target_weekend_nights: p.targetWeekendNights,
-      time_off_requests: p.timeOffRequests,
-      preferred_dates: p.preferredDates,
-      skills: p.skills,
-      max_consecutive_nights: p.maxConsecutiveNights,
-      min_days_off_after_night: p.minDaysOffAfterNight,
-      credentials: p.credentials || [],
-      scheduling_restrictions: p.schedulingRestrictions || {},
-      notes: p.notes || null,
-    }));
-    await supabase.from("providers").upsert(providersToUpsert);
-  }
-
-  const { data: existingProviders } = await supabase.from("providers").select("id");
-  if (existingProviders && state.providers) {
-    const incomingProviderIds = new Set(state.providers.map(p => p.id));
-    const providersToDelete = existingProviders.filter(p => !incomingProviderIds.has(p.id)).map(p => p.id);
-    if (providersToDelete.length > 0) {
-      await supabase.from("providers").delete().in("id", providersToDelete);
-    }
-  }
-
-  if (state.slots && state.slots.length > 0) {
-    const slotsToUpsert = state.slots.map(s => ({
-      id: s.id,
-      date: s.date,
-      type: s.type,
-      provider_id: s.providerId,
-      is_weekend_layout: s.isWeekendLayout,
-      required_skill: s.requiredSkill,
-      priority: s.priority,
-      location: s.location,
-      secondary_provider_ids: s.secondaryProviderIds || [],
-      is_shared_assignment: s.isSharedAssignment || false,
-      location_group: s.locationGroup,
-      service_priority: s.servicePriority,
-      service_location: s.serviceLocation,
-    }));
-
-    for (let i = 0; i < slotsToUpsert.length; i += 500) {
-      const chunk = slotsToUpsert.slice(i, i + 500);
-      await supabase.from("slots").upsert(chunk);
-    }
-  }
-
-  const { data: existingSlots } = await supabase.from("slots").select("id");
-  if (existingSlots && state.slots) {
-    const incomingSlotIds = new Set(state.slots.map(s => s.id));
-    const slotsToDelete = existingSlots.filter(s => !incomingSlotIds.has(s.id)).map(s => s.id);
-    if (slotsToDelete.length > 0) {
-      for (let i = 0; i < slotsToDelete.length; i += 500) {
-        const chunk = slotsToDelete.slice(i, i + 500);
-        await supabase.from("slots").delete().in("id", chunk);
-      }
-    }
-  }
-
-  const configValues = {
+  inMemoryStore.providers = isArray(state.providers) ? [...state.providers] : [];
+  inMemoryStore.slots = isArray(state.slots) ? [...state.slots] : [];
+  inMemoryStore.settings.set('schedule_config', {
     startDate: state.startDate,
     numWeeks: state.numWeeks,
     scenarios: state.scenarios,
     customRules: state.customRules,
     auditLog: state.auditLog,
-  };
-
-  await supabase.from("global_settings").upsert({
-    key: "schedule_config",
-    value: configValues,
   });
+
+  if (hasValidSupabase) {
+    try {
+      if (state.providers && state.providers.length > 0) {
+        const providersToUpsert = state.providers.map(p => ({
+          id: p.id,
+          name: p.name,
+          email: p.email || `${p.id}@placeholder.org`,
+          role: p.role || "CLINICIAN",
+          target_week_days: p.targetWeekDays,
+          target_weekend_days: p.targetWeekendDays,
+          target_week_nights: p.target_week_nights,
+          target_weekend_nights: p.targetWeekendNights,
+          time_off_requests: p.timeOffRequests,
+          preferred_dates: p.preferredDates,
+          skills: p.skills,
+          max_consecutive_nights: p.maxConsecutiveNights,
+          min_days_off_after_night: p.minDaysOffAfterNight,
+          credentials: p.credentials || [],
+          scheduling_restrictions: p.schedulingRestrictions || {},
+          notes: p.notes || null,
+        }));
+        await supabase.from("providers").upsert(providersToUpsert);
+      }
+
+      const { data: existingProviders } = await supabase.from("providers").select("id");
+      if (existingProviders && state.providers) {
+        const incomingProviderIds = new Set(state.providers.map(p => p.id));
+        const providersToDelete = existingProviders.filter(p => !incomingProviderIds.has(p.id)).map(p => p.id);
+        if (providersToDelete.length > 0) {
+          await supabase.from("providers").delete().in("id", providersToDelete);
+        }
+      }
+
+      if (state.slots && state.slots.length > 0) {
+        const slotsToUpsert = state.slots.map(s => ({
+          id: s.id,
+          date: s.date,
+          type: s.type,
+          provider_id: s.providerId,
+          is_weekend_layout: s.isWeekendLayout,
+          required_skill: s.requiredSkill,
+          priority: s.priority,
+          location: s.location,
+          secondary_provider_ids: s.secondaryProviderIds || [],
+          is_shared_assignment: s.isSharedAssignment || false,
+          location_group: s.locationGroup,
+          service_priority: s.servicePriority,
+          service_location: s.serviceLocation,
+        }));
+
+        for (let i = 0; i < slotsToUpsert.length; i += 500) {
+          const chunk = slotsToUpsert.slice(i, i + 500);
+          await supabase.from("slots").upsert(chunk);
+        }
+      }
+
+      const { data: existingSlots } = await supabase.from("slots").select("id");
+      if (existingSlots && state.slots) {
+        const incomingSlotIds = new Set(state.slots.map(s => s.id));
+        const slotsToDelete = existingSlots.filter(s => !incomingSlotIds.has(s.id)).map(s => s.id);
+        if (slotsToDelete.length > 0) {
+          for (let i = 0; i < slotsToDelete.length; i += 500) {
+            const chunk = slotsToDelete.slice(i, i + 500);
+            await supabase.from("slots").delete().in("id", chunk);
+          }
+        }
+      }
+
+      const configValues = {
+        startDate: state.startDate,
+        numWeeks: state.numWeeks,
+        scenarios: state.scenarios,
+        customRules: state.customRules,
+        auditLog: state.auditLog,
+      };
+
+      await supabase.from("global_settings").upsert({
+        key: "schedule_config",
+        value: configValues,
+      });
+    } catch {}
+  }
   
   invalidateCache();
 }
@@ -460,89 +527,130 @@ async function writeApplyHistory(history) {
 }
 
 async function readShiftRequests() {
-  const { data, error } = await supabase
-    .from("shift_requests")
-    .select("*")
-    .order("requested_at", { ascending: false });
-  if (error) return [];
-  return (data || []).map((entry) => ({
-    id: entry.id,
-    providerName: entry.provider_name || "",
-    providerEmail: entry.provider_email || null,
-    date: entry.date,
-    type: entry.type,
-    notes: entry.notes || "",
-    deadlineAt: entry.deadline_at || null,
-    status: entry.status,
-    createdAt: entry.requested_at,
-    reviewedAt: entry.resolved_at,
-    reviewedBy: entry.resolved_by,
-    source: entry.source || "app",
-  }));
+  if (!hasValidSupabase) {
+    return [...inMemoryStore.shiftRequests];
+  }
+  try {
+    const { data, error } = await supabase
+      .from("shift_requests")
+      .select("*")
+      .order("requested_at", { ascending: false });
+    if (error) return [...inMemoryStore.shiftRequests];
+    return (data || []).map((entry) => ({
+      id: entry.id,
+      providerName: entry.provider_name || "",
+      providerEmail: entry.provider_email || null,
+      date: entry.date,
+      type: entry.type,
+      notes: entry.notes || "",
+      deadlineAt: entry.deadline_at || null,
+      status: entry.status,
+      createdAt: entry.requested_at,
+      reviewedAt: entry.resolved_at,
+      reviewedBy: entry.resolved_by,
+      source: entry.source || "app",
+    }));
+  } catch {
+    return [...inMemoryStore.shiftRequests];
+  }
 }
 
 async function readEmailEvents() {
-  const { data, error } = await supabase
-    .from("email_events")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) return [];
-  return (data || []).map((entry) => ({
-    id: entry.id,
-    type: entry.type,
-    status: entry.status,
-    ...(entry.raw_payload && typeof entry.raw_payload === "object" ? entry.raw_payload : {}),
-    createdAt: entry.created_at,
-  }));
+  if (!hasValidSupabase) {
+    return [...inMemoryStore.emailEvents];
+  }
+  try {
+    const { data, error } = await supabase
+      .from("email_events")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) return [...inMemoryStore.emailEvents];
+    return (data || []).map((entry) => ({
+      id: entry.id,
+      type: entry.type,
+      status: entry.status,
+      ...(entry.raw_payload && typeof entry.raw_payload === "object" ? entry.raw_payload : {}),
+      createdAt: entry.created_at,
+    }));
+  } catch {
+    return [...inMemoryStore.emailEvents];
+  }
 }
 
 async function readNotifications() {
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) return [];
-  return (data || []).map((entry) => ({
-    id: entry.id,
-    eventType: entry.event_type || null,
-    title: entry.title,
-    body: entry.body,
-    severity: entry.severity || "info",
-    channels: isArray(entry.channels) ? entry.channels : [],
-    statusByChannel: entry.status_by_channel && typeof entry.status_by_channel === "object" ? entry.status_by_channel : {},
-    metadata: entry.metadata && typeof entry.metadata === "object" ? entry.metadata : {},
-    createdAt: entry.created_at,
-  }));
+  if (!hasValidSupabase) {
+    return [...inMemoryStore.notifications];
+  }
+  try {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) return [...inMemoryStore.notifications];
+    return (data || []).map((entry) => ({
+      id: entry.id,
+      eventType: entry.event_type || null,
+      title: entry.title,
+      body: entry.body,
+      severity: entry.severity || "info",
+      channels: isArray(entry.channels) ? entry.channels : [],
+      statusByChannel: entry.status_by_channel && typeof entry.status_by_channel === "object" ? entry.status_by_channel : {},
+      metadata: entry.metadata && typeof entry.metadata === "object" ? entry.metadata : {},
+      createdAt: entry.created_at,
+    }));
+  } catch {
+    return [...inMemoryStore.notifications];
+  }
 }
 
 async function persistNotification(notification) {
-  const { data, error } = await supabase
-    .from("notifications")
-    .insert({
-      event_type: notification.eventType || null,
-      title: notification.title,
-      body: notification.body,
-      severity: notification.severity || "info",
-      channels: isArray(notification.channels) ? notification.channels : [],
-      status_by_channel: notification.statusByChannel && typeof notification.statusByChannel === "object" ? notification.statusByChannel : {},
-      metadata: notification.metadata && typeof notification.metadata === "object" ? notification.metadata : {},
-    })
-    .select()
-    .single();
-
-  if (error || !data) return notification;
-
-  return {
-    id: data.id,
-    eventType: data.event_type || null,
-    title: data.title,
-    body: data.body,
-    severity: data.severity || "info",
-    channels: isArray(data.channels) ? data.channels : [],
-    statusByChannel: data.status_by_channel && typeof data.status_by_channel === "object" ? data.status_by_channel : {},
-    metadata: data.metadata && typeof data.metadata === "object" ? data.metadata : {},
-    createdAt: data.created_at,
+  const notifObj = {
+    id: notification.id || `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    eventType: notification.eventType || null,
+    title: notification.title,
+    body: notification.body,
+    severity: notification.severity || "info",
+    channels: isArray(notification.channels) ? notification.channels : [],
+    statusByChannel: notification.statusByChannel && typeof notification.statusByChannel === "object" ? notification.statusByChannel : {},
+    metadata: notification.metadata && typeof notification.metadata === "object" ? notification.metadata : {},
+    createdAt: notification.createdAt || new Date().toISOString(),
   };
+
+  inMemoryStore.notifications.unshift(notifObj);
+
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .insert({
+          id: notifObj.id,
+          event_type: notifObj.eventType,
+          title: notifObj.title,
+          body: notifObj.body,
+          severity: notifObj.severity,
+          channels: notifObj.channels,
+          status_by_channel: notifObj.statusByChannel,
+          metadata: notifObj.metadata,
+        })
+        .select()
+        .single();
+      if (!error && data) {
+        return {
+          id: data.id,
+          eventType: data.event_type || null,
+          title: data.title,
+          body: data.body,
+          severity: data.severity || "info",
+          channels: isArray(data.channels) ? data.channels : [],
+          statusByChannel: data.status_by_channel && typeof data.status_by_channel === "object" ? data.status_by_channel : {},
+          metadata: data.metadata && typeof data.metadata === "object" ? data.metadata : {},
+          createdAt: data.created_at,
+        };
+      }
+    } catch {}
+  }
+
+  return notifObj;
 }
 
 const VALID_SHIFT_REQUEST_TYPES = new Set(["time_off", "swap", "availability"]);
@@ -660,20 +768,40 @@ async function queueScheduleChangeEmails(previousState, nextState) {
   }
 
   if (queued.length > 0) {
-    await supabase.from("email_events").insert(
-      queued.map((event) => ({
+    for (const event of queued) {
+      inMemoryStore.emailEvents.unshift({
+        id: event.id,
         type: event.type,
         status: event.status,
-        raw_payload: {
-          providerId: event.providerId,
-          providerName: event.providerName,
-          to: event.to,
-          subject: event.subject,
-          body: event.body,
-          changes: event.changes,
-        },
-      })),
-    );
+        providerId: event.providerId,
+        providerName: event.providerName,
+        to: event.to,
+        subject: event.subject,
+        body: event.body,
+        changes: event.changes,
+        createdAt: event.createdAt,
+      });
+    }
+
+    if (hasValidSupabase) {
+      try {
+        await supabase.from("email_events").insert(
+          queued.map((event) => ({
+            id: event.id,
+            type: event.type,
+            status: event.status,
+            raw_payload: {
+              providerId: event.providerId,
+              providerName: event.providerName,
+              to: event.to,
+              subject: event.subject,
+              body: event.body,
+              changes: event.changes,
+            },
+          })),
+        );
+      } catch {}
+    }
   }
   return queued;
 }
@@ -863,37 +991,60 @@ app.post("/api/shift-requests", async (req, res) => {
     return res.status(400).json({ error: validationError });
   }
 
-  const { data, error } = await supabase
-    .from("shift_requests")
-    .insert({
-      provider_name: req.body.providerName.trim(),
-      provider_email: typeof req.body.providerEmail === "string" ? req.body.providerEmail.trim().toLowerCase() : null,
+  let requestRecord;
+
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("shift_requests")
+        .insert({
+          provider_name: req.body.providerName.trim(),
+          provider_email: typeof req.body.providerEmail === "string" ? req.body.providerEmail.trim().toLowerCase() : null,
+          date: req.body.date,
+          type: req.body.type.toLowerCase(),
+          notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
+          deadline_at: typeof req.body.deadlineAt === "string" ? req.body.deadlineAt : null,
+          source: req.body.source === "email" ? "email" : "app",
+          status: "pending",
+        })
+        .select()
+        .single();
+      if (!error && data) {
+        requestRecord = {
+          id: data.id,
+          providerName: data.provider_name,
+          providerEmail: data.provider_email,
+          date: data.date,
+          type: data.type,
+          notes: data.notes || "",
+          deadlineAt: data.deadline_at,
+          status: data.status,
+          createdAt: data.requested_at,
+          reviewedAt: data.resolved_at,
+          reviewedBy: data.resolved_by,
+          source: data.source || "app",
+        };
+      }
+    } catch {}
+  }
+
+  if (!requestRecord) {
+    requestRecord = {
+      id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      providerName: req.body.providerName.trim(),
+      providerEmail: typeof req.body.providerEmail === "string" ? req.body.providerEmail.trim().toLowerCase() : null,
       date: req.body.date,
       type: req.body.type.toLowerCase(),
       notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
-      deadline_at: typeof req.body.deadlineAt === "string" ? req.body.deadlineAt : null,
-      source: req.body.source === "email" ? "email" : "app",
+      deadlineAt: typeof req.body.deadlineAt === "string" ? req.body.deadlineAt : null,
       status: "pending",
-    })
-    .select()
-    .single();
-  if (error || !data) {
-    return res.status(500).json({ error: "Failed to create shift request." });
+      createdAt: new Date().toISOString(),
+      reviewedAt: null,
+      reviewedBy: null,
+      source: req.body.source === "email" ? "email" : "app",
+    };
+    inMemoryStore.shiftRequests.unshift(requestRecord);
   }
-  const requestRecord = {
-    id: data.id,
-    providerName: data.provider_name,
-    providerEmail: data.provider_email,
-    date: data.date,
-    type: data.type,
-    notes: data.notes || "",
-    deadlineAt: data.deadline_at,
-    status: data.status,
-    createdAt: data.requested_at,
-    reviewedAt: data.resolved_at,
-    reviewedBy: data.resolved_by,
-    source: data.source || "app",
-  };
 
   const notification = await dispatchNotification({
     eventType: "shift_request_submitted",
@@ -925,33 +1076,49 @@ app.patch("/api/shift-requests/:id", async (req, res) => {
     return res.status(400).json({ error: 'Field "reviewedBy" is required when changing status.' });
   }
 
-  const { data, error } = await supabase
-    .from("shift_requests")
-    .update({
-      status,
-      resolved_by: reviewedBy,
-      resolved_at: new Date().toISOString(),
-    })
-    .eq("id", requestId)
-    .select()
-    .single();
-  if (error || !data) {
-    return res.status(404).json({ error: `Request not found for id ${requestId}.` });
+  let requestRecord;
+
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("shift_requests")
+        .update({
+          status,
+          resolved_by: reviewedBy,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq("id", requestId)
+        .select()
+        .single();
+      if (!error && data) {
+        requestRecord = {
+          id: data.id,
+          providerName: data.provider_name,
+          providerEmail: data.provider_email,
+          date: data.date,
+          type: data.type,
+          notes: data.notes || "",
+          deadlineAt: data.deadline_at,
+          status: data.status,
+          createdAt: data.requested_at,
+          reviewedAt: data.resolved_at,
+          reviewedBy: data.resolved_by,
+          source: data.source || "app",
+        };
+      }
+    } catch {}
   }
-  const requestRecord = {
-    id: data.id,
-    providerName: data.provider_name,
-    providerEmail: data.provider_email,
-    date: data.date,
-    type: data.type,
-    notes: data.notes || "",
-    deadlineAt: data.deadline_at,
-    status: data.status,
-    createdAt: data.requested_at,
-    reviewedAt: data.resolved_at,
-    reviewedBy: data.resolved_by,
-    source: data.source || "app",
-  };
+
+  if (!requestRecord) {
+    const item = inMemoryStore.shiftRequests.find((r) => r.id === requestId);
+    if (!item) {
+      return res.status(404).json({ error: `Request not found for id ${requestId}.` });
+    }
+    item.status = status;
+    item.reviewedBy = reviewedBy;
+    item.reviewedAt = new Date().toISOString();
+    requestRecord = item;
+  }
 
   const notification = await dispatchNotification({
     eventType: "shift_request_reviewed",
@@ -974,14 +1141,26 @@ app.delete("/api/shift-requests/:id", async (req, res) => {
   const requestId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
   if (!requestId) return res.status(400).json({ error: "Request id is required." });
 
-  const { data, error } = await supabase
-    .from("shift_requests")
-    .delete()
-    .eq("id", requestId)
-    .select()
-    .single();
+  let deleted = false;
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("shift_requests")
+        .delete()
+        .eq("id", requestId)
+        .select()
+        .single();
+      if (!error && data) deleted = true;
+    } catch {}
+  }
 
-  if (error || !data) {
+  const idx = inMemoryStore.shiftRequests.findIndex((r) => r.id === requestId);
+  if (idx !== -1) {
+    inMemoryStore.shiftRequests.splice(idx, 1);
+    deleted = true;
+  }
+
+  if (!deleted) {
     return res.status(404).json({ error: `Request not found for id ${requestId}.` });
   }
 
@@ -1068,27 +1247,44 @@ app.patch("/api/notifications/:id", async (req, res) => {
     return res.status(400).json({ error: "No valid notification fields provided for update." });
   }
 
-  const { data, error } = await supabase
-    .from("notifications")
-    .update(updates)
-    .eq("id", notificationId)
-    .select()
-    .single();
-  if (error || !data) {
-    return res.status(404).json({ error: `Notification not found for id ${notificationId}.` });
+  let notification;
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .update(updates)
+        .eq("id", notificationId)
+        .select()
+        .single();
+      if (!error && data) {
+        notification = {
+          id: data.id,
+          eventType: data.event_type,
+          title: data.title,
+          body: data.body,
+          severity: data.severity,
+          channels: data.channels,
+          statusByChannel: data.status_by_channel,
+          metadata: data.metadata,
+          createdAt: data.created_at,
+        };
+      }
+    } catch {}
   }
 
-  const notification = {
-    id: data.id,
-    eventType: data.event_type,
-    title: data.title,
-    body: data.body,
-    severity: data.severity,
-    channels: data.channels,
-    statusByChannel: data.status_by_channel,
-    metadata: data.metadata,
-    createdAt: data.created_at,
-  };
+  if (!notification) {
+    const item = inMemoryStore.notifications.find((n) => n.id === notificationId);
+    if (!item) {
+      return res.status(404).json({ error: `Notification not found for id ${notificationId}.` });
+    }
+    if (updates.title) item.title = updates.title;
+    if (updates.body) item.body = updates.body;
+    if (updates.severity) item.severity = updates.severity;
+    if (updates.channels) item.channels = updates.channels;
+    if (updates.status_by_channel) item.statusByChannel = updates.status_by_channel;
+    if (updates.metadata) item.metadata = updates.metadata;
+    notification = item;
+  }
 
   return res.json({ notification, updatedAt: new Date().toISOString() });
 });
@@ -1097,14 +1293,26 @@ app.delete("/api/notifications/:id", async (req, res) => {
   const notificationId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
   if (!notificationId) return res.status(400).json({ error: "Notification id is required." });
 
-  const { data, error } = await supabase
-    .from("notifications")
-    .delete()
-    .eq("id", notificationId)
-    .select()
-    .single();
+  let deleted = false;
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", notificationId)
+        .select()
+        .single();
+      if (!error && data) deleted = true;
+    } catch {}
+  }
 
-  if (error || !data) {
+  const idx = inMemoryStore.notifications.findIndex((n) => n.id === notificationId);
+  if (idx !== -1) {
+    inMemoryStore.notifications.splice(idx, 1);
+    deleted = true;
+  }
+
+  if (!deleted) {
     return res.status(404).json({ error: `Notification not found for id ${notificationId}.` });
   }
 
@@ -1166,24 +1374,35 @@ app.patch("/api/email-events/:id", async (req, res) => {
   if (!eventId) return res.status(400).json({ error: "Email event id is required." });
   if (!status) return res.status(400).json({ error: 'Field "status" is required.' });
 
-  const { data, error } = await supabase
-    .from("email_events")
-    .update({ status })
-    .eq("id", eventId)
-    .select()
-    .single();
-
-  if (error || !data) {
-    return res.status(404).json({ error: `Email event not found for id ${eventId}.` });
+  let event;
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("email_events")
+        .update({ status })
+        .eq("id", eventId)
+        .select()
+        .single();
+      if (!error && data) {
+        event = {
+          id: data.id,
+          type: data.type,
+          status: data.status,
+          ...(data.raw_payload && typeof data.raw_payload === "object" ? data.raw_payload : {}),
+          createdAt: data.created_at,
+        };
+      }
+    } catch {}
   }
 
-  const event = {
-    id: data.id,
-    type: data.type,
-    status: data.status,
-    ...(data.raw_payload && typeof data.raw_payload === "object" ? data.raw_payload : {}),
-    createdAt: data.created_at,
-  };
+  if (!event) {
+    const item = inMemoryStore.emailEvents.find((e) => e.id === eventId);
+    if (!item) {
+      return res.status(404).json({ error: `Email event not found for id ${eventId}.` });
+    }
+    item.status = status;
+    event = item;
+  }
 
   return res.json({ event, updatedAt: new Date().toISOString() });
 });
@@ -1192,14 +1411,26 @@ app.delete("/api/email-events/:id", async (req, res) => {
   const eventId = typeof req.params?.id === "string" ? req.params.id.trim() : "";
   if (!eventId) return res.status(400).json({ error: "Email event id is required." });
 
-  const { data, error } = await supabase
-    .from("email_events")
-    .delete()
-    .eq("id", eventId)
-    .select()
-    .single();
+  let deleted = false;
+  if (hasValidSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from("email_events")
+        .delete()
+        .eq("id", eventId)
+        .select()
+        .single();
+      if (!error && data) deleted = true;
+    } catch {}
+  }
 
-  if (error || !data) {
+  const idx = inMemoryStore.emailEvents.findIndex((e) => e.id === eventId);
+  if (idx !== -1) {
+    inMemoryStore.emailEvents.splice(idx, 1);
+    deleted = true;
+  }
+
+  if (!deleted) {
     return res.status(404).json({ error: `Email event not found for id ${eventId}.` });
   }
 
@@ -1240,39 +1471,62 @@ app.post("/api/email/inbound", async (req, res) => {
     return res.status(400).json({ error: `Could not triage inbound email. ${validationError}` });
   }
 
-  const { data: createdRequest, error: requestError } = await supabase
-    .from("shift_requests")
-    .insert({
-      provider_id: provider.id,
-      provider_name: provider.name,
-      provider_email: provider.email || from,
+  let requestRecord;
+  if (hasValidSupabase) {
+    try {
+      const { data: createdRequest, error: requestError } = await supabase
+        .from("shift_requests")
+        .insert({
+          provider_id: provider.id,
+          provider_name: provider.name,
+          provider_email: provider.email || from,
+          date: requestPayload.date,
+          type: requestPayload.type.toLowerCase(),
+          notes: requestPayload.notes,
+          status: "pending",
+          source: "email",
+        })
+        .select()
+        .single();
+      if (!requestError && createdRequest) {
+        requestRecord = {
+          id: createdRequest.id,
+          providerName: createdRequest.provider_name,
+          providerEmail: createdRequest.provider_email,
+          date: createdRequest.date,
+          type: createdRequest.type,
+          notes: createdRequest.notes || "",
+          deadlineAt: createdRequest.deadline_at,
+          status: createdRequest.status,
+          createdAt: createdRequest.requested_at,
+          reviewedAt: createdRequest.resolved_at,
+          reviewedBy: createdRequest.resolved_by,
+          source: createdRequest.source || "email",
+        };
+      }
+    } catch {}
+  }
+
+  if (!requestRecord) {
+    requestRecord = {
+      id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      providerName: provider.name,
+      providerEmail: provider.email || from,
       date: requestPayload.date,
       type: requestPayload.type.toLowerCase(),
-      notes: requestPayload.notes,
+      notes: requestPayload.notes || "",
+      deadlineAt: null,
       status: "pending",
+      createdAt: new Date().toISOString(),
+      reviewedAt: null,
+      reviewedBy: null,
       source: "email",
-    })
-    .select()
-    .single();
-  if (requestError || !createdRequest) {
-    return res.status(500).json({ error: "Failed to create shift request from inbound email." });
+    };
+    inMemoryStore.shiftRequests.unshift(requestRecord);
   }
-  const requestRecord = {
-    id: createdRequest.id,
-    providerName: createdRequest.provider_name,
-    providerEmail: createdRequest.provider_email,
-    date: createdRequest.date,
-    type: createdRequest.type,
-    notes: createdRequest.notes || "",
-    deadlineAt: createdRequest.deadline_at,
-    status: createdRequest.status,
-    createdAt: createdRequest.requested_at,
-    reviewedAt: createdRequest.resolved_at,
-    reviewedBy: createdRequest.resolved_by,
-    source: createdRequest.source || "email",
-  };
 
-  await supabase.from("email_events").insert({
+  const emailEventObj = {
+    id: `event_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     type: "inbound_request",
     status: "processed",
     raw_payload: {
@@ -1280,7 +1534,27 @@ app.post("/api/email/inbound", async (req, res) => {
       subject,
       requestId: requestRecord.id,
     },
-  });
+    from,
+    subject,
+    requestId: requestRecord.id,
+    createdAt: new Date().toISOString(),
+  };
+  inMemoryStore.emailEvents.unshift(emailEventObj);
+
+  if (hasValidSupabase) {
+    try {
+      await supabase.from("email_events").insert({
+        id: emailEventObj.id,
+        type: "inbound_request",
+        status: "processed",
+        raw_payload: {
+          from,
+          subject,
+          requestId: requestRecord.id,
+        },
+      });
+    } catch {}
+  }
 
   return res.status(201).json({ request: requestRecord, updatedAt: new Date().toISOString() });
 });

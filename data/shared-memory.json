@@ -1,7 +1,807 @@
 {
   "namespace": "nicu-schedule",
-  "timestamp": 1772824945331,
+  "timestamp": 1786826592521,
   "entries": [
+    {
+      "key": "forecast:2024-03-15:7",
+      "value": {
+        "generatedAt": 1786826223486,
+        "startDate": "2024-03-15",
+        "days": 7,
+        "forecast": [
+          {
+            "date": "2024-03-15",
+            "dayOfWeek": 4,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-16",
+            "dayOfWeek": 5,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-17",
+            "dayOfWeek": 6,
+            "isWeekend": true,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 0,
+              "optimal": 0,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-18",
+            "dayOfWeek": 0,
+            "isWeekend": true,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 0,
+              "optimal": 0,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-19",
+            "dayOfWeek": 1,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 3,
+              "optimal": 4,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 3,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "high",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-20",
+            "dayOfWeek": 2,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-21",
+            "dayOfWeek": 3,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": []
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": []
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": []
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "low",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          }
+        ]
+      },
+      "version": 1,
+      "timestamp": 1786826223486,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "forecast:2024-03-20:5",
+      "value": {
+        "generatedAt": 1786826223488,
+        "startDate": "2024-03-20",
+        "days": 5,
+        "forecast": [
+          {
+            "date": "2024-03-20",
+            "dayOfWeek": 2,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-21",
+            "dayOfWeek": 3,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 3,
+              "optimal": 4,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 3,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "high_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "high",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-22",
+            "dayOfWeek": 4,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": []
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": []
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": []
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "low",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-23",
+            "dayOfWeek": 5,
+            "isWeekend": false,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": []
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": []
+            },
+            "nmEtShift": {
+              "required": 1,
+              "optimal": 1,
+              "skills": [
+                "general"
+              ],
+              "factors": []
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "low",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          },
+          {
+            "date": "2024-03-24",
+            "dayOfWeek": 6,
+            "isWeekend": true,
+            "dayShift": {
+              "required": 2,
+              "optimal": 3,
+              "skills": [
+                "general",
+                "stroke",
+                "trauma"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nightShift": {
+              "required": 2,
+              "optimal": 2,
+              "skills": [
+                "general",
+                "stroke"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "nmEtShift": {
+              "required": 0,
+              "optimal": 0,
+              "skills": [
+                "general"
+              ],
+              "factors": [
+                "medium_flu_activity"
+              ]
+            },
+            "confidence": 0,
+            "factors": {
+              "fluLevel": "medium",
+              "isHoliday": false,
+              "localEvents": [],
+              "academicCalendar": {
+                "residentChangeover": false,
+                "academicYear": "2023-2024"
+              }
+            }
+          }
+        ]
+      },
+      "version": 1,
+      "timestamp": 1786826223488,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "preference:model:dr-smith",
+      "value": {
+        "providerId": "dr-smith",
+        "lastUpdated": 1786826223490,
+        "shiftTypePreference": {
+          "preference": "neutral",
+          "strength": 0,
+          "dayRatio": 1,
+          "nightRatio": 0,
+          "dataPoints": 1
+        },
+        "dayOfWeekPreference": {
+          "byDay": [
+            {
+              "day": "Sun",
+              "count": 0,
+              "preference": "avoided",
+              "deviation": -100
+            },
+            {
+              "day": "Mon",
+              "count": 0,
+              "preference": "avoided",
+              "deviation": -100
+            },
+            {
+              "day": "Tue",
+              "count": 0,
+              "preference": "avoided",
+              "deviation": -100
+            },
+            {
+              "day": "Wed",
+              "count": 0,
+              "preference": "avoided",
+              "deviation": -100
+            },
+            {
+              "day": "Thu",
+              "count": 1,
+              "preference": "preferred",
+              "deviation": 600
+            },
+            {
+              "day": "Fri",
+              "count": 0,
+              "preference": "avoided",
+              "deviation": -100
+            },
+            {
+              "day": "Sat",
+              "count": 0,
+              "preference": "avoided",
+              "deviation": -100
+            }
+          ],
+          "preferredDays": [
+            "Thu"
+          ],
+          "avoidedDays": [
+            "Sun",
+            "Mon",
+            "Tue",
+            "Wed",
+            "Fri",
+            "Sat"
+          ],
+          "dataPoints": 1
+        },
+        "seasonalVariation": {
+          "byMonth": [
+            {
+              "month": "Jan",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Feb",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Mar",
+              "count": 1,
+              "likelihood": 12
+            },
+            {
+              "month": "Apr",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "May",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Jun",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Jul",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Aug",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Sep",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Oct",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Nov",
+              "count": 0,
+              "likelihood": 0
+            },
+            {
+              "month": "Dec",
+              "count": 0,
+              "likelihood": 0
+            }
+          ],
+          "highSeason": [
+            "Mar"
+          ],
+          "lowSeason": [
+            "Jan",
+            "Feb",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec"
+          ],
+          "dataPoints": 1
+        },
+        "pairingPreferences": {
+          "frequentPairs": [],
+          "totalPairings": 0,
+          "dataPoints": 1
+        },
+        "fatiguePattern": {
+          "maxConsecutiveShifts": 0,
+          "avgRestAfterLongStretch": 0,
+          "fatigueIndicators": "low",
+          "recommendedMaxConsecutive": 3,
+          "dataPoints": 1
+        },
+        "requestPatterns": {
+          "totalRequests": 0,
+          "byMonth": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "byDayOfWeek": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "highRequestMonths": [],
+          "preferredDaysOff": [
+            "Sun",
+            "Mon",
+            "Tue"
+          ],
+          "avgNoticeDays": 0,
+          "dataPoints": 0
+        },
+        "acceptancePatterns": {
+          "acceptanceRate": 0,
+          "dataPoints": 0
+        },
+        "confidence": {
+          "shiftTypePreference": 0.03333333333333333,
+          "dayOfWeekPreference": 0.03333333333333333,
+          "seasonalVariation": 0.03333333333333333,
+          "pairingPreferences": 0.03333333333333333,
+          "fatiguePattern": 0.03333333333333333
+        }
+      },
+      "version": 1,
+      "timestamp": 1786826223490,
+      "source": "server",
+      "ttl": null
+    },
     {
       "key": "forecast:2024-03-15:3",
       "value": {
@@ -151,6 +951,34 @@
       },
       "version": 1,
       "timestamp": 1772815104936,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "scheduling:optimization:status",
+      "value": {
+        "status": "running",
+        "iteration": 2,
+        "startedAt": 1786826382523
+      },
+      "version": 2,
+      "timestamp": 1786826382523,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "anomaly:alerts:recent",
+      "value": [
+        {
+          "id": "test-1",
+          "rule": "test",
+          "severity": "HIGH",
+          "title": "Test Alert",
+          "timestamp": 1786826382523
+        }
+      ],
+      "version": 2,
+      "timestamp": 1786826382523,
       "source": "server",
       "ttl": null
     }
