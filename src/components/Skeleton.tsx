@@ -135,11 +135,14 @@ export function SkeletonCalendarDay({ className = '' }: { className?: string }) 
 }
 
 export function SkeletonStats({ className = '' }: { className?: string }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
   return (
     <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 ${className}`}>
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className={`p-4 rounded-xl border ${
-          useTheme().resolvedTheme === 'dark' ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
+          isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
         }`}>
           <Skeleton variant="text" width="60%" height={14} className="mb-2" />
           <Skeleton variant="text" width="40%" height={32} />

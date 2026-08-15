@@ -467,15 +467,6 @@ export const resolveHeaderMapping = (
     const mapping: Partial<Record<ImportFieldKey, string>> = {};
     const issues: ImportIssue[] = [];
 
-    // First try exact MASTER file column matching
-    headers.forEach((header) => {
-      const trimmedHeader = header.trim();
-      const masterField = EXCEL_MASTER_COLUMNS[trimmedHeader] || EXCEL_MASTER_COLUMNS[header];
-      if (masterField && !mapping[masterField]) {
-        mapping[masterField] = header;
-      }
-    });
-
     IMPORT_FIELDS.forEach((field) => {
       const manual = manualMapping?.[field];
       if (manual && headers.includes(manual)) {
@@ -483,14 +474,14 @@ export const resolveHeaderMapping = (
         return;
       }
 
-      // Skip if already mapped via EXCEL_MASTER_COLUMNS
-      if (mapping[field]) {
-        return;
-      }
-
-      const matches = HEADER_ALIASES[field]
-        .map((alias) => normalizedToOriginal.get(alias))
-        .filter((entry): entry is string => Boolean(entry));
+      // Check all alias matches among headers
+      const matches = Array.from(
+        new Set(
+          (HEADER_ALIASES[field] || [])
+            .map((alias) => normalizedToOriginal.get(alias))
+            .filter((entry): entry is string => Boolean(entry))
+        )
+      );
 
       if (matches.length > 1) {
         issues.push({
@@ -503,7 +494,12 @@ export const resolveHeaderMapping = (
       }
 
       if (matches[0]) {
-        mapping[field] = matches[0];
+        // If master column exact match is one of the matches, prefer it
+        const masterMatch = headers.find((h) => {
+          const trimmed = h.trim();
+          return EXCEL_MASTER_COLUMNS[trimmed] === field || EXCEL_MASTER_COLUMNS[h] === field;
+        });
+        mapping[field] = masterMatch || matches[0];
       }
     });
 

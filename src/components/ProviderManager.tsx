@@ -4,6 +4,7 @@ import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun
 import { DraggableProvider } from "./Calendar";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn, getAvatarColor, getInitials, maskPlaceholderEmail } from "@/lib/utils";
+import { generateProviderICal } from "../lib/icalUtils";
 
 function TimeOffForm({ onAdd }: { onAdd: (date: string, type: TimeOffType) => void }) {
   const [date, setDate] = useState("");
@@ -280,12 +281,10 @@ export function ProviderManager() {
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        import("../lib/icalUtils").then((m) => {
-                          const result = m.generateProviderICal(p, slots);
-                          if (!result.ok) {
-                            showToast({ type: "info", title: "Nothing to export", message: result.error });
-                          }
-                        });
+                        const result = generateProviderICal(p, slots);
+                        if (!result.ok) {
+                          showToast({ type: "info", title: "Nothing to export", message: result.error });
+                        }
                       }}
                       title="Export Schedule to iCal"
                       className="opacity-0 group-hover:opacity-100 p-2 text-primary hover:bg-primary-muted rounded-xl transition-all"

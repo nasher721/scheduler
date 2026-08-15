@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ShiftSlot, Provider } from '@/store';
 import type { AssignmentAnalysis } from '@/types/calendar';
-import { parseISO, differenceInDays, isAfter, subWeeks, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
+import { parseISO, differenceInDays, isAfter, subWeeks, startOfWeek, endOfWeek, isWithinInterval, format, addDays } from 'date-fns';
 
 // Helper function to create mock slot
 function createMockSlot(overrides: Partial<ShiftSlot> = {}): ShiftSlot {
@@ -53,13 +53,22 @@ describe('Assignment Analysis Logic', () => {
     const newSlot = createMockSlot({ date: '2024-03-15' });
 
     // Check consecutive shifts
-    const consecutiveShifts = existingSlots.filter(s => {
-      const sDate = parseISO(s.date);
-      const slotDate = parseISO(newSlot.date);
-      return Math.abs(differenceInDays(sDate, slotDate)) <= 1;
-    });
+    const providerDates = new Set(existingSlots.map(s => s.date));
+    const slotDate = parseISO(newSlot.date);
+    let streak = 0;
+    let prev = 1;
+    while (providerDates.has(format(addDays(slotDate, -prev), 'yyyy-MM-dd'))) {
+      streak++;
+      prev++;
+    }
+    let next = 1;
+    while (providerDates.has(format(addDays(slotDate, next), 'yyyy-MM-dd'))) {
+      streak++;
+      next++;
+    }
+    const totalConsecutive = streak + 1;
 
-    expect(consecutiveShifts.length).toBeGreaterThanOrEqual(3);
+    expect(totalConsecutive).toBeGreaterThanOrEqual(3);
   });
 
   it('should detect max consecutive nights conflict', () => {

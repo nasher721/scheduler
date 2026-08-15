@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import swaggerUi from "swagger-ui-express";
 import {
   requestContextMiddleware,
   httpLogMiddleware,
@@ -43,7 +44,10 @@ dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const hasValidSupabase = Boolean(supabaseUrl.startsWith('https://') && supabaseKey.length > 10);
+const supabase = hasValidSupabase
+  ? createClient(supabaseUrl, supabaseKey)
+  : createClient('https://placeholder.supabase.co', 'placeholder-anon-key');
 
 
 
@@ -70,6 +74,46 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(globalLimiter);
+
+const openApiSpec = {
+  openapi: "3.0.0",
+  info: {
+    title: "Neuro ICU Scheduler API",
+    version: "1.0.0",
+    description: "API for clinical staffing, scheduling optimization, shift swaps, and marketplace operations.",
+  },
+  servers: [{ url: "/" }],
+  paths: {
+    "/api/health": {
+      get: {
+        summary: "API Health Check",
+        responses: { 200: { description: "Service is healthy" } },
+      },
+    },
+    "/api/state": {
+      get: {
+        summary: "Get current schedule state",
+        responses: { 200: { description: "Current schedule state" } },
+      },
+      put: {
+        summary: "Update schedule state",
+        responses: { 200: { description: "Updated schedule state" } },
+      },
+    },
+    "/api/shift-requests": {
+      get: {
+        summary: "List shift requests",
+        responses: { 200: { description: "List of shift requests" } },
+      },
+      post: {
+        summary: "Create shift request",
+        responses: { 201: { description: "Shift request created" } },
+      },
+    },
+  },
+};
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 const stateCache = {
   data: null,
@@ -754,8 +798,15 @@ function buildApplyHistorySummary(history) {
   };
 }
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "nicu-scheduler-api" });
+app.get(["/health", "/api/health"], (_req, res) => {
+  res.json({
+    ok: true,
+    status: "ok",
+    service: "nicu-scheduler-api",
+    timestamp: new Date().toISOString(),
+    version: "1.0.0",
+    uptime: process.uptime(),
+  });
 });
 
 app.get("/api/state", async (_req, res) => {

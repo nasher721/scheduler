@@ -12,7 +12,7 @@ import { MemoryChangeEvent, SyncStatus, MEMORY_KEYS } from './types';
  * Hook to read and write a value from shared memory
  */
 export function useSharedMemory<T>(key: string): [T | undefined, (value: T) => void, boolean] {
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = false;
 
   // Use syncExternalStore for React 18+ concurrent features support
   const value = useSyncExternalStore(
@@ -28,10 +28,6 @@ export function useSharedMemory<T>(key: string): [T | undefined, (value: T) => v
     [key]
   );
 
-  useEffect(() => {
-    setIsLoading(false);
-  }, []);
-
   return [value, setValue, isLoading];
 }
 
@@ -41,28 +37,21 @@ export function useSharedMemory<T>(key: string): [T | undefined, (value: T) => v
 export function useSharedMemoryWatch<T extends Record<string, any>>(
   keys: string[]
 ): Partial<T> {
-  // Sort keys to ensure stable dependency array regardless of order
-  const sortedKeys = useRef(keys.sort());
-  
-  // Update ref if keys actually change (ignoring order)
-  useEffect(() => {
-    const newSorted = [...keys].sort();
-    if (JSON.stringify(newSorted) !== JSON.stringify(sortedKeys.current)) {
-      sortedKeys.current = newSorted;
-    }
-  }, [keys]);
+  const keysSignature = [...keys].sort().join(',');
 
   const [values, setValues] = useState<Partial<T>>(() => {
     const initial: Partial<T> = {};
-    for (const key of sortedKeys.current) {
+    const sorted = [...keys].sort();
+    for (const key of sorted) {
       (initial as any)[key] = sharedMemory.get(key);
     }
     return initial;
   });
 
   useEffect(() => {
-    return watch<T>(sortedKeys.current, setValues);
-  }, [sortedKeys.current.join(',')]);
+    const sorted = [...keys].sort();
+    return watch<T>(sorted, setValues);
+  }, [keysSignature]);
 
   return values;
 }

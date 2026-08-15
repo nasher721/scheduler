@@ -9,7 +9,7 @@
 import { useState, useMemo } from 'react';
 import { useScheduleStore, type ShiftSlot, type Provider } from '@/store';
 import type { AssignmentAnalysis } from '@/types/calendar';
-import { format, parseISO, isWithinInterval, startOfWeek, endOfWeek, isAfter, subWeeks, differenceInDays } from 'date-fns';
+import { format, parseISO, isWithinInterval, startOfWeek, endOfWeek, isAfter, subWeeks, differenceInDays, addDays } from 'date-fns';
 import { generateShiftAriaLabel } from '../../utils/accessibilityUtils';
 import { useAnnounce } from '../../hooks/useAnnounce';
 
@@ -68,15 +68,23 @@ export function AssignmentPreview({
     const providerSlots = slots.filter(s => s.providerId === provider.id);
     const slotDate = parseISO(slot.date);
 
-    // Check consecutive shifts
-    const consecutiveShifts = providerSlots.filter(s => {
-      const sDate = parseISO(s.date);
-      const daysDiff = Math.abs(differenceInDays(sDate, slotDate));
-      return daysDiff <= 1;
-    });
+    // Check consecutive shifts (consecutive contiguous days)
+    const providerDates = new Set(providerSlots.map(s => s.date));
+    let streak = 0;
+    let prev = 1;
+    while (providerDates.has(format(addDays(slotDate, -prev), 'yyyy-MM-dd'))) {
+      streak++;
+      prev++;
+    }
+    let next = 1;
+    while (providerDates.has(format(addDays(slotDate, next), 'yyyy-MM-dd'))) {
+      streak++;
+      next++;
+    }
+    const totalConsecutive = streak + 1;
 
-    if (consecutiveShifts.length >= 3) {
-      warnings.push(`Provider has ${consecutiveShifts.length} consecutive shifts scheduled`);
+    if (totalConsecutive >= 3) {
+      warnings.push(`Provider has ${totalConsecutive} consecutive shifts scheduled`);
     }
 
     // Check max consecutive nights

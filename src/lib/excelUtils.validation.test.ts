@@ -1,17 +1,18 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 import { normalizeDate, normalizeHeader, resolveHeaderMapping } from './excelUtils.ts';
 
-test('normalizes header variants', () => {
-  assert.equal(normalizeHeader(' Provider Name  '), 'provider name');
-});
+describe('excelUtils validation', () => {
+  it('normalizes header variants', () => {
+    expect(normalizeHeader(' Provider Name  ')).toBe('provider name');
+  });
 
-test('detects malformed dates', () => {
-  assert.equal(normalizeDate('not-a-date'), null);
-  assert.equal(normalizeDate('2026-01-09'), '2026-01-09');
-});
+  it('detects malformed dates', () => {
+    expect(normalizeDate('not-a-date')).toBe(null);
+    expect(normalizeDate('2026-01-09')).toBe('2026-01-09');
+  });
 
-test('flags ambiguous header mappings', () => {
-  const { issues } = resolveHeaderMapping(['Date', 'Nights', 'Night']);
-  assert.equal(issues.some((issue) => issue.code === 'AMBIGUOUS_HEADER'), true);
+  it('flags ambiguous header mappings', () => {
+    const { issues } = resolveHeaderMapping(['Date', 'Nights', 'Night']);
+    expect(issues.some((issue) => issue.code === 'AMBIGUOUS_HEADER')).toBe(true);
+  });
 });

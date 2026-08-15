@@ -31,3 +31,16 @@ data/ai-apply-history.json
 # TypeScript build info
 tsconfig.tsbuildinfo
 supabase/.temp/
+
+# Test output & reports
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# Tool temp files
+.omo/
+.superpowers/
+.opencode/
+neuro-icu-boards-dedupe-report-*.json
+

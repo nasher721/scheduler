@@ -164,11 +164,32 @@ function generateId(): string {
  */
 export function useOfflineMode() {
   const [status, setStatus] = useState<SyncStatus>({
-    isOnline: navigator.onLine,
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     isSyncing: false,
     pendingCount: 0,
     lastSync: null,
   });
+
+  const updatePendingCount = useCallback(async () => {
+    const requests = await getQueuedRequests();
+    setStatus((prev) => ({ ...prev, pendingCount: requests.length }));
+  }, []);
+
+  const syncWhenOnline = useCallback(async () => {
+    setStatus((prev) => ({ ...prev, isSyncing: true }));
+
+    try {
+      const result = await processQueue();
+      setStatus((prev) => ({
+        ...prev,
+        isSyncing: false,
+        pendingCount: result.failed,
+        lastSync: new Date(),
+      }));
+    } catch {
+      setStatus((prev) => ({ ...prev, isSyncing: false }));
+    }
+  }, []);
 
   // Listen for online/offline events
   useEffect(() => {
@@ -191,28 +212,7 @@ export function useOfflineMode() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
-
-  const updatePendingCount = useCallback(async () => {
-    const requests = await getQueuedRequests();
-    setStatus((prev) => ({ ...prev, pendingCount: requests.length }));
-  }, []);
-
-  const syncWhenOnline = useCallback(async () => {
-    setStatus((prev) => ({ ...prev, isSyncing: true }));
-
-    try {
-      const result = await processQueue();
-      setStatus((prev) => ({
-        ...prev,
-        isSyncing: false,
-        pendingCount: result.failed,
-        lastSync: new Date(),
-      }));
-    } catch (error) {
-      setStatus((prev) => ({ ...prev, isSyncing: false }));
-    }
-  }, []);
+  }, [syncWhenOnline, updatePendingCount]);
 
   const queueOfflineRequest = useCallback(async (
     url: string,

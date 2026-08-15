@@ -248,16 +248,16 @@ export function useCalendarKeyboard() {
     }
   }, []);
 
+  const hotkeysContext = useHotkeysContext();
+
   // Enable/disable keyboard shortcuts
   const enableScope = useCallback((scope: string) => {
-    const { enableScope: enable } = useHotkeysContext();
-    enable(scope);
-  }, []);
+    hotkeysContext?.enableScope?.(scope);
+  }, [hotkeysContext]);
 
   const disableScope = useCallback((scope: string) => {
-    const { disableScope: disable } = useHotkeysContext();
-    disable(scope);
-  }, []);
+    hotkeysContext?.disableScope?.(scope);
+  }, [hotkeysContext]);
 
   return {
     shortcuts,

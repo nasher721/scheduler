@@ -139,9 +139,9 @@ describe('meetsWCAGAA', () => {
   });
 
   it('should have lower threshold for large text', () => {
-    // Light gray passes for large text but not normal text
-    const isLargeTextPass = meetsWCAGAA('#CCCCCC', '#FFFFFF', true);
-    const isNormalTextPass = meetsWCAGAA('#CCCCCC', '#FFFFFF', false);
+    // Medium gray (#949494) passes for large text (>= 3:1) but not normal text (>= 4.5:1)
+    const isLargeTextPass = meetsWCAGAA('#949494', '#FFFFFF', true);
+    const isNormalTextPass = meetsWCAGAA('#949494', '#FFFFFF', false);
     
     expect(isLargeTextPass).toBe(true);
     expect(isNormalTextPass).toBe(false);

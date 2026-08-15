@@ -1,5 +1,4 @@
 import { saveScheduleState, loadScheduleState } from './src/lib/api';
-import { createClient } from '@supabase/supabase-js';
 
 async function test() {
   console.log("Saving state...");

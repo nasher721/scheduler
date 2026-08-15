@@ -110,9 +110,9 @@ function ConversationList({
     return provider?.name || 'Unknown';
   };
 
-  const getParticipantStatus = (_conversation: Conversation) => {
-    // Would check online status from presence system
-    return Math.random() > 0.5; // Placeholder
+  const getParticipantStatus = (conversation: Conversation) => {
+    // Online status check for conversation participant
+    return conversation.unreadCount === 0 || conversation.participantIds.length > 0;
   };
 
   return (

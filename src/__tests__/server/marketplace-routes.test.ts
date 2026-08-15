@@ -48,7 +48,7 @@ function createMockSupabase(initialData?: MockData) {
   };
 
   function from(table: string) {
-    let filters: Array<{ field: string; value: string; op?: string }> = [];
+    const filters: Array<{ field: string; value: string; op?: string }> = [];
     let op: 'select' | 'insert' | 'upsert' | 'update' | 'delete' = 'select';
     let insertRow: Record<string, unknown> | null = null;
     let upsertKey: string | null = null;

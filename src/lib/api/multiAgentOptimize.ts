@@ -102,9 +102,9 @@ export function buildOptimizationPreview(
   return {
     objectiveScore: Number(metrics.objectiveScore) || 0,
     objectiveScoreBefore: 0,
-    coverageScore: Number(metrics.coverageScore) ?? 0,
-    fairnessScore: Number(metrics.fairnessScore) ?? 0,
-    fatigueScore: Number(metrics.fatigueScore) ?? 0,
+    coverageScore: Number(metrics.coverageScore) || 0,
+    fairnessScore: Number(metrics.fairnessScore) || 0,
+    fatigueScore: Number(metrics.fatigueScore) || 0,
     changes,
     warnings: result.decisions?.length ? [] : undefined,
   };

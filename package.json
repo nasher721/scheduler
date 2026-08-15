@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "server": "node server.js",
     "dev:fullstack": "concurrently \"npm run server\" \"npm run dev\"",
-    "test": "vitest; node .github/setup.js; node .github/setup.js",
+    "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test",

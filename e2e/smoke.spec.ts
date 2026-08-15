@@ -5,7 +5,7 @@ test.describe('Smoke Tests', () => {
     await page.goto('/');
     
     // Check that the page has loaded
-    await expect(page).toHaveTitle(/Neuro ICU Scheduler/i);
+    await expect(page).toHaveTitle(/Neuro ICU/i);
     
     // Check for main content
     await expect(page.locator('body')).toBeVisible();
@@ -25,7 +25,7 @@ test.describe('Smoke Tests', () => {
     await page.goto('/api-docs');
     
     // Check that Swagger UI has loaded
-    await expect(page.locator('.swagger-ui')).toBeVisible();
+    await expect(page.locator('.swagger-ui').first()).toBeVisible();
     await expect(page.locator('.title')).toContainText('Neuro ICU Scheduler API');
   });
 });

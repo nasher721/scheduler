@@ -257,22 +257,23 @@ export function usePushNotifications() {
  * Hook for notification preferences
  */
 export function useNotificationPreferences() {
-  const [preferences, setPreferences] = useState<Record<NotificationType, boolean>>({
-    SHIFT_REMINDER: true,
-    SWAP_REQUEST: true,
-    SCHEDULE_CHANGE: true,
-    URGENT_COVERAGE: true,
-    CONFLICT_DETECTED: true,
-    MESSAGE_RECEIVED: true,
-  });
-
-  useEffect(() => {
-    // Load from localStorage or API
-    const saved = localStorage.getItem('notification-preferences');
-    if (saved) {
-      setPreferences(JSON.parse(saved));
+  const [preferences, setPreferences] = useState<Record<NotificationType, boolean>>(() => {
+    const defaults: Record<NotificationType, boolean> = {
+      SHIFT_REMINDER: true,
+      SWAP_REQUEST: true,
+      SCHEDULE_CHANGE: true,
+      URGENT_COVERAGE: true,
+      CONFLICT_DETECTED: true,
+      MESSAGE_RECEIVED: true,
+    };
+    if (typeof window === 'undefined') return defaults;
+    try {
+      const saved = localStorage.getItem('notification-preferences');
+      return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+    } catch {
+      return defaults;
     }
-  }, []);
+  });
 
   const updatePreference = useCallback((type: NotificationType, enabled: boolean) => {
     setPreferences((prev) => {

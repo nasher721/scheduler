@@ -36,7 +36,7 @@ describe('useCalendarKeyboard', () => {
   it('should return all keyboard shortcuts', () => {
     const { result } = renderHook(() => useCalendarKeyboard());
 
-    expect(result.current.shortcuts).toHaveLength(10);
+    expect(result.current.shortcuts).toHaveLength(13);
     expect(result.current.shortcuts.map(s => s.key)).toContain('Ctrl + 1');
     expect(result.current.shortcuts.map(s => s.key)).toContain('Ctrl + 2');
     expect(result.current.shortcuts.map(s => s.key)).toContain('← / →');
