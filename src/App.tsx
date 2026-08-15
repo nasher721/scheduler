@@ -177,7 +177,15 @@ export default function App() {
   const runMultiAgentOptimize = useCallback(async () => {
     setIsMultiAgentOptimizing(true);
     try {
-      const scheduleState = { slots: safeSlots, providers: safeProviders, startDate, numWeeks, scenarios, customRules };
+      const scheduleState = {
+        slots: safeSlots,
+        providers: safeProviders,
+        startDate,
+        numWeeks,
+        scenarios: Array.isArray(scenarios) ? scenarios : [],
+        customRules: Array.isArray(customRules) ? customRules : [],
+        auditLog: Array.isArray(auditLog) ? auditLog : [],
+      };
       const result = await multiAgentOptimize(scheduleState);
       if (!result?.success || !result.schedule) {
         showToast({ type: "error", title: "Optimization failed", message: "No schedule result returned." });
@@ -194,7 +202,7 @@ export default function App() {
     } finally {
       setIsMultiAgentOptimizing(false);
     }
-  }, [safeSlots, safeProviders, startDate, numWeeks, scenarios, customRules, showToast, openChangePreviewWithMultiAgentResult]);
+  }, [safeSlots, safeProviders, startDate, numWeeks, scenarios, customRules, auditLog, showToast, openChangePreviewWithMultiAgentResult]);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));

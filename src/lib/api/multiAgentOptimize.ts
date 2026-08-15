@@ -73,7 +73,8 @@ export function buildOptimizationPreview(
   }>;
   warnings?: string[];
 } {
-  const newSlots = (result.schedule?.slots ?? []) as Array<{ id: string; providerId?: string | null }>;
+  const scheduleObj = result.schedule || (result as unknown as { optimizedState?: { slots?: unknown[] } }).optimizedState;
+  const newSlots = (scheduleObj?.slots ?? []) as Array<{ id: string; providerId?: string | null }>;
   const byId = new Map(currentSlots.map((s) => [s.id, s]));
   const changes: Array<{
     id: string;
@@ -114,14 +115,29 @@ export async function applyOptimizationResult(
   result: MultiAgentOptimizeResult,
   approvedBy: string | null
 ): Promise<ApplyOptimizationResponse> {
+  const schedule = (result.schedule || (result as unknown as { optimizedState?: MultiAgentOptimizeResult["schedule"] }).optimizedState || {}) as Record<string, unknown>;
+  const safeApprovedBy = (approvedBy && approvedBy.trim()) ? approvedBy.trim() : "Scheduler Admin";
   const payload = {
     result: {
-      optimizedState: result.schedule,
+      optimizedState: {
+        ...schedule,
+        providers: Array.isArray(schedule.providers) ? schedule.providers : [],
+        slots: Array.isArray(schedule.slots) ? schedule.slots : [],
+        scenarios: Array.isArray(schedule.scenarios) ? schedule.scenarios : [],
+        customRules: Array.isArray(schedule.customRules) ? schedule.customRules : [],
+        auditLog: Array.isArray(schedule.auditLog) ? schedule.auditLog : [],
+        startDate: typeof schedule.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate)
+          ? schedule.startDate
+          : new Date().toISOString().split("T")[0],
+        numWeeks: Number.isInteger(schedule.numWeeks) && (Number(schedule.numWeeks) >= 1)
+          ? Number(schedule.numWeeks)
+          : 4,
+      },
       rollout: { mode: "human_review" as const, confidenceScore: result.metrics?.objectiveScore },
       objectiveScore: result.metrics?.objectiveScore ?? null,
       guardrails: { hardViolationCount: result.metrics?.hardViolationCount ?? 0 },
     },
-    approvedBy: approvedBy ?? undefined,
+    approvedBy: safeApprovedBy,
   };
   return requestJson<ApplyOptimizationResponse>(
     "/api/ai/apply",

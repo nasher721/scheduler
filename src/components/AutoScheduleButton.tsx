@@ -42,6 +42,7 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
     numWeeks,
     scenarios,
     customRules,
+    auditLog,
     showToast,
     openChangePreviewWithMultiAgentResult,
   } = useScheduleStore();
@@ -64,8 +65,9 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
         providers: safeProviders,
         startDate,
         numWeeks,
-        scenarios,
-        customRules,
+        scenarios: Array.isArray(scenarios) ? scenarios : [],
+        customRules: Array.isArray(customRules) ? customRules : [],
+        auditLog: Array.isArray(auditLog) ? auditLog : [],
       };
 
       // Stage 2: Optimizing
@@ -83,23 +85,28 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
       }
 
       // Check confidence score and hard violations
-      const confidenceScore = Number(result.metrics?.objectiveScore ?? 0);
+      const rawScore = Number(result.metrics?.objectiveScore ?? 0);
+      const confidencePct = rawScore > 1 ? Math.min(100, Math.round(rawScore)) : Math.round(rawScore * 100);
       const hardViolationCount = Number(result.metrics?.hardViolationCount ?? 0);
-      const hasHighConfidence = confidenceScore >= 0.8;
+      const hasHighConfidence = confidencePct >= 80;
       const hasNoViolations = hardViolationCount === 0;
 
       // Auto-apply if high confidence and no violations
       if (hasHighConfidence && hasNoViolations) {
         setStage("applying");
         try {
-          const applyResponse = await applyOptimizationResult(result, null);
+          const applyResponse = await applyOptimizationResult(result, "Auto-Schedule");
 
           if (applyResponse.ok) {
+            const nextSlots = (applyResponse.state?.slots || result.schedule?.slots) as typeof slots;
+            if (Array.isArray(nextSlots)) {
+              useScheduleStore.setState({ slots: nextSlots });
+            }
             setStage("complete");
             showToast({
               type: "success",
               title: "Schedule optimized",
-              message: `Applied with ${Math.round(confidenceScore * 100)}% confidence.`,
+              message: `Applied with ${confidencePct}% confidence score.`,
             });
 
             // Reset to idle after brief display
@@ -108,16 +115,22 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
             // Fall back to preview if apply failed
             setErrorResult(result);
             setStage("error");
+            const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
+            openChangePreviewWithMultiAgentResult(preview, result);
           }
         } catch {
           // Fall back to preview on error
           setErrorResult(result);
           setStage("error");
+          const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
+          openChangePreviewWithMultiAgentResult(preview, result);
         }
       } else {
         // Low confidence or violations - show preview
         setErrorResult(result);
         setStage("error");
+        const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
+        openChangePreviewWithMultiAgentResult(preview, result);
       }
     } catch (err) {
       setStage("error");
@@ -134,7 +147,10 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
     numWeeks,
     scenarios,
     customRules,
+    auditLog,
+    slots,
     showToast,
+    openChangePreviewWithMultiAgentResult,
   ]);
 
   const handleClick = useCallback(() => {

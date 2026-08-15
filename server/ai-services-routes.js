@@ -20,7 +20,7 @@ export function registerAIServicesRoutes(app) {
    */
   app.post('/api/ai/agents/optimize', async (req, res) => {
     try {
-      const { scheduleState } = req.body;
+      const scheduleState = req.body?.scheduleState || req.body?.state || req.body;
       const orchestrator = getSchedulingOrchestrator();
       const result = await orchestrator.optimizeSchedule(scheduleState);
       res.json(result);

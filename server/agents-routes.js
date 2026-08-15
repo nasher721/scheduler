@@ -15,9 +15,9 @@ export function registerAgentsRoutes(app) {
    */
   app.post('/api/agents/optimize', async (req, res) => {
     try {
-      const { scheduleState } = req.body;
+      const scheduleState = req.body?.scheduleState || req.body?.state || req.body;
       
-      if (!scheduleState) {
+      if (!scheduleState || typeof scheduleState !== 'object') {
         return res.status(400).json({ error: 'scheduleState is required' });
       }
 

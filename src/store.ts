@@ -2748,6 +2748,7 @@ export const useScheduleStore = create<ScheduleState>()(
           numWeeks: state.numWeeks,
           scenarios: state.scenarios,
           customRules: state.customRules,
+          auditLog: state.auditLog,
         };
         try {
           const result = await multiAgentOptimize(scheduleState);
