@@ -31,11 +31,13 @@ import {
   Undo2,
   Redo2,
   Bot,
-  ChevronDown,
   Layers,
   Menu,
   X,
   Users,
+  MoreHorizontal,
+  Upload,
+  RefreshCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
@@ -158,6 +160,7 @@ export default function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
+  const [showMoreOps, setShowMoreOps] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [isMultiAgentOptimizing, setIsMultiAgentOptimizing] = useState(false);
   const [showAvailabilityPanel, setShowAvailabilityPanel] = useState(() => {
@@ -576,8 +579,10 @@ export default function App() {
                 </div>
 
                 <div className="command-group">
-                  <button onClick={() => fileInputRef.current?.click()} className="command-button">Import</button>
-                  <button onClick={handleRollbackImport} disabled={!canRollbackImport} className="command-button disabled:opacity-40">Rollback</button>
+                  <button onClick={() => fileInputRef.current?.click()} className="command-button" title="Import schedule from Excel">
+                    <Upload className="w-3.5 h-3.5" />
+                    Import
+                  </button>
                   <ExportMenu />
                 </div>
 
@@ -592,18 +597,82 @@ export default function App() {
                     {isMultiAgentOptimizing ? "Optimizing..." : "Optimize"}
                   </motion.button>
                 </div>
+
+                {/* More Operations Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreOps(v => !v)}
+                    className={cn("command-button", showMoreOps && "bg-secondary text-foreground")}
+                    title="More schedule operations"
+                    aria-label="More operations"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                    <span className="hidden sm:inline">More</span>
+                  </button>
+
+                  {showMoreOps && (
+                    <>
+                      <button
+                        type="button"
+                        className="fixed inset-0 z-30 cursor-default"
+                        onClick={() => setShowMoreOps(false)}
+                        aria-label="Close operations menu"
+                      />
+                      <div className="absolute left-0 z-40 mt-1.5 w-56 rounded-xl border border-border bg-surface p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+                        {canRollbackImport && (
+                          <button
+                            type="button"
+                            onClick={() => { setShowMoreOps(false); handleRollbackImport(); }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
+                          >
+                            <RefreshCcw className="w-3.5 h-3.5 text-foreground-muted" />
+                            Rollback Latest Import
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setShowMoreOps(false); handleServerSave(); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
+                        >
+                          <Save className="w-3.5 h-3.5 text-foreground-muted" />
+                          Save State to Cloud
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowMoreOps(false); setShowScenarios(v => !v); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
+                        >
+                          <Layers className="w-3.5 h-3.5 text-foreground-muted" />
+                          Manage Scenarios
+                        </button>
+                        <div className="my-1 border-t border-border" />
+                        <button
+                          type="button"
+                          onClick={() => { setShowMoreOps(false); handleClearSchedule(); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-warning hover:bg-warning/10 transition-colors"
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                          Clear Assignments
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowMoreOps(false); handleClearStaff(); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-error hover:bg-error/10 transition-colors"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Reset Staff Profiles
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div className="command-group">
-                  <button onClick={handleServerSave} className="command-icon" title="Sync to server" aria-label="Save to server"><Save className="w-4 h-4" /></button>
-                  <button onClick={handleClearSchedule} className="command-icon hover:text-warning" title="Clear schedule" aria-label="Clear schedule"><Trash className="w-4 h-4" /></button>
-                  <button onClick={handleClearStaff} className="command-icon hover:text-error" title="Clear staff" aria-label="Clear staff"><AlertTriangle className="w-4 h-4" /></button>
-                </div>
-
                 {autoSaveStatus !== "idle" && (
                   <span className={cn(
-                    "rounded-md px-2.5 py-1.5 text-xs font-semibold",
+                    "rounded-md px-2.5 py-1 text-xs font-semibold",
                     (autoSaveStatus === "saving" || autoSaveStatus === "pending") && "bg-primary/10 text-primary animate-pulse",
                     autoSaveStatus === "saved" && "bg-success/10 text-success",
                     autoSaveStatus === "error" && "bg-error/10 text-error"
@@ -615,9 +684,9 @@ export default function App() {
                 <div className="command-group">
                   <button
                     type="button"
-                    onClick={() => setViewMode("analytics")}
-                    className={cn("command-button", anomalyAlerts.length > 0 && "bg-warning/10 text-warning")}
-                    title="View anomaly alerts"
+                    onClick={() => setViewMode("notifications")}
+                    className={cn("command-button", anomalyAlerts.length > 0 && "bg-warning/10 text-warning border-warning/20")}
+                    title="View alerts"
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
                     {anomalyAlerts.length} alerts
@@ -649,83 +718,74 @@ export default function App() {
                   <ThemeToggle variant="icon" />
                 </div>
 
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5">
                   <div className={cn("h-2 w-2 rounded-full", isOnline ? "bg-success" : "bg-error")} />
                   <span className={cn("text-xs font-semibold", isOnline ? "text-success" : "text-error")}>{isOnline ? "Online" : "Offline"}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={() => setShowScenarios(v => !v)}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-semibold text-foreground-muted transition-colors hover:text-foreground"
+            {/* Scenarios Drawer (conditionally visible) */}
+            <AnimatePresence>
+              {showScenarios && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden border-t border-border/70 pt-2"
                 >
-                  <Layers className="w-3.5 h-3.5" />
-                  Scenarios
-                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", showScenarios && "rotate-180")} />
-                </button>
-                <AnimatePresence>
-                  {showScenarios && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-2 scrollbar-hide">
-                        <div className="flex shrink-0 items-center gap-2">
-                          <input
-                            value={scenarioName}
-                            onChange={(e) => setScenarioName(e.target.value)}
-                            placeholder="New scenario..."
-                            className="w-40 rounded-md border border-border bg-surface px-2.5 py-2 text-sm font-medium text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none"
-                          />
-                          <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="command-icon"><Save className="w-4 h-4" /></button>
-                        </div>
-                        <AnimatePresence>
-                          {scenarios.map((scenario) => (
-                            <motion.div
-                              key={scenario.id}
-                              initial={{ opacity: 0, x: -8 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, scale: 0.98 }}
-                              className="group flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground transition-all hover:border-primary/30"
-                              onClick={() => loadScenario(scenario.id)}
-                            >
-                              {scenario.name}
-                              <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="p-0.5 text-error opacity-0 transition-opacity group-hover:opacity-100"><Trash className="w-3 h-3" /></button>
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <AnimatePresence>
-                {(lastActionMessage || overloaded.length > 0 || fatigueExposure > 0) && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="flex max-w-3xl items-start gap-3 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-foreground-secondary"
-                  >
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                    <div className="min-w-0 flex-1 leading-relaxed">
-                      {lastActionMessage && <p className="font-semibold text-foreground">{lastActionMessage}</p>}
-                      {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.name).join(", ")}</p>}
-                      {fatigueExposure > 0 && <p>Fatigue: {fatigueExposure} exposure(s).</p>}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    <span className="text-xs font-semibold text-foreground-muted shrink-0 flex items-center gap-1">
+                      <Layers className="w-3 h-3" /> Scenarios:
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <input
+                        value={scenarioName}
+                        onChange={(e) => setScenarioName(e.target.value)}
+                        placeholder="New scenario name..."
+                        className="w-36 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none"
+                      />
+                      <button title="Save scenario" aria-label="Save scenario" onClick={() => { createScenario(scenarioName); setScenarioName(""); }} className="command-icon"><Save className="w-3.5 h-3.5" /></button>
                     </div>
-                    <button onClick={clearMessage} className="shrink-0 text-xs font-semibold text-warning hover:text-foreground">Dismiss</button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <AnimatePresence>
+                      {scenarios.map((scenario) => (
+                        <motion.div
+                          key={scenario.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          className="group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:border-primary/40"
+                          onClick={() => loadScenario(scenario.id)}
+                        >
+                          {scenario.name}
+                          <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="p-0.5 text-error opacity-0 transition-opacity group-hover:opacity-100"><Trash className="w-3 h-3" /></button>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {(lastActionMessage || overloaded.length > 0 || fatigueExposure > 0) && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="flex max-w-3xl items-start gap-3 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-foreground-secondary"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <div className="min-w-0 flex-1 leading-relaxed">
+                    {lastActionMessage && <p className="font-semibold text-foreground">{lastActionMessage}</p>}
+                    {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.name).join(", ")}</p>}
+                    {fatigueExposure > 0 && <p>Fatigue: {fatigueExposure} exposure(s).</p>}
+                  </div>
+                  <button onClick={clearMessage} className="shrink-0 text-xs font-semibold text-warning hover:text-foreground">Dismiss</button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.header>
 
@@ -754,31 +814,17 @@ export default function App() {
               criticalGaps={criticalUnfilled}
               skillRisks={skillMismatchRisk}
               fatigueExposures={fatigueExposure}
-              onViewDetails={() => setViewMode("analytics")}
+              onViewDetails={() => setViewMode("notifications")}
             />
+
+            <div className="satin-panel p-3">
+              <ViewToggle view={viewMode} onChange={setViewMode} />
+            </div>
 
             {viewMode === 'schedule' && (
               <AdminReadinessBanner
                 readiness={scheduleReadiness}
-                canRollbackImport={canRollbackImport}
-                isOptimizeBusy={isMultiAgentOptimizing}
-                isAiOpen={isCopilotOpen}
-                isStaffPanelOpen={showAvailabilityPanel}
-                canUndo={canUndo()}
-                canRedo={canRedo()}
-                exportAction={<ExportMenu />}
-                onImport={() => fileInputRef.current?.click()}
-                onRollbackImport={handleRollbackImport}
-                onAutoFill={autoAssign}
-                onOptimize={runMultiAgentOptimize}
-                onSave={handleServerSave}
-                onViewAlerts={() => setViewMode("analytics")}
-                onToggleAi={toggleCopilot}
-                onToggleStaff={() => {
-                  const newValue = !showAvailabilityPanel;
-                  setShowAvailabilityPanel(newValue);
-                  localStorage.setItem('nicu-availability-panel-open', String(newValue));
-                }}
+                onViewAlerts={() => setViewMode("notifications")}
               />
             )}
 
@@ -827,28 +873,6 @@ export default function App() {
                 </>
               )}
             </AnimatePresence>
-
-            <div className="satin-panel flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <ViewToggle view={viewMode} onChange={setViewMode} />
-            </div>
-
-            {viewMode === 'schedule' && (
-              <div
-                className={cn(
-                  "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-semibold",
-                  coverage < 50 && "border-error/25 bg-error/10 text-error",
-                  coverage >= 50 && coverage < 95 && "border-warning/25 bg-warning/10 text-warning",
-                  coverage >= 95 && "border-success/25 bg-success/10 text-success"
-                )}
-              >
-                <span className={cn("h-2 w-2 shrink-0 rounded-full", coverage >= 95 ? "bg-success" : coverage >= 50 ? "bg-warning" : "bg-error")} />
-                <span>
-                  {coverage < 50 && `Coverage critically low: ${coverage}% of shifts are filled.`}
-                  {coverage >= 50 && coverage < 95 && `Coverage ${coverage}%: some gaps remain.`}
-                  {coverage >= 95 && `Coverage ${coverage}%: schedule looks good.`}
-                </span>
-              </div>
-            )}
 
             <div className="w-full pb-16">
               <ErrorBoundary>

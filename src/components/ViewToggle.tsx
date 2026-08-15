@@ -1,4 +1,22 @@
-import { CalendarDays, Inbox, ChevronDown } from "lucide-react";
+import { useMemo } from "react";
+import {
+  CalendarDays,
+  Inbox,
+  LayoutTemplate,
+  ArrowLeftRight,
+  Palmtree,
+  Scale,
+  Sliders,
+  FlaskConical,
+  BarChart3,
+  AlertTriangle,
+  Bell,
+  Sparkles,
+  Activity,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useScheduleStore } from "@/store";
 
 export type ViewMode =
   | "schedule"
@@ -15,88 +33,157 @@ export type ViewMode =
   | "ai-test"
   | "smarthub";
 
+export type NavHubId = "workspace" | "exchange" | "governance" | "intelligence";
+
+interface ViewItem {
+  value: ViewMode;
+  label: string;
+  shortLabel?: string;
+  icon: LucideIcon;
+  badgeCount?: (state: any) => number;
+}
+
+interface NavHub {
+  id: NavHubId;
+  label: string;
+  icon: LucideIcon;
+  views: ViewItem[];
+}
+
+export const NAV_HUBS: NavHub[] = [
+  {
+    id: "workspace",
+    label: "Workspace",
+    icon: CalendarDays,
+    views: [
+      { value: "schedule", label: "Schedule Grid", shortLabel: "Schedule", icon: CalendarDays },
+      { value: "shift-requests", label: "Shift Requests", shortLabel: "Requests", icon: Inbox },
+      { value: "templates", label: "Templates", shortLabel: "Templates", icon: LayoutTemplate },
+    ],
+  },
+  {
+    id: "exchange",
+    label: "Exchange",
+    icon: ArrowLeftRight,
+    views: [
+      { value: "swaps", label: "Shift Swaps", shortLabel: "Swaps", icon: ArrowLeftRight },
+      { value: "holidays", label: "Holiday Equity", shortLabel: "Holidays", icon: Palmtree },
+    ],
+  },
+  {
+    id: "governance",
+    label: "Governance",
+    icon: Scale,
+    views: [
+      { value: "rules", label: "Rules & Policy", shortLabel: "Rules", icon: Scale },
+      { value: "strategy", label: "Solver Strategy", shortLabel: "Strategy", icon: Sliders },
+      { value: "ai-test", label: "AI Test Lab", shortLabel: "AI Lab", icon: FlaskConical },
+    ],
+  },
+  {
+    id: "intelligence",
+    label: "Intelligence",
+    icon: BarChart3,
+    views: [
+      { value: "analytics", label: "Analytics", shortLabel: "Analytics", icon: BarChart3 },
+      { value: "conflicts", label: "Conflicts", shortLabel: "Conflicts", icon: AlertTriangle },
+      { value: "notifications", label: "Alerts", shortLabel: "Alerts", icon: Bell },
+      { value: "predictive", label: "Predictive ML", shortLabel: "ML Forecast", icon: Sparkles },
+      { value: "smarthub", label: "SmartHub", shortLabel: "SmartHub", icon: Activity },
+    ],
+  },
+];
+
 interface ViewToggleProps {
   view: ViewMode;
   onChange: (view: ViewMode) => void;
 }
 
-const operationsViews: Array<{ value: ViewMode; label: string }> = [
-  { value: "rules", label: "Governance" },
-  { value: "strategy", label: "Strategy" },
-  { value: "swaps", label: "Swaps" },
-  { value: "holidays", label: "Holidays" },
-  { value: "conflicts", label: "Conflicts" },
-  { value: "templates", label: "Templates" },
-];
-
-const insightsViews: Array<{ value: ViewMode; label: string }> = [
-  { value: "analytics", label: "Insights" },
-  { value: "notifications", label: "Alerts" },
-  { value: "predictive", label: "ML Insights" },
-  { value: "ai-test", label: "AI Test" },
-  { value: "smarthub", label: "SmartHub" },
-];
-
 export function ViewToggle({ view, onChange }: ViewToggleProps) {
-  const operationsValue = operationsViews.some((item) => item.value === view) ? view : "";
-  const insightsValue = insightsViews.some((item) => item.value === view) ? view : "";
+  // Find which hub owns the current view
+  const currentHub = useMemo(() => {
+    for (const hub of NAV_HUBS) {
+      if (hub.views.some((v) => v.value === view)) {
+        return hub;
+      }
+    }
+    return NAV_HUBS[0];
+  }, [view]);
+
+  // Read alert & conflict counts for notification badges
+  const conflictCount = useScheduleStore((s) => s.customRules?.length || 0);
+
+  const handleHubSelect = (hub: NavHub) => {
+    // If current view is not in this hub, switch to the first view in this hub
+    if (!hub.views.some((v) => v.value === view)) {
+      onChange(hub.views[0].value);
+    }
+  };
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-      <div className="flex w-full min-w-0 items-center gap-1 rounded-lg border border-border bg-secondary/50 p-0.5 sm:w-auto">
-        <button
-          onClick={() => onChange("schedule")}
-          className={`nav-chip rounded-lg ${view === "schedule" ? "nav-chip-active" : ""}`}
-          aria-current={view === "schedule" ? "page" : undefined}
-        >
-          <CalendarDays className="w-3.5 h-3.5" />
-          Schedule
-        </button>
-        <button
-          onClick={() => onChange("shift-requests")}
-          className={`nav-chip rounded-lg ${view === "shift-requests" ? "nav-chip-active bg-primary/10 text-primary border-primary/20" : ""}`}
-          aria-current={view === "shift-requests" ? "page" : undefined}
-        >
-          <Inbox className="w-3.5 h-3.5" />
-          Shift requests
-        </button>
+    <nav className="flex w-full flex-col gap-2.5" aria-label="Main Navigation">
+      {/* Primary 4-Hub Segmented Bar */}
+      <div className="flex w-full items-center justify-between gap-1 rounded-xl border border-border/80 bg-secondary/40 p-1 backdrop-blur-md overflow-x-auto scrollbar-hide">
+        <div className="flex w-full min-w-max items-center gap-1 sm:w-auto">
+          {NAV_HUBS.map((hub) => {
+            const isHubActive = hub.id === currentHub.id;
+            const HubIcon = hub.icon;
+            return (
+              <button
+                key={hub.id}
+                type="button"
+                onClick={() => handleHubSelect(hub)}
+                className={cn(
+                  "relative flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold tracking-tight transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20",
+                  isHubActive
+                    ? "bg-surface text-foreground shadow-sm border border-border/70"
+                    : "text-foreground-muted hover:text-foreground hover:bg-surface/50"
+                )}
+                aria-current={isHubActive ? "true" : undefined}
+              >
+                <HubIcon className={cn("h-3.5 w-3.5 shrink-0", isHubActive ? "text-primary" : "text-foreground-muted")} />
+                <span>{hub.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <label className="relative flex min-h-[44px] w-full min-w-0 items-center sm:min-w-[140px] sm:max-w-[min(100%,220px)]">
-          <span className="sr-only">Operations</span>
-          <select
-            value={operationsValue}
-            onChange={(e) => e.target.value && onChange(e.target.value as ViewMode)}
-            className="w-full appearance-none rounded-lg border border-border bg-surface px-3 py-2 pr-8 text-sm font-medium text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors"
-            aria-label="Operations"
-          >
-            <option value="">Operations</option>
-            {operationsViews.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 w-4 h-4 text-foreground-muted" />
-        </label>
-        <label className="relative flex min-h-[44px] w-full min-w-0 items-center sm:min-w-[140px] sm:max-w-[min(100%,220px)]">
-          <span className="sr-only">Insights</span>
-          <select
-            value={insightsValue}
-            onChange={(e) => e.target.value && onChange(e.target.value as ViewMode)}
-            className="w-full appearance-none rounded-lg border border-border bg-surface px-3 py-2 pr-8 text-sm font-medium text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors"
-            aria-label="Insights"
-          >
-            <option value="">Insights</option>
-            {insightsViews.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 w-4 h-4 text-foreground-muted" />
-        </label>
+
+      {/* Sub-view Chips within Active Hub */}
+      <div className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted/70 mr-1 hidden md:inline">
+          {currentHub.label}:
+        </span>
+        {currentHub.views.map((v) => {
+          const isActive = v.value === view;
+          const ViewIcon = v.icon;
+          return (
+            <button
+              key={v.value}
+              type="button"
+              onClick={() => onChange(v.value)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 shrink-0",
+                isActive
+                  ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                  : "bg-surface/70 border border-border/60 text-foreground hover:bg-secondary hover:border-border text-foreground-secondary"
+              )}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <ViewIcon className="h-3 w-3 shrink-0" />
+              <span>{v.label}</span>
+              {v.value === "conflicts" && conflictCount > 0 && (
+                <span className={cn(
+                  "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
+                  isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-warning/20 text-warning"
+                )}>
+                  {conflictCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
-    </div>
+    </nav>
   );
 }

@@ -1,18 +1,9 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
-  AlertCircle,
   Bell,
-  Bot,
   CheckCircle2,
   ClipboardCheck,
-  FileCheck2,
-  PanelLeftOpen,
-  RefreshCcw,
-  Save,
   SearchCheck,
-  Sparkles,
-  Upload,
-  Users,
   X,
   XCircle,
 } from "lucide-react";
@@ -33,21 +24,7 @@ interface SmokeChecklistItem {
 
 interface AdminReadinessBannerProps {
   readiness: ScheduleReadiness;
-  canRollbackImport: boolean;
-  isOptimizeBusy: boolean;
-  isAiOpen: boolean;
-  isStaffPanelOpen: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
-  exportAction: ReactNode;
-  onImport: () => void;
-  onRollbackImport: () => void;
-  onAutoFill: () => void;
-  onOptimize: () => void;
-  onSave: () => void;
   onViewAlerts: () => void;
-  onToggleAi: () => void;
-  onToggleStaff: () => void;
 }
 
 const severityStyles: Record<ReadinessSeverity, string> = {
@@ -90,15 +67,15 @@ function ReadinessMetric({
   onClick?: () => void;
 }) {
   const classes = cn(
-    "flex min-h-[48px] min-w-[7rem] flex-1 flex-col justify-center rounded-lg border px-3 py-2 text-left",
+    "flex min-h-[44px] min-w-[6.5rem] flex-1 flex-col justify-center rounded-lg border px-3 py-1.5 text-left transition-all",
     severityStyles[severity],
-    onClick && "transition-colors hover:bg-surface/70"
+    onClick && "cursor-pointer hover:opacity-85 hover:scale-[1.01]"
   );
 
   const content = (
     <>
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-75">{label}</span>
-      <span className="mt-1 text-base font-semibold leading-none tabular-nums">{value}</span>
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">{label}</span>
+      <span className="mt-0.5 text-sm font-semibold leading-none tabular-nums">{value}</span>
     </>
   );
 
@@ -154,13 +131,16 @@ function AdminSmokeChecklist({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/45 p-3 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4">
+      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3.5 bg-secondary/30">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Admin Smoke Checklist</h2>
-            <p className="mt-1 text-sm text-foreground-muted">
-              {summary.passed}/{summary.total} passed
-              {summary.needsAttention > 0 ? `, ${summary.needsAttention} needs attention` : ""}
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              <h2 className="text-base font-semibold text-foreground">Schedule QA Readiness Checklist</h2>
+            </div>
+            <p className="mt-0.5 text-xs text-foreground-muted">
+              {summary.passed}/{summary.total} verification points passed
+              {summary.needsAttention > 0 ? ` • ${summary.needsAttention} require attention` : ""}
             </p>
           </div>
           <button type="button" onClick={onClose} className="command-icon" aria-label="Close QA checklist">
@@ -168,73 +148,68 @@ function AdminSmokeChecklist({
           </button>
         </div>
 
-        <div className="overflow-y-auto p-4">
-          <div className="space-y-3">
-            {items.map((item) => (
-              <div key={item.id} className="rounded-lg border border-border bg-background/60 p-3">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{item.label}</span>
-                      <span className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground-muted">
-                        {item.actionArea}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-foreground-muted">
-                      {statusCopy[item.status]}
-                      {item.lastCheckedAt ? ` at ${formatCheckedAt(item.lastCheckedAt)}` : ""}
-                    </p>
+        <div className="overflow-y-auto p-4 max-h-[60vh] space-y-2.5">
+          {items.map((item) => (
+            <div key={item.id} className="rounded-lg border border-border/80 bg-background/50 p-3 hover:border-border transition-colors">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{item.label}</span>
+                    <span className="rounded bg-secondary px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-foreground-muted">
+                      {item.actionArea}
+                    </span>
                   </div>
-
-                  <div className="flex shrink-0 flex-wrap items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => updateItem(item.id, { status: "passed" })}
-                      className={cn("command-button", item.status === "passed" && "bg-success/10 text-success")}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Pass
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateItem(item.id, { status: "needs_attention" })}
-                      className={cn("command-button", item.status === "needs_attention" && "bg-error/10 text-error")}
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Review
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateItem(item.id, { status: "not_checked", lastCheckedAt: undefined })}
-                      className="command-button"
-                    >
-                      Reset
-                    </button>
-                  </div>
+                  <p className="mt-0.5 text-[11px] text-foreground-muted">
+                    {statusCopy[item.status]}
+                    {item.lastCheckedAt ? ` at ${formatCheckedAt(item.lastCheckedAt)}` : ""}
+                  </p>
                 </div>
 
-                <label className="mt-3 block">
-                  <span className="sr-only">Note for {item.label}</span>
-                  <input
-                    type="text"
-                    value={item.note}
-                    onChange={(event) => updateItem(item.id, { note: event.target.value })}
-                    placeholder="Optional note"
-                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </label>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => updateItem(item.id, { status: "passed" })}
+                    className={cn("command-button text-xs py-1 px-2", item.status === "passed" && "bg-success/15 text-success border-success/30 font-semibold")}
+                  >
+                    <CheckCircle2 className="h-3 w-3" />
+                    Pass
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateItem(item.id, { status: "needs_attention" })}
+                    className={cn("command-button text-xs py-1 px-2", item.status === "needs_attention" && "bg-error/15 text-error border-error/30 font-semibold")}
+                  >
+                    <XCircle className="h-3 w-3" />
+                    Review
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateItem(item.id, { status: "not_checked", lastCheckedAt: undefined })}
+                    className="command-button text-xs py-1 px-2 text-foreground-muted"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+
+              <input
+                type="text"
+                value={item.note}
+                onChange={(event) => updateItem(item.id, { note: event.target.value })}
+                placeholder="Optional notes / observations..."
+                className="mt-2 w-full rounded border border-border/80 bg-surface px-2.5 py-1 text-xs text-foreground placeholder:text-foreground-muted/60 focus:border-primary focus:outline-none"
+              />
+            </div>
+          ))}
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-foreground-muted">Session-only confirmation. This is not a durable audit record.</p>
+        <div className="flex flex-col gap-2 border-t border-border px-4 py-3 bg-secondary/20 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[11px] text-foreground-muted">Session confirmation checklist for pre-publish safety checks.</p>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={resetChecklist} className="command-button">
-              Reset checklist
+            <button type="button" onClick={resetChecklist} className="command-button text-xs py-1">
+              Reset All
             </button>
-            <button type="button" onClick={onClose} className="command-button bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground">
+            <button type="button" onClick={onClose} className="command-button bg-primary text-primary-foreground text-xs py-1 hover:bg-primary/90">
               Done
             </button>
           </div>
@@ -246,110 +221,83 @@ function AdminSmokeChecklist({
 
 export function AdminReadinessBanner({
   readiness,
-  canRollbackImport,
-  isOptimizeBusy,
-  isAiOpen,
-  isStaffPanelOpen,
-  canUndo,
-  canRedo,
-  exportAction,
-  onImport,
-  onRollbackImport,
-  onAutoFill,
-  onOptimize,
-  onSave,
   onViewAlerts,
-  onToggleAi,
-  onToggleStaff,
 }: AdminReadinessBannerProps) {
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
 
   return (
     <>
-      <section className="satin-panel flex flex-col gap-3 p-3">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold", severityStyles[readiness.severity])}>
-                <SearchCheck className="h-3.5 w-3.5" />
-                {readiness.statusLabel}
-              </span>
-              {!readiness.hasSetupData && (
-                <span className="text-sm font-medium text-foreground-muted">Import a workbook or add staff to start smoke confirmation.</span>
-              )}
-            </div>
-            <h2 className="mt-2 text-base font-semibold text-foreground">Schedule readiness</h2>
+      <section className="satin-panel flex flex-col gap-2.5 p-3" aria-label="Schedule Readiness Summary">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-bold", severityStyles[readiness.severity])}>
+              <SearchCheck className="h-3.5 w-3.5" />
+              {readiness.statusLabel}
+            </span>
+            {!readiness.hasSetupData && (
+              <span className="text-xs font-medium text-foreground-muted">Import a workbook or add staff to complete schedule setup.</span>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setIsChecklistOpen(true)} className="command-button bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsChecklistOpen(true)}
+              className="command-button text-xs py-1 font-semibold text-primary hover:bg-primary/10"
+              title="Open Pre-Publish QA Checklist"
+            >
               <ClipboardCheck className="h-3.5 w-3.5" />
-              QA Check
+              Pre-Publish QA
             </button>
-            <button type="button" onClick={onViewAlerts} className={cn("command-button", readiness.alertCount > 0 && "bg-warning/10 text-warning")}>
-              <Bell className="h-3.5 w-3.5" />
-              Alerts
-            </button>
-            <button type="button" onClick={onToggleAi} className={cn("command-button", isAiOpen && "bg-primary text-primary-foreground")}>
-              <Bot className="h-3.5 w-3.5" />
-              AI
-            </button>
-            <button type="button" onClick={onToggleStaff} className={cn("command-button", isStaffPanelOpen && "bg-primary text-primary-foreground")}>
-              <Users className="h-3.5 w-3.5" />
-              Staff
-            </button>
+            {readiness.alertCount > 0 && (
+              <button
+                type="button"
+                onClick={onViewAlerts}
+                className="command-button text-xs py-1 bg-warning/10 text-warning hover:bg-warning/20 border-warning/20"
+                title="View active alerts"
+              >
+                <Bell className="h-3.5 w-3.5" />
+                {readiness.alertCount} Alert{readiness.alertCount === 1 ? "" : "s"}
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 2xl:flex-row">
-          <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-            <ReadinessMetric label="Coverage" value={`${readiness.coverage}%`} severity={readiness.coverage >= 95 ? "success" : readiness.coverage >= 50 ? "warning" : "error"} />
-            <ReadinessMetric label="Filled" value={`${readiness.assigned}/${readiness.totalSlots}`} severity={readiness.hasSetupData ? "info" : "warning"} />
-            <ReadinessMetric label="Critical gaps" value={readiness.criticalUnfilled} severity={readiness.criticalUnfilled > 0 ? "error" : "success"} />
-            <ReadinessMetric label="Skill risk" value={readiness.skillMismatchRisk} severity={readiness.skillMismatchRisk > 0 ? "warning" : "success"} />
-            <ReadinessMetric label="Fatigue" value={readiness.fatigueExposure} severity={readiness.fatigueExposure > 0 ? "warning" : "success"} />
-            <ReadinessMetric label="Sync" value={readiness.syncLabel} severity={readiness.syncSeverity} />
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/35 p-2">
-            <button type="button" onClick={onImport} className="command-button">
-              <Upload className="h-3.5 w-3.5" />
-              Import
-            </button>
-            <button type="button" onClick={onRollbackImport} disabled={!canRollbackImport} className="command-button disabled:opacity-40">
-              <RefreshCcw className="h-3.5 w-3.5" />
-              Rollback
-            </button>
-            <button type="button" onClick={onAutoFill} className="command-button text-primary">
-              <Sparkles className="h-3.5 w-3.5" />
-              Auto-Fill
-            </button>
-            <button type="button" onClick={onOptimize} disabled={isOptimizeBusy} className="command-button text-primary disabled:opacity-50">
-              <Bot className="h-3.5 w-3.5" />
-              {isOptimizeBusy ? "Optimizing" : "Optimize"}
-            </button>
-            <button type="button" onClick={onSave} disabled={!readiness.isOnline} className="command-button disabled:opacity-40">
-              <Save className="h-3.5 w-3.5" />
-              Save
-            </button>
-            <div className="shrink-0">{exportAction}</div>
-            <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-foreground-muted">
-              <PanelLeftOpen className="h-3.5 w-3.5" />
-              Undo {canUndo ? "ready" : "idle"} / Redo {canRedo ? "ready" : "idle"}
-            </span>
-            {readiness.alertCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2 py-1 text-xs font-semibold text-warning">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {readiness.alertCount} total issue{readiness.alertCount === 1 ? "" : "s"}
-              </span>
-            )}
-            {!readiness.hasSetupData && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
-                <FileCheck2 className="h-3.5 w-3.5" />
-                Setup needed
-              </span>
-            )}
-          </div>
+        {/* Readiness Key Metrics */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <ReadinessMetric
+            label="Coverage"
+            value={`${readiness.coverage}%`}
+            severity={readiness.coverage >= 95 ? "success" : readiness.coverage >= 50 ? "warning" : "error"}
+          />
+          <ReadinessMetric
+            label="Filled Slots"
+            value={`${readiness.assigned} / ${readiness.totalSlots}`}
+            severity={readiness.hasSetupData ? "info" : "warning"}
+          />
+          <ReadinessMetric
+            label="Critical Gaps"
+            value={readiness.criticalUnfilled}
+            severity={readiness.criticalUnfilled > 0 ? "error" : "success"}
+            onClick={readiness.criticalUnfilled > 0 ? onViewAlerts : undefined}
+          />
+          <ReadinessMetric
+            label="Skill Risks"
+            value={readiness.skillMismatchRisk}
+            severity={readiness.skillMismatchRisk > 0 ? "warning" : "success"}
+            onClick={readiness.skillMismatchRisk > 0 ? onViewAlerts : undefined}
+          />
+          <ReadinessMetric
+            label="Fatigue Alert"
+            value={readiness.fatigueExposure}
+            severity={readiness.fatigueExposure > 0 ? "warning" : "success"}
+            onClick={readiness.fatigueExposure > 0 ? onViewAlerts : undefined}
+          />
+          <ReadinessMetric
+            label="Cloud Sync"
+            value={readiness.syncLabel}
+            severity={readiness.syncSeverity}
+          />
         </div>
       </section>
 
@@ -357,4 +305,3 @@ export function AdminReadinessBanner({
     </>
   );
 }
-
