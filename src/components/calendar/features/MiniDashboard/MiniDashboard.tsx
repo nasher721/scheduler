@@ -111,8 +111,15 @@ export function MiniDashboard({ className }: MiniDashboardProps) {
         return sum + (duration[slot.type] || 8);
       }, 0);
 
-      const targetHours = (provider.targetWeekDays + provider.targetWeekendDays) * 8;
-      const percentage = targetHours > 0 ? (hours / targetHours) * 100 : 0;
+      const totalTargetShifts = (
+        (provider.targetWeekDays || 0) +
+        (provider.targetWeekendDays || 0) +
+        (provider.targetWeekNights || 0) +
+        (provider.targetWeekendNights || 0)
+      );
+      const weeklyTargetShifts = totalTargetShifts > 0 ? totalTargetShifts / 4 : 4;
+      const targetHours = Math.max(8, weeklyTargetShifts * 10);
+      const percentage = Math.round((hours / targetHours) * 100);
 
       return {
         provider,

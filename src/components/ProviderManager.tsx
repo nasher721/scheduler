@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useScheduleStore, getProviderCounts, type TimeOffType, getProviderCredentialSummary } from "../store";
 import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun, X } from "lucide-react";
 import { DraggableProvider } from "./Calendar";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn, getAvatarColor, getInitials, maskPlaceholderEmail } from "@/lib/utils";
 import { generateProviderICal } from "../lib/icalUtils";
+import { cleanProviderName, detectDuplicateProviders } from "@/lib/providerDeduplication";
 
 function TimeOffForm({ onAdd }: { onAdd: (date: string, type: TimeOffType) => void }) {
   const [date, setDate] = useState("");
@@ -83,7 +84,7 @@ function ProgressBar({ target, current, label, icon }: { target: number; current
 const parseCsv = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 
 export function ProviderManager() {
-  const { providers, addProvider, removeProvider, slots, updateProvider, showToast } = useScheduleStore();
+  const { providers, addProvider, removeProvider, slots, updateProvider, deduplicateProviders, showToast } = useScheduleStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -92,13 +93,25 @@ export function ProviderManager() {
 
   const counts = getProviderCounts(slots, providers);
 
+  // Detect duplicate or misspelled providers
+  const duplicateGroups = useMemo(() => detectDuplicateProviders(providers), [providers]);
+
+  const handleMergeDuplicates = () => {
+    if (duplicateGroups.length === 0) return;
+    const mergeMap = duplicateGroups.map((g) => ({
+      canonicalId: g.canonical.id,
+      duplicateIds: g.duplicates.map((d) => d.id),
+    }));
+    deduplicateProviders(mergeMap);
+  };
+
   const handleAdd = () => {
     if (!newName.trim()) {
       setNameError(true);
       return;
     }
     addProvider({
-      name: newName.trim(),
+      name: cleanProviderName(newName.trim()),
       targetWeekDays: 10,
       targetWeekendDays: 4,
       targetWeekNights: 3,
@@ -124,52 +137,109 @@ export function ProviderManager() {
     setNameError(false);
   };
 
+  const handleRemoveProvider = (id: string, name: string) => {
+    const assignedCount = slots.filter((s) => s.providerId === id).length;
+    const confirmMessage = assignedCount > 0
+      ? `Remove ${name}? This will also unassign them from ${assignedCount} shift${assignedCount > 1 ? 's' : ''}.`
+      : `Remove ${name} from the staff roster?`;
+    
+    if (window.confirm(confirmMessage)) {
+      removeProvider(id);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-      className="stone-panel border-l-4 border-l-primary p-5 flex flex-col gap-5 w-full h-fit sticky top-6"
+      className="stone-panel border-l-4 border-l-primary p-5 flex flex-col gap-4 w-full h-fit sticky top-6"
     >
-      <div className="flex items-center justify-between border-b border-border pb-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-xl text-primary">
             <Users className="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Clinical staff</h2>
-            <p className="text-xs text-foreground-muted mt-0.5">{providers.length} providers</p>
+            <h2 className="text-lg font-semibold text-foreground">Clinical Staff</h2>
+            <p className="text-xs text-foreground-muted mt-0.5">{providers.length} provider{providers.length === 1 ? "" : "s"}</p>
           </div>
         </div>
         <motion.button
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => setIsAdding(true)}
-          title="Add provider"
-          aria-label="Add provider"
-          className="p-2.5 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity"
+          onClick={() => setIsAdding(!isAdding)}
+          title={isAdding ? "Cancel adding provider" : "Add provider"}
+          aria-label={isAdding ? "Cancel adding provider" : "Add provider"}
+          className={cn(
+            "p-2.5 rounded-xl transition-all font-semibold flex items-center gap-1.5 text-xs",
+            isAdding
+              ? "bg-secondary text-foreground hover:bg-secondary/80"
+              : "bg-primary text-primary-foreground hover:opacity-90"
+          )}
         >
-          <Plus className="w-5 h-5 stroke-[3]" />
+          {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4 stroke-[3]" />}
+          <span className="hidden sm:inline">{isAdding ? "Cancel" : "Add Provider"}</span>
         </motion.button>
       </div>
+
+      {/* Duplicate Provider Cleanup Alert */}
+      {duplicateGroups.length > 0 && (
+        <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-warning-foreground">
+              <Sparkles className="w-4 h-4 text-warning shrink-0" />
+              <span>{duplicateGroups.length} duplicate or misspelled staff record{duplicateGroups.length > 1 ? 's' : ''} detected</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleMergeDuplicates}
+              className="px-2.5 py-1 text-xs font-bold bg-warning text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm shrink-0"
+            >
+              Merge & Clean
+            </button>
+          </div>
+          <div className="text-[11px] text-foreground-muted space-y-0.5">
+            {duplicateGroups.slice(0, 3).map((g) => (
+              <p key={g.canonical.id}>
+                • Canonical: <strong className="text-foreground">{g.canonical.name}</strong> ← Duplicates: {g.duplicates.map((d) => d.name).join(", ")}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {isAdding && (
           <motion.div
-            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-            animate={{ height: "auto", opacity: 1, marginBottom: 8 }}
-            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-4 bg-secondary/30 rounded-xl border border-border mb-4">
+            <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 mb-2">
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-primary/10">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">Add New Staff Member</span>
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  className="text-foreground-muted hover:text-foreground p-1 rounded"
+                  title="Close form"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-foreground-secondary">
+                    Provider Name *
+                  </label>
                   <input
                     autoFocus
                     type="text"
-                    className={cn("input-base rounded-lg py-2.5", nameError && "border-error focus:ring-error/20 animate-[shake_0.3s_ease]")}
-                    placeholder="Name (required)"
+                    className={cn("input-base rounded-lg py-2", nameError && "border-error focus:ring-error/20 animate-[shake_0.3s_ease]")}
+                    placeholder="e.g. Dr. Jane Smith, MD"
                     value={newName}
                     onChange={(e) => { setNewName(e.target.value); if (nameError) setNameError(false); }}
                     onKeyDown={(e) => e.key === "Enter" && handleAdd()}
@@ -178,28 +248,34 @@ export function ProviderManager() {
                     <p className="text-xs font-medium text-error px-1">Name is required.</p>
                   )}
                 </div>
-                <input
-                  type="email"
-                  className="input-base rounded-lg py-2.5"
-                  placeholder="Email (optional)"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                />
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-foreground-secondary">
+                    Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    className="input-base rounded-lg py-2"
+                    placeholder="doctor@hospital.org"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                  />
+                </div>
               </div>
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-primary/10">
                 <button
                   type="button"
-                  onMouseDown={(e) => { e.preventDefault(); handleDiscard(); }}
-                  className="px-3 py-2 text-sm font-medium text-foreground-muted hover:text-foreground transition-colors"
+                  onClick={handleDiscard}
+                  className="px-3 py-1.5 text-xs font-medium text-foreground-muted hover:text-foreground transition-colors rounded-lg"
                 >
-                  Discard
+                  Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleAdd}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity shadow-sm"
                 >
-                  Add provider
+                  Save Provider
                 </button>
               </div>
             </div>
@@ -294,7 +370,7 @@ export function ProviderManager() {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => removeProvider(p.id)}
+                      onClick={() => handleRemoveProvider(p.id, p.name)}
                       title="Remove Staff"
                       className="opacity-0 group-hover:opacity-100 p-2 text-error hover:bg-error-muted rounded-xl transition-all"
                     >

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Zap, Loader2, AlertTriangle } from "lucide-react";
 import { useScheduleStore } from "@/store";
-import { multiAgentOptimize, buildOptimizationPreview, applyOptimizationResult } from "@/lib/api";
+import { multiAgentOptimize, buildOptimizationPreview } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { MultiAgentOptimizeResult } from "@/lib/api/multiAgentOptimize";
 
@@ -87,56 +87,20 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
       // Check confidence score and hard violations
       const rawScore = Number(result.metrics?.objectiveScore ?? 0);
       const confidencePct = rawScore > 1 ? Math.min(100, Math.round(rawScore)) : Math.round(rawScore * 100);
-      const hardViolationCount = Number(result.metrics?.hardViolationCount ?? 0);
-      const hasHighConfidence = confidencePct >= 80;
-      const hasNoViolations = hardViolationCount === 0;
-
-      // Auto-apply if high confidence and no violations
-      if (hasHighConfidence && hasNoViolations) {
-        setStage("applying");
-        try {
-          const applyResponse = await applyOptimizationResult(result, "Auto-Schedule");
-
-          if (applyResponse.ok) {
-            const nextSlots = (applyResponse.state?.slots || result.schedule?.slots) as typeof slots;
-            if (Array.isArray(nextSlots)) {
-              useScheduleStore.setState({ slots: nextSlots });
-            }
-            setStage("complete");
-            showToast({
-              type: "success",
-              title: "Schedule optimized",
-              message: `Applied with ${confidencePct}% confidence score.`,
-            });
-
-            // Reset to idle after brief display
-            setTimeout(() => setStage("idle"), 2000);
-          } else {
-            // Fall back to preview if apply failed
-            setErrorResult(result);
-            setStage("error");
-            const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
-            openChangePreviewWithMultiAgentResult(preview, result);
-          }
-        } catch {
-          // Fall back to preview on error
-          setErrorResult(result);
-          setStage("error");
-          const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
-          openChangePreviewWithMultiAgentResult(preview, result);
-        }
-      } else {
-        // Low confidence or violations - show preview
-        setErrorResult(result);
-        setStage("error");
-        const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
-        openChangePreviewWithMultiAgentResult(preview, result);
-      }
+      // Always open the review and preview step for safe user approval
+      const preview = buildOptimizationPreview(result, safeSlots, safeProviders);
+      openChangePreviewWithMultiAgentResult(preview, result);
+      setStage("idle");
+      showToast({
+        type: "info",
+        title: "Optimization Ready for Review",
+        message: `Generated schedule proposal with ${confidencePct}% confidence. Please review changes before applying.`,
+      });
     } catch (err) {
       setStage("error");
       showToast({
         type: "error",
-        title: "Smart Schedule failed",
+        title: "Optimization Failed",
         message: err instanceof Error ? err.message : "Multi-agent optimize request failed.",
       });
     }

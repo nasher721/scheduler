@@ -12,7 +12,7 @@ import { NotificationBanner } from "./components/NotificationBanner";
 import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
 import { ErrorBoundary, ViewContent } from "./components/layout";
-import { getProviderCounts, useScheduleStore } from "./store";
+import { useScheduleStore } from "./store";
 import { Login } from "./components/Login";
 import { ProviderDashboard } from "./components/ProviderDashboard";
 import { InstallPrompt } from "./components/InstallPrompt";
@@ -90,6 +90,7 @@ export default function App() {
     applyAllAISuggestions,
     rejectAISuggestions,
     openChangePreviewWithMultiAgentResult,
+    restoreLastKnownGoodSchedule,
   } = useScheduleStore(
     useShallow((s) => ({
       autoAssign: s.autoAssign,
@@ -124,6 +125,7 @@ export default function App() {
       applyAllAISuggestions: s.applyAllAISuggestions,
       rejectAISuggestions: s.rejectAISuggestions,
       openChangePreviewWithMultiAgentResult: s.openChangePreviewWithMultiAgentResult,
+      restoreLastKnownGoodSchedule: s.restoreLastKnownGoodSchedule,
     })),
   );
 
@@ -157,7 +159,10 @@ export default function App() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
   const [isAiMapping, setIsAiMapping] = useState(false);
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#admin") return false;
+    return !currentUser;
+  });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
   const [showMoreOps, setShowMoreOps] = useState(false);
@@ -295,31 +300,25 @@ export default function App() {
     document.title = `${segment} · Neuro ICU Staffing`;
   }, [currentUser, viewMode]);
 
-  const riskDigest = useMemo(
-    () => buildScheduleRiskDigest(safeSlots, safeProviders, customRules),
-    [safeSlots, safeProviders, customRules],
-  );
-  const assigned = riskDigest.filledSlots;
-  const coverage = riskDigest.coveragePercent;
-  const counts = useMemo(() => getProviderCounts(safeSlots, safeProviders), [safeSlots, safeProviders]);
-  const overloaded = safeProviders.filter((p) => {
-    const c = counts[p.id];
-    return c && (
-      c.weekDays > p.targetWeekDays
-      || c.weekendDays > p.targetWeekendDays
-      || (c.weekNights + c.weekendNights) > p.targetWeekNights
-    );
-  });
-  const criticalUnfilled = riskDigest.criticalUnfilled.length;
-  const skillMismatchRisk = riskDigest.skillMismatches.length;
-  const fatigueExposure = safeProviders.filter((p) => counts[p.id] && counts[p.id].weekNights + counts[p.id].weekendNights > p.targetWeekNights).length;
   const scheduleReadiness = useScheduleReadiness({
     slots: safeSlots,
     providers: safeProviders,
+    customRules,
     anomalyAlertCount: anomalyAlerts.length,
     autoSaveStatus,
     isOnline,
   });
+
+  const riskDigest = useMemo(
+    () => buildScheduleRiskDigest(safeSlots, safeProviders, customRules, anomalyAlerts.length),
+    [safeSlots, safeProviders, customRules, anomalyAlerts.length],
+  );
+  const assigned = riskDigest.filledSlots;
+  const coverage = riskDigest.coveragePercent;
+  const criticalUnfilled = riskDigest.criticalUnfilledCount;
+  const skillMismatchRisk = riskDigest.skillMismatchCount;
+  const fatigueExposure = riskDigest.fatigueExposureCount;
+  const overloaded = riskDigest.overloadedProviders;
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -482,7 +481,11 @@ export default function App() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground-muted">Neuro ICU Staffing</p>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-foreground-muted">
+                    <span>Neuro ICU Staffing</span>
+                    <span>/</span>
+                    <span className="text-primary capitalize">{viewMode}</span>
+                  </div>
                   <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
                     Admin Command Center
                   </h1>
@@ -648,6 +651,14 @@ export default function App() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => { setShowMoreOps(false); restoreLastKnownGoodSchedule(); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <RefreshCcw className="w-3.5 h-3.5 text-primary" />
+                          Restore Last Good Schedule
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => { setShowMoreOps(false); setShowScenarios(v => !v); }}
                           className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
                         >
@@ -767,7 +778,19 @@ export default function App() {
                           onClick={() => loadScenario(scenario.id)}
                         >
                           {scenario.name}
-                          <button title="Delete scenario" aria-label="Delete scenario" onClick={(e) => { e.stopPropagation(); deleteScenario(scenario.id); }} className="p-0.5 text-error opacity-0 transition-opacity group-hover:opacity-100"><Trash className="w-3 h-3" /></button>
+                          <button
+                            title="Delete scenario"
+                            aria-label="Delete scenario"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Delete scenario "${scenario.name}"?`)) {
+                                deleteScenario(scenario.id);
+                              }
+                            }}
+                            className="p-0.5 text-error opacity-0 transition-opacity group-hover:opacity-100 hover:scale-110"
+                          >
+                            <Trash className="w-3 h-3" />
+                          </button>
                         </motion.div>
                       ))}
                     </AnimatePresence>
@@ -787,7 +810,7 @@ export default function App() {
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                   <div className="min-w-0 flex-1 leading-relaxed">
                     {lastActionMessage && <p className="font-semibold text-foreground">{lastActionMessage}</p>}
-                    {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.name).join(", ")}</p>}
+                    {overloaded.length > 0 && <p>Overload: {overloaded.map(p => p.providerName).join(", ")}</p>}
                     {fatigueExposure > 0 && <p>Fatigue: {fatigueExposure} exposure(s).</p>}
                   </div>
                   <button onClick={clearMessage} className="shrink-0 text-xs font-semibold text-warning hover:text-foreground">Dismiss</button>

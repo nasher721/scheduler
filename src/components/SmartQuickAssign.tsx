@@ -147,7 +147,7 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
         }`}
       >
         <UserPlus className="w-3 h-3" />
-        {hasMatches ? `${eligibleProviders.length} available` : 'No matches'}
+        {hasMatches ? `${eligibleProviders.length} available` : 'No eligible matches'}
       </button>
 
       {/* Dropdown */}
@@ -175,7 +175,7 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
                   onClick={() => setIsOpen(false)}
                   className="p-1 hover:bg-slate-200 rounded transition-colors"
                 >
-                  <X className="w-3 h-3 text-slate-400" />
+                  <X className="w-3.5 h-3.5 text-slate-400" />
                 </button>
               </div>
 
@@ -250,9 +250,9 @@ export function SmartQuickAssign({ slot, onAssign }: SmartQuickAssignProps) {
                 ) : (
                   <div className="p-4 text-center">
                     <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">No eligible providers</p>
+                    <p className="text-sm font-semibold text-slate-600">No eligible providers match</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      All providers have conflicts or are at capacity
+                      All available staff have schedule conflicts, time-off requests, missing skill qualifications, or exceed duty-hour limits.
                     </p>
                   </div>
                 )}

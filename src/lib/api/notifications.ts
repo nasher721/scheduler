@@ -51,30 +51,36 @@ export async function sendNotification(payload: {
 }
 
 export async function listNotificationHistory(limit = 50): Promise<{ records: NotificationRecord[]; total: number }> {
-  const { data, error, count } = await supabase
-    .from("notifications")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  try {
+    const { data, error, count } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-  if (error) {
-    throw new Error(`Failed to load notification history: ${error.message}`);
+    if (error) {
+      console.warn(`[notifications] Failed to load notification history: ${error.message}`);
+      return { records: [], total: 0 };
+    }
+
+    return {
+      records: (data || []).map((d) => ({
+        id: d.id,
+        eventType: d.event_type,
+        title: d.title,
+        body: d.body,
+        severity: d.severity as NotificationSeverity,
+        channels: d.channels as string[],
+        statusByChannel: d.status_by_channel as Record<string, string>,
+        metadata: d.metadata as Record<string, unknown>,
+        createdAt: d.created_at,
+      })) as NotificationRecord[],
+      total: count || 0
+    };
+  } catch (err) {
+    console.warn("[notifications] listNotificationHistory fallback:", err);
+    return { records: [], total: 0 };
   }
-
-  return {
-    records: (data || []).map((d) => ({
-      id: d.id,
-      eventType: d.event_type,
-      title: d.title,
-      body: d.body,
-      severity: d.severity as NotificationSeverity,
-      channels: d.channels as string[],
-      statusByChannel: d.status_by_channel as Record<string, string>,
-      metadata: d.metadata as Record<string, unknown>,
-      createdAt: d.created_at,
-    })) as NotificationRecord[],
-    total: count || 0
-  };
 }
 
 export async function updateNotification(

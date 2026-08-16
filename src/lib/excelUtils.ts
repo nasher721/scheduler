@@ -289,55 +289,13 @@ export const normalizeHeader = (header: unknown): string => {
   }
 };
 
-// Common name corrections for Neuro ICU team
-const NAME_CORRECTIONS: Record<string, string> = {
-  // Exact matches (lowercase keys)
-  'lynch': 'Lynch',
-  'hasset': 'Hassett',
-  'hassett': 'Hassett',
-  'sabarwhal': 'Sabharwal',
-  'sabharwal': 'Sabharwal',
-  'villamizar rosales': 'Villamizar Rosales',
-  'rosales': 'Villamizar Rosales',
-  'barron': 'Barron',
-  'bates': 'Bates',
-  'bolt': 'Bolt',
-  'dani': 'Dani',
-  'gomes': 'Gomes',
-  'goswami': 'Goswami',
-  'asher': 'Asher',
-  'new': 'New', // Placeholder for new hires
-  'nn': 'NN',
-  'aa': 'AA',
-  'bb': 'BB',
-  'cc': 'CC',
-};
+import { cleanProviderName } from "./providerDeduplication";
 
 /**
  * Normalize provider names to handle common typos and inconsistencies
  */
 export const normalizeProviderName = (name: string): string => {
-  const trimmed = name.trim();
-  if (!trimmed) return '';
-
-  // Check for exact match in corrections (case-insensitive)
-  const lowerName = trimmed.toLowerCase();
-  if (NAME_CORRECTIONS[lowerName]) {
-    return NAME_CORRECTIONS[lowerName];
-  }
-
-  // Check for partial matches (e.g., "Rosales" -> "Villamizar Rosales")
-  for (const [key, value] of Object.entries(NAME_CORRECTIONS)) {
-    if (lowerName.includes(key) && key.length > 3) {
-      return value;
-    }
-  }
-
-  // Capitalize first letter of each word
-  return trimmed
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
+  return cleanProviderName(name);
 };
 
 export interface ParsedAssignment {

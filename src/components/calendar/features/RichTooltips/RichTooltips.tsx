@@ -70,8 +70,15 @@ export function ProviderTooltip({ provider, children }: ProviderTooltipProps) {
       .filter(s => isWithinInterval(parseISO(s.date), { start: weekStart, end: weekEnd }))
       .reduce((sum, s) => sum + getShiftDuration(s.type), 0);
     
-    const targetHours = (provider.targetWeekDays + provider.targetWeekendDays) * 8;
-    const percentage = targetHours > 0 ? (hoursThisWeek / targetHours) * 100 : 0;
+    const totalTargetShifts = (
+      (provider.targetWeekDays || 0) +
+      (provider.targetWeekendDays || 0) +
+      (provider.targetWeekNights || 0) +
+      (provider.targetWeekendNights || 0)
+    );
+    const weeklyTargetShifts = totalTargetShifts > 0 ? totalTargetShifts / 4 : 4;
+    const targetHours = Math.max(8, weeklyTargetShifts * 10);
+    const percentage = Math.round((hoursThisWeek / targetHours) * 100);
     
     // Weekend/night distribution
     const weekendShifts = providerSlots.filter(s => {
@@ -259,7 +266,14 @@ export function ShiftTooltip({ slot, assignedProvider, children }: ShiftTooltipP
       .reduce((sum, s) => sum + getShiftDuration(s.type), 0);
     
     const newHours = currentHours + getShiftDuration(slot.type);
-    const targetHours = (assignedProvider.targetWeekDays + assignedProvider.targetWeekendDays) * 8;
+    const totalTargetShifts = (
+      (assignedProvider.targetWeekDays || 0) +
+      (assignedProvider.targetWeekendDays || 0) +
+      (assignedProvider.targetWeekNights || 0) +
+      (assignedProvider.targetWeekendNights || 0)
+    );
+    const weeklyTargetShifts = totalTargetShifts > 0 ? totalTargetShifts / 4 : 4;
+    const targetHours = Math.max(8, weeklyTargetShifts * 10);
     
     // Check for conflicts
     const sameDayShift = providerSlots.find(s => s.date === slot.date);
@@ -272,7 +286,7 @@ export function ShiftTooltip({ slot, assignedProvider, children }: ShiftTooltipP
       currentHours,
       newHours,
       targetHours,
-      percentage: (newHours / targetHours) * 100,
+      percentage: Math.round((newHours / targetHours) * 100),
       hasConflict: !!sameDayShift,
       consecutiveCount: consecutiveShifts
     };

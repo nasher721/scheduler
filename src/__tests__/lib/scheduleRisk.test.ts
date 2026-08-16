@@ -36,7 +36,7 @@ describe("scheduleRisk", () => {
   it("treats legacy critical priority and service priority as critical coverage", () => {
     expect(isCriticalCoverageSlot(slot({ priority: "CRITICAL", servicePriority: "STANDARD" }))).toBe(true);
     expect(isCriticalCoverageSlot(slot({ priority: "STANDARD", servicePriority: "CRITICAL" }))).toBe(true);
-    expect(isCriticalCoverageSlot(slot({ priority: "STANDARD", servicePriority: "FLEXIBLE" }))).toBe(false);
+    expect(isCriticalCoverageSlot(slot({ priority: "STANDARD", servicePriority: "FLEXIBLE", serviceLocation: "Jeopardy", locationGroup: "SUPPORT_SERVICE" }))).toBe(false);
   });
 
   it("builds a live risk digest from gaps, skill mismatches, and guardrails", () => {

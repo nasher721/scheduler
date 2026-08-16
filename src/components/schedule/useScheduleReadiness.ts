@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { Provider, ShiftSlot } from "@/store";
-import { getProviderCounts } from "@/store";
+import type { Provider, ShiftSlot, CustomRule } from "@/types";
+import { buildAuthoritativeMetrics } from "@/lib/scheduleRisk";
 
 export type ReadinessSaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 export type ReadinessSeverity = "success" | "warning" | "error" | "info";
@@ -24,6 +24,7 @@ export interface ScheduleReadiness {
 interface UseScheduleReadinessArgs {
   slots: ShiftSlot[];
   providers: Provider[];
+  customRules?: CustomRule[];
   anomalyAlertCount: number;
   autoSaveStatus: ReadinessSaveStatus;
   isOnline: boolean;
@@ -50,26 +51,20 @@ function getSyncState(autoSaveStatus: ReadinessSaveStatus, isOnline: boolean): P
 export function useScheduleReadiness({
   slots,
   providers,
+  customRules = [],
   anomalyAlertCount,
   autoSaveStatus,
   isOnline,
 }: UseScheduleReadinessArgs): ScheduleReadiness {
   return useMemo(() => {
-    const assigned = slots.filter((slot) => slot?.providerId).length;
-    const totalSlots = slots.length;
-    const coverage = Math.round((assigned / Math.max(totalSlots, 1)) * 100);
-    const counts = getProviderCounts(slots, providers);
-    const criticalUnfilled = slots.filter((slot) => slot?.servicePriority === "CRITICAL" && !slot?.providerId).length;
-    const skillMismatchRisk = slots.filter((slot) => {
-      if (!slot?.providerId) return false;
-      const provider = providers.find((entry) => entry.id === slot.providerId);
-      return provider ? !(provider.skills ?? []).includes(slot.requiredSkill) : false;
-    }).length;
-    const fatigueExposure = providers.filter((provider) => {
-      const providerCounts = counts[provider.id];
-      return providerCounts && providerCounts.weekNights + providerCounts.weekendNights > provider.targetWeekNights;
-    }).length;
-    const alertCount = anomalyAlertCount + criticalUnfilled + skillMismatchRisk + fatigueExposure;
+    const metrics = buildAuthoritativeMetrics(slots, providers, customRules, anomalyAlertCount);
+    const assigned = metrics.filledSlots;
+    const totalSlots = metrics.totalSlots;
+    const coverage = metrics.coveragePercent;
+    const criticalUnfilled = metrics.criticalUnfilledCount;
+    const skillMismatchRisk = metrics.skillMismatchCount;
+    const fatigueExposure = metrics.fatigueExposureCount;
+    const alertCount = metrics.totalAlertCount;
     const hasSetupData = providers.length > 0 && totalSlots > 0;
     const sync = getSyncState(autoSaveStatus, isOnline);
 
@@ -102,6 +97,7 @@ export function useScheduleReadiness({
       syncSeverity: sync.syncSeverity,
       isOnline,
     };
-  }, [slots, providers, anomalyAlertCount, autoSaveStatus, isOnline]);
+  }, [slots, providers, customRules, anomalyAlertCount, autoSaveStatus, isOnline]);
 }
+
 

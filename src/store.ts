@@ -24,17 +24,23 @@ export function validateDefaultAdmin(email: string, password: string): boolean {
   return emailMatch && passwordMatch;
 }
 
-// ─── Safe localStorage wrapper ────────────────────────────────────────────────
-// Wraps every setItem in a try/catch so a QuotaExceededError never crashes the
-// app.  When quota is exceeded the handler prunes the largest state slices
-// (undo history → copilot conversations → notifications) inline, retries once,
-// and – if storage is still full – removes the stale key so the next write can
-// succeed.  A one-time console warning is emitted instead of an uncaught error.
+// ─── Safe localStorage wrapper with In-Memory Fallback ────────────────────────
+// Wraps every get/set/removeItem in a robust try/catch with an in-memory Map fallback.
+// If localStorage is unavailable, disabled, running in a sandboxed iframe, or exceeds quota,
+// operations fallback gracefully without throwing uncaught SecurityError or QuotaExceededError.
+const _memoryStorage = new Map<string, string>();
+
 const _safeStorage = {
   getItem: (name: string): string | null => {
-    try { return localStorage.getItem(name); } catch { return null; }
+    try {
+      const val = localStorage.getItem(name);
+      return val !== null ? val : (_memoryStorage.get(name) ?? null);
+    } catch {
+      return _memoryStorage.get(name) ?? null;
+    }
   },
   setItem: (name: string, value: string): void => {
+    _memoryStorage.set(name, value);
     const tryWrite = (payload: string) => {
       try {
         localStorage.setItem(name, payload);
@@ -45,14 +51,17 @@ const _safeStorage = {
           (err.name === "QuotaExceededError" ||
             err.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
             err.code === 22);
-        if (!isQuota) throw err;
+        if (!isQuota) {
+          // In sandboxed/restricted storage context, memory storage is already updated.
+          return true;
+        }
         return false;
       }
     };
 
     if (tryWrite(value)) return;
 
-    // First attempt failed — try to prune large slices and retry.
+    // First attempt failed due to quota — prune large slices and retry.
     try {
       const parsed: { state?: Record<string, unknown> } = JSON.parse(value);
       const s = parsed?.state;
@@ -70,7 +79,7 @@ const _safeStorage = {
         if (Array.isArray(s.copilotConversations)) {
           s.copilotConversations = (s.copilotConversations as unknown[]).slice(-3);
         }
-        // Drop stale ML suggestions (they are regenerated on demand).
+        // Drop stale ML suggestions.
         if (Array.isArray(s.mlSuggestions)) {
           s.mlSuggestions = [];
         }
@@ -87,10 +96,11 @@ const _safeStorage = {
     // Still over quota: evict the stale key so the next write can succeed.
     try { localStorage.removeItem(name); } catch { /* nothing */ }
     console.warn(
-      "[NICU Scheduler] localStorage quota exceeded. Undo history and AI conversation logs were trimmed to free space. Core schedule data is preserved.",
+      "[NICU Scheduler] localStorage quota exceeded. Undo history and AI conversation logs were trimmed to free space. Core schedule data is preserved in memory.",
     );
   },
   removeItem: (name: string): void => {
+    _memoryStorage.delete(name);
     try { localStorage.removeItem(name); } catch { /* nothing */ }
   },
 };
@@ -406,6 +416,8 @@ interface ScheduleState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  restoreLastKnownGoodSchedule: () => void;
+  deduplicateProviders: (mergeMap: Array<{ canonicalId: string; duplicateIds: string[] }>) => void;
   currentUser: Provider | null;
   login: (email: string) => void;
   register: (provider: Omit<Provider, "id">) => void;
@@ -1006,25 +1018,37 @@ const MAX_HISTORY = 50;
 // History helpers — eliminate boilerplate repeated across store actions
 // ---------------------------------------------------------------------------
 
-/** Captures current mutable schedule state as a history snapshot. */
-function captureHistory(state: ScheduleState): HistoryState {
+/** Captures current mutable schedule state as an immutable history snapshot. */
+function captureHistory(state: ScheduleState | HistoryState | {
+  providers: Provider[];
+  slots: ShiftSlot[];
+  startDate: string;
+  numWeeks: number;
+  customRules?: CustomRule[];
+  dayHandoffs?: import("./types").DayHandoff[];
+  auditLog?: AuditLogEntry[];
+}): HistoryState {
   return {
-    providers: state.providers,
-    slots: state.slots,
+    providers: structuredClone(state.providers ?? []),
+    slots: structuredClone(state.slots ?? []),
     startDate: state.startDate,
     numWeeks: state.numWeeks,
-    customRules: state.customRules,
-    dayHandoffs: state.dayHandoffs,
-    auditLog: state.auditLog,
+    customRules: state.customRules ? structuredClone(state.customRules) : [],
+    dayHandoffs: state.dayHandoffs ? structuredClone(state.dayHandoffs) : [],
+    auditLog: state.auditLog ? structuredClone(state.auditLog) : [],
   };
 }
 
-/** Appends snapshot to history array, enforcing MAX_HISTORY cap. */
+/** Appends a new immutable snapshot to history array, enforcing MAX_HISTORY cap. */
 function pushHistory(
   state: ScheduleState,
-  snapshot: HistoryState,
+  newSnapshot: HistoryState,
 ): { history: HistoryState[]; historyIndex: number } {
-  const newHistory = [...state.history.slice(0, state.historyIndex + 1), snapshot].slice(-MAX_HISTORY);
+  const baseHistory = state.historyIndex >= 0
+    ? state.history.slice(0, state.historyIndex + 1)
+    : (state.history.length > 0 ? state.history.slice(0, 1) : [captureHistory(state)]);
+
+  const newHistory = [...baseHistory, structuredClone(newSnapshot)].slice(-MAX_HISTORY);
   return { history: newHistory, historyIndex: newHistory.length - 1 };
 }
 
@@ -1151,6 +1175,13 @@ export const useScheduleStore = create<ScheduleState>()(
           } catch {
             // Non-fatal: user will see the login screen and can sign in manually.
           }
+        }
+
+        // 4. Ensure initial baseline is recorded in history if history is empty
+        const currentState = get();
+        if (currentState.history.length === 0) {
+          const baseline = captureHistory(currentState);
+          set({ history: [baseline], historyIndex: 0 });
         }
       },
 
@@ -1352,10 +1383,16 @@ export const useScheduleStore = create<ScheduleState>()(
 
       addProvider: (provider) => {
         const state = get();
-        const hist = pushHistory(state, captureHistory(state));
+        const candidateId = "id" in provider && typeof (provider as Partial<Provider>).id === "string"
+          ? (provider as Partial<Provider>).id!
+          : crypto.randomUUID();
+        const newProvider: Provider = { ...provider, id: candidateId };
+        const nextProviders = [...state.providers, newProvider];
+        const nextSnapshot = captureHistory({ ...state, providers: nextProviders });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
-          providers: [...state.providers, { ...provider, id: crypto.randomUUID() }],
+          providers: nextProviders,
           ...hist,
           lastActionMessage: `Added ${provider.name} to roster.`,
         });
@@ -1364,19 +1401,29 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       updateProvider: (id, updates) => {
-        set((state) => ({
-          providers: state.providers.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-        }));
+        const state = get();
+        const nextProviders = state.providers.map((p) => (p.id === id ? { ...p, ...updates } : p));
+        const nextSnapshot = captureHistory({ ...state, providers: nextProviders });
+        const hist = pushHistory(state, nextSnapshot);
+
+        set({
+          providers: nextProviders,
+          ...hist,
+          lastActionMessage: "Provider updated.",
+        });
       },
 
       removeProvider: (id) => {
         const state = get();
         const provider = state.providers.find(p => p.id === id);
-        const hist = pushHistory(state, captureHistory(state));
+        const nextProviders = state.providers.filter((p) => p.id !== id);
+        const nextSlots = state.slots.map((s) => (s.providerId === id ? { ...s, providerId: null } : s));
+        const nextSnapshot = captureHistory({ ...state, providers: nextProviders, slots: nextSlots });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
-          providers: state.providers.filter((p) => p.id !== id),
-          slots: state.slots.map((s) => (s.providerId === id ? { ...s, providerId: null } : s)),
+          providers: nextProviders,
+          slots: nextSlots,
           ...hist,
           lastActionMessage: "Provider removed and related assignments cleared.",
         });
@@ -1385,20 +1432,31 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       setScheduleRange: (startDate, numWeeks) => {
-        set(() => ({
+        const state = get();
+        const nextSlots = generateInitialSlots(startDate, numWeeks);
+        const nextSnapshot = captureHistory({ ...state, startDate, numWeeks, slots: nextSlots });
+        const hist = pushHistory(state, nextSnapshot);
+
+        set({
           startDate,
           numWeeks,
-          slots: generateInitialSlots(startDate, numWeeks),
+          slots: nextSlots,
+          ...hist,
           lastActionMessage: "Schedule window updated.",
-        }));
+        });
 
         get().showToast({ type: "info", title: "Schedule Updated", message: `Now viewing ${numWeeks} week${numWeeks > 1 ? 's' : ''} starting ${startDate}.` });
       },
 
       addCustomRule: (rule) => {
         const state = get();
+        const nextRules = [...state.customRules, { ...rule, id: crypto.randomUUID() }];
+        const nextSnapshot = captureHistory({ ...state, customRules: nextRules });
+        const hist = pushHistory(state, nextSnapshot);
+
         set({
-          customRules: [...state.customRules, { ...rule, id: crypto.randomUUID() }],
+          customRules: nextRules,
+          ...hist,
           lastActionMessage: `Added custom rule: ${rule.type}`,
         });
         get().showToast({ type: "success", title: "Rule Added", message: `Custom rule created.` });
@@ -1412,8 +1470,12 @@ export const useScheduleStore = create<ScheduleState>()(
         const updated = { ...rule, ...updates };
         const next = state.customRules.slice();
         next[index] = updated;
+        const nextSnapshot = captureHistory({ ...state, customRules: next });
+        const hist = pushHistory(state, nextSnapshot);
+
         set({
           customRules: next,
+          ...hist,
           lastActionMessage: "Custom rule updated.",
           auditLog: [
             {
@@ -1432,8 +1494,13 @@ export const useScheduleStore = create<ScheduleState>()(
       removeCustomRule: (id) => {
         const state = get();
         const ruleToRemove = state.customRules.find(r => r.id === id);
+        const nextRules = state.customRules.filter(r => r.id !== id);
+        const nextSnapshot = captureHistory({ ...state, customRules: nextRules });
+        const hist = pushHistory(state, nextSnapshot);
+
         set({
-          customRules: state.customRules.filter(r => r.id !== id),
+          customRules: nextRules,
+          ...hist,
           lastActionMessage: `Removed custom rule.`,
           auditLog: [
             {
@@ -1459,7 +1526,7 @@ export const useScheduleStore = create<ScheduleState>()(
             : `Removed assignment from ${slot?.type} shift on ${slot?.date}`;
 
           // Check if assignment is valid before proceeding with state change and history
-          if (providerId !== null) { // Only check for assignment, unassignment is always allowed
+          if (providerId !== null) {
             if (!slot) {
               get().showToast({ type: "error", title: "Assignment Failed", message: "Slot not found." });
               return state;
@@ -1490,15 +1557,14 @@ export const useScheduleStore = create<ScheduleState>()(
           );
           const nextAuditLog = [newAuditEntry, ...state.auditLog];
 
-          // Use the post-update state for this history entry so undo restores correctly
           const postUpdateSnapshot: HistoryState = {
-            providers: state.providers,
-            slots: nextSlots,
+            providers: structuredClone(state.providers),
+            slots: structuredClone(nextSlots),
             startDate: state.startDate,
             numWeeks: state.numWeeks,
-            customRules: state.customRules,
-            dayHandoffs: state.dayHandoffs,
-            auditLog: nextAuditLog,
+            customRules: structuredClone(state.customRules),
+            dayHandoffs: state.dayHandoffs ? structuredClone(state.dayHandoffs) : [],
+            auditLog: structuredClone(nextAuditLog),
           };
           const { history: newHistory, historyIndex: newHistoryIndex } = pushHistory(state, postUpdateSnapshot);
 
@@ -1513,22 +1579,25 @@ export const useScheduleStore = create<ScheduleState>()(
 
       clearAssignments: () => {
         const state = get();
-        const hist = pushHistory(state, captureHistory(state));
+        const nextSlots = state.slots.map((s) => ({ ...s, providerId: null }));
+        const nextAudit: AuditLogEntry[] = [
+          {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            action: "UNASSIGN" as const,
+            details: "Cleared all assignments",
+            user: state.currentUser?.name ?? "System",
+          },
+          ...state.auditLog
+        ];
+        const nextSnapshot = captureHistory({ ...state, slots: nextSlots, auditLog: nextAudit });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
-          slots: state.slots.map((s) => ({ ...s, providerId: null })),
+          slots: nextSlots,
+          auditLog: nextAudit,
           ...hist,
           lastActionMessage: "All assignments cleared.",
-          auditLog: [
-            {
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-              action: "UNASSIGN" as const,
-              details: "Cleared all assignments",
-              user: state.currentUser?.name ?? "System",
-            },
-            ...state.auditLog
-          ]
         });
 
         get().showToast({ type: "warning", title: "Assignments Cleared", message: "All shift assignments have been removed." });
@@ -1536,24 +1605,27 @@ export const useScheduleStore = create<ScheduleState>()(
 
       clearStaff: () => {
         const state = get();
-        const hist = pushHistory(state, captureHistory(state));
+        const nextSlots = state.slots.map((s) => ({ ...s, providerId: null }));
+        const nextAudit: AuditLogEntry[] = [
+          {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            action: "CLEAR" as const,
+            details: "Cleared all staff profiles and related assignments",
+            user: state.currentUser?.name ?? "System",
+          },
+          ...state.auditLog
+        ];
+        const nextSnapshot = captureHistory({ ...state, providers: [], slots: nextSlots, customRules: [], auditLog: nextAudit });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
           providers: [],
-          slots: state.slots.map((s) => ({ ...s, providerId: null })),
+          slots: nextSlots,
           customRules: [],
+          auditLog: nextAudit,
           ...hist,
           lastActionMessage: "All staff profiles cleared.",
-          auditLog: [
-            {
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-              action: "CLEAR" as const,
-              details: "Cleared all staff profiles and related assignments",
-              user: state.currentUser?.name ?? "System",
-            },
-            ...state.auditLog
-          ]
         });
 
         get().showToast({ type: "warning", title: "Staff Cleared", message: "All providers and related rules were removed." });
@@ -1561,23 +1633,28 @@ export const useScheduleStore = create<ScheduleState>()(
 
       clearSchedule: () => {
         const state = get();
-        const hist = pushHistory(state, captureHistory(state));
+        const nextSlots = state.slots.length > 0
+          ? state.slots.map((s) => ({ ...s, providerId: null }))
+          : generateInitialSlots(state.startDate, state.numWeeks);
+        const nextAudit: AuditLogEntry[] = [
+          {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            action: "CLEAR" as const,
+            details: "Cleared schedule assignments and saved scenarios",
+            user: state.currentUser?.name ?? "System",
+          },
+          ...state.auditLog
+        ];
+        const nextSnapshot = captureHistory({ ...state, slots: nextSlots, scenarios: [], auditLog: nextAudit });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
-          slots: generateInitialSlots(state.startDate, state.numWeeks),
+          slots: nextSlots,
           scenarios: [],
+          auditLog: nextAudit,
           ...hist,
           lastActionMessage: "Schedule reset to an empty planning window.",
-          auditLog: [
-            {
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-              action: "CLEAR" as const,
-              details: "Cleared schedule assignments and saved scenarios",
-              user: state.currentUser?.name ?? "System",
-            },
-            ...state.auditLog
-          ]
         });
 
         get().showToast({ type: "warning", title: "Schedule Cleared", message: "All assignments and scenarios were reset." });
@@ -1585,11 +1662,12 @@ export const useScheduleStore = create<ScheduleState>()(
 
       applyImportedSnapshot: (providers, slots, appliedAssignments, skippedRows) => {
         const state = get();
-        const hist = pushHistory(state, captureHistory(state));
+        const nextSnapshot = captureHistory({ ...state, providers, slots });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
-          providers,
-          slots,
+          providers: structuredClone(providers),
+          slots: structuredClone(slots),
           ...hist,
           lastActionMessage: `Import applied: ${appliedAssignments} assignments updated (${skippedRows} rows skipped).`,
         });
@@ -1599,9 +1677,6 @@ export const useScheduleStore = create<ScheduleState>()(
 
       autoAssign: () => {
         set((state) => {
-          const snapshot = captureHistory(state);
-          const { history: prevHistory, historyIndex: prevHistoryIndex } = pushHistory(state, snapshot);
-
           // Build a set of holiday dates for fast lookup
           const holidayDates = new Set(state.holidayAssignments.map(h => h.date));
 
@@ -1663,22 +1738,56 @@ export const useScheduleStore = create<ScheduleState>()(
             }
           });
 
+          const nextAuditLog = [...newAuditEntries, ...state.auditLog];
+          const nextSnapshot = captureHistory({
+            ...state,
+            slots: newSlots,
+            auditLog: nextAuditLog,
+          });
+          const hist = pushHistory(state, nextSnapshot);
+
           return {
             slots: newSlots,
-            history: prevHistory,
-            historyIndex: prevHistoryIndex,
+            ...hist,
             assignmentLogs: logs,
-            auditLog: [...newAuditEntries, ...state.auditLog],
-            lastActionMessage: `Auto-assigned ${assignedCount} shifts using constraints: skills, fatigue, fairness, and preferences.`,
+            auditLog: nextAuditLog,
+            lastActionMessage: assignedCount > 0
+              ? `Auto-assigned ${assignedCount} shifts using constraints: skills, fatigue, fairness, and preferences.`
+              : `Auto-assigned 0 shifts. All eligible providers are at capacity or restricted by time-off/skills.`,
           };
         });
 
-        get().showToast({ type: "success", title: "Auto-Assignment Complete", message: "Shifts have been assigned based on skills, fatigue, and preferences." });
+        get().showToast({
+          type: "success",
+          title: "Auto-Assignment Complete",
+          message: "Shifts have been assigned based on skills, fatigue, and preferences.",
+        });
       },
 
       createScenario: (name) => {
+        const trimmed = name ? name.trim() : "";
+        if (!trimmed) {
+          get().showToast({
+            type: "error",
+            title: "Validation Error",
+            message: "Scenario name cannot be blank. Please enter a descriptive name.",
+          });
+          return;
+        }
+
         const state = get();
-        const trimmed = name.trim() || `Scenario ${state.scenarios.length + 1}`;
+        const isDuplicate = state.scenarios.some(
+          (s) => s.name.toLowerCase() === trimmed.toLowerCase()
+        );
+        if (isDuplicate) {
+          get().showToast({
+            type: "error",
+            title: "Duplicate Scenario",
+            message: `A scenario named "${trimmed}" already exists. Please choose a unique name.`,
+          });
+          return;
+        }
+
         const snapshot: ScenarioSnapshot = {
           id: crypto.randomUUID(),
           name: trimmed,
@@ -1688,6 +1797,7 @@ export const useScheduleStore = create<ScheduleState>()(
           startDate: state.startDate,
           numWeeks: state.numWeeks,
         };
+
         set({
           scenarios: [snapshot, ...state.scenarios].slice(0, 12),
           lastActionMessage: `Saved scenario: ${trimmed}`,
@@ -1701,7 +1811,14 @@ export const useScheduleStore = create<ScheduleState>()(
         const found = state.scenarios.find((scenario) => scenario.id === id);
         if (!found) return;
 
-        const hist = pushHistory(state, captureHistory(state));
+        const nextSnapshot = captureHistory({
+          ...state,
+          providers: found.providers,
+          slots: found.slots,
+          startDate: found.startDate,
+          numWeeks: found.numWeeks,
+        });
+        const hist = pushHistory(state, nextSnapshot);
 
         set({
           providers: structuredClone(found.providers),
@@ -1733,11 +1850,18 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       deleteScenario: (id) => {
-        set((state) => ({
-          scenarios: state.scenarios.filter((scenario) => scenario.id !== id),
+        const state = get();
+        const scenario = state.scenarios.find((s) => s.id === id);
+        set((s) => ({
+          scenarios: s.scenarios.filter((sc) => sc.id !== id),
+          lastActionMessage: scenario ? `Deleted scenario: ${scenario.name}` : "Scenario deleted.",
         }));
 
-        get().showToast({ type: "info", title: "Scenario Deleted" });
+        get().showToast({
+          type: "info",
+          title: "Scenario Deleted",
+          message: scenario ? `"${scenario.name}" has been deleted.` : undefined,
+        });
       },
 
       clearMessage: () => set({ lastActionMessage: null }),
@@ -1765,21 +1889,20 @@ export const useScheduleStore = create<ScheduleState>()(
 
       undo: () => {
         const state = get();
-        if (state.historyIndex < 0) return;
+        if (state.historyIndex <= 0 || state.history.length === 0) return;
 
-        const historyState = state.history[state.historyIndex];
-        if (!historyState) return;
-
-        const previousIndex = state.historyIndex - 1;
-        const previousState = previousIndex >= 0 ? state.history[previousIndex] : null;
+        const targetIndex = state.historyIndex - 1;
+        const targetState = state.history[targetIndex];
+        if (!targetState) return;
 
         set({
-          providers: previousState?.providers ?? historyState.providers,
-          slots: previousState?.slots ?? historyState.slots,
-          startDate: previousState?.startDate ?? historyState.startDate,
-          numWeeks: previousState?.numWeeks ?? historyState.numWeeks,
-          dayHandoffs: previousState?.dayHandoffs ?? historyState.dayHandoffs ?? [],
-          historyIndex: previousIndex,
+          providers: structuredClone(targetState.providers),
+          slots: structuredClone(targetState.slots),
+          startDate: targetState.startDate,
+          numWeeks: targetState.numWeeks,
+          customRules: structuredClone(targetState.customRules),
+          dayHandoffs: targetState.dayHandoffs ? structuredClone(targetState.dayHandoffs) : [],
+          historyIndex: targetIndex,
           lastActionMessage: "Undo applied.",
         });
 
@@ -1788,19 +1911,20 @@ export const useScheduleStore = create<ScheduleState>()(
 
       redo: () => {
         const state = get();
-        if (state.historyIndex >= state.history.length - 1) return;
+        if (state.historyIndex >= state.history.length - 1 || state.historyIndex < 0) return;
 
-        const nextIndex = state.historyIndex + 1;
-        const nextState = state.history[nextIndex];
-        if (!nextState) return;
+        const targetIndex = state.historyIndex + 1;
+        const targetState = state.history[targetIndex];
+        if (!targetState) return;
 
         set({
-          providers: nextState.providers,
-          slots: nextState.slots,
-          startDate: nextState.startDate,
-          numWeeks: nextState.numWeeks,
-          dayHandoffs: nextState.dayHandoffs ?? [],
-          historyIndex: nextIndex,
+          providers: structuredClone(targetState.providers),
+          slots: structuredClone(targetState.slots),
+          startDate: targetState.startDate,
+          numWeeks: targetState.numWeeks,
+          customRules: structuredClone(targetState.customRules),
+          dayHandoffs: targetState.dayHandoffs ? structuredClone(targetState.dayHandoffs) : [],
+          historyIndex: targetIndex,
           lastActionMessage: "Redo applied.",
         });
 
@@ -1809,12 +1933,113 @@ export const useScheduleStore = create<ScheduleState>()(
 
       canUndo: () => {
         const state = get();
-        return state.historyIndex >= 0;
+        return state.historyIndex > 0;
       },
 
       canRedo: () => {
         const state = get();
-        return state.historyIndex < state.history.length - 1;
+        return state.historyIndex >= 0 && state.historyIndex < state.history.length - 1;
+      },
+
+      restoreLastKnownGoodSchedule: () => {
+        const state = get();
+        let candidate: HistoryState | null = null;
+        if (state.scenarios.length > 0) {
+          candidate = {
+            providers: state.scenarios[0].providers,
+            slots: state.scenarios[0].slots,
+            startDate: state.scenarios[0].startDate,
+            numWeeks: state.scenarios[0].numWeeks,
+            customRules: state.customRules,
+            auditLog: state.auditLog,
+          };
+        } else if (state.history.length > 0) {
+          candidate = state.history[0];
+        }
+
+        if (!candidate) {
+          get().showToast({
+            type: "info",
+            title: "No Previous Snapshot",
+            message: "No baseline schedule snapshot found to restore.",
+          });
+          return;
+        }
+
+        const nextSnapshot = captureHistory(candidate);
+        const hist = pushHistory(state, nextSnapshot);
+
+        set({
+          providers: structuredClone(candidate.providers),
+          slots: structuredClone(candidate.slots),
+          startDate: candidate.startDate,
+          numWeeks: candidate.numWeeks,
+          customRules: candidate.customRules ? structuredClone(candidate.customRules) : state.customRules,
+          ...hist,
+          lastActionMessage: "Restored last known good schedule.",
+        });
+
+        get().showToast({
+          type: "success",
+          title: "Schedule Restored",
+          message: "Restored to the last known good schedule state.",
+        });
+      },
+
+      deduplicateProviders: (mergeMap) => {
+        const state = get();
+        if (mergeMap.length === 0) return;
+
+        let nextProviders = [...state.providers];
+        let nextSlots = [...state.slots];
+        let mergedCount = 0;
+
+        mergeMap.forEach(({ canonicalId, duplicateIds }) => {
+          const canonical = nextProviders.find(p => p.id === canonicalId);
+          if (!canonical) return;
+
+          const duplicateSet = new Set(duplicateIds);
+          const duplicates = nextProviders.filter(p => duplicateSet.has(p.id));
+
+          // Merge skills and time-off into canonical
+          duplicates.forEach(dup => {
+            canonical.skills = Array.from(new Set([...canonical.skills, ...dup.skills]));
+            canonical.timeOffRequests = [...canonical.timeOffRequests, ...dup.timeOffRequests];
+            canonical.preferredDates = Array.from(new Set([...canonical.preferredDates, ...dup.preferredDates]));
+          });
+
+          // Reassign slots pointing to duplicates
+          nextSlots = nextSlots.map(slot => {
+            if (slot.providerId && duplicateSet.has(slot.providerId)) {
+              return { ...slot, providerId: canonicalId };
+            }
+            return slot;
+          });
+
+          // Remove duplicates from providers array
+          nextProviders = nextProviders.filter(p => !duplicateSet.has(p.id));
+          mergedCount += duplicates.length;
+        });
+
+        const nextSnapshot = captureHistory({
+          ...state,
+          providers: nextProviders,
+          slots: nextSlots,
+        });
+        const hist = pushHistory(state, nextSnapshot);
+
+        set({
+          providers: nextProviders,
+          slots: nextSlots,
+          ...hist,
+          lastActionMessage: `Merged and cleaned ${mergedCount} duplicate provider records.`,
+        });
+
+        get().showToast({
+          type: "success",
+          title: "Deduplication Complete",
+          message: `Merged ${mergedCount} duplicate records and updated shift assignments.`,
+        });
       },
 
       // Swap Management
@@ -2676,11 +2901,23 @@ export const useScheduleStore = create<ScheduleState>()(
             const approvedBy = state.currentUser?.email ?? null;
             const res = await applyOptimizationResult(raw as Parameters<typeof applyOptimizationResult>[0], approvedBy);
             const next = res.state as { slots?: typeof state.slots; providers?: typeof state.providers };
+            const nextSlots = (Array.isArray(next.slots) && next.slots.length > 0) ? (next.slots as ShiftSlot[]) : state.slots;
+            const nextProviders = (Array.isArray(next.providers) && next.providers.length > 0) ? (next.providers as Provider[]) : state.providers;
+
+            const nextSnapshot = captureHistory({
+              ...state,
+              slots: nextSlots,
+              providers: nextProviders,
+            });
+            const hist = pushHistory(state, nextSnapshot);
+
             set({
-              slots: Array.isArray(next.slots) ? next.slots : state.slots,
-              providers: Array.isArray(next.providers) ? next.providers : state.providers,
+              slots: nextSlots,
+              providers: nextProviders,
+              ...hist,
               pendingMultiAgentResult: null,
               showChangePreview: false,
+              lastActionMessage: "Schedule optimized and applied.",
             });
             get().showToast({ type: 'success', title: 'Optimization Applied', message: 'Schedule updated from multi-agent result.' });
           } catch (err) {
@@ -2701,7 +2938,19 @@ export const useScheduleStore = create<ScheduleState>()(
             return slot;
           });
         });
-        set({ slots: newSlots, pendingAISuggestions: [], showChangePreview: false });
+        const nextSnapshot = captureHistory({
+          ...state,
+          slots: newSlots,
+        });
+        const hist = pushHistory(state, nextSnapshot);
+
+        set({
+          slots: newSlots,
+          ...hist,
+          pendingAISuggestions: [],
+          showChangePreview: false,
+          lastActionMessage: `Applied ${state.pendingAISuggestions.length} AI suggestions.`,
+        });
         get().showToast({ type: 'success', title: 'All Changes Applied', message: `${state.pendingAISuggestions.length} changes have been applied` });
       },
 
@@ -3069,6 +3318,7 @@ export const useScheduleStore = create<ScheduleState>()(
       name: "nicu-schedule-store-v4",
       storage: createJSONStorage(() => _safeStorage),
       partialize: (state) => ({
+        currentUser: state.currentUser,
         providers: state.providers,
         startDate: state.startDate,
         numWeeks: state.numWeeks,

@@ -8,12 +8,44 @@ export function ExportMenu() {
   const { providers, slots, showToast } = useScheduleStore();
   const [isOpen, setIsOpen] = useState(false);
 
+  const handleExcelExport = async () => {
+    setIsOpen(false);
+    try {
+      const result = await exportScheduleToExcel();
+      if (result.success) {
+        showToast({
+          type: "success",
+          title: "Export Complete",
+          message: "Downloaded institutional schedule workbook (NICU_Schedule.xlsx).",
+        });
+      } else {
+        showToast({
+          type: "error",
+          title: "Export Failed",
+          message: result.error?.message || "Failed to generate Excel workbook.",
+        });
+      }
+    } catch {
+      showToast({
+        type: "error",
+        title: "Export Failed",
+        message: "An unexpected error occurred while generating Excel file.",
+      });
+    }
+  };
+
   const handlePersonalExport = (providerId: string) => {
     const provider = providers.find((entry) => entry.id === providerId);
     if (!provider) return;
     const result = generateProviderICal(provider, slots);
     if (!result.ok) {
       showToast({ type: "info", title: "Nothing to export", message: result.error });
+    } else {
+      showToast({
+        type: "success",
+        title: "Calendar Exported",
+        message: `Downloaded iCal calendar file for ${provider.name}.`,
+      });
     }
     setIsOpen(false);
   };
@@ -33,10 +65,7 @@ export function ExportMenu() {
         <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 p-3">
           <div className="space-y-2">
             <button
-              onClick={() => {
-                exportScheduleToExcel();
-                setIsOpen(false);
-              }}
+              onClick={handleExcelExport}
               className="w-full flex items-center gap-3 text-left px-3 py-2 rounded-lg hover:bg-slate-50"
             >
               <FileSpreadsheet className="w-4 h-4 text-slate-500" />

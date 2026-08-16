@@ -143,11 +143,18 @@ export function AssignmentPreview({
       .reduce((sum, s) => sum + getShiftDuration(s.type), 0);
 
     const hoursAfter = hoursThisWeek + getShiftDuration(slot.type);
-    const targetHours = provider.targetWeekDays * 8; // Approximate
+    const totalTargetShifts = (
+      (provider.targetWeekDays || 0) +
+      (provider.targetWeekendDays || 0) +
+      (provider.targetWeekNights || 0) +
+      (provider.targetWeekendNights || 0)
+    );
+    const weeklyTargetShifts = totalTargetShifts > 0 ? totalTargetShifts / 4 : 4;
+    const targetHours = Math.max(8, weeklyTargetShifts * 10);
 
     // Workload warnings
-    if (hoursAfter > targetHours * 1.2) {
-      warnings.push(`Assignment exceeds target hours by ${Math.round((hoursAfter / targetHours - 1) * 100)}%`);
+    if (hoursAfter > targetHours * 1.25) {
+      warnings.push(`Assignment exceeds target weekly hours by ${Math.round((hoursAfter / targetHours - 1) * 100)}%`);
     }
 
     // Skill matching
