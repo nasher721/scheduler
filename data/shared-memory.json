@@ -1,193 +1,7 @@
 {
   "namespace": "nicu-schedule",
-  "timestamp": 1786837660742,
+  "timestamp": 1786840578474,
   "entries": [
-    {
-      "key": "scheduling:optimization:status",
-      "value": {
-        "status": "running",
-        "iteration": 2,
-        "startedAt": 1786826382523
-      },
-      "version": 2,
-      "timestamp": 1786826382523,
-      "source": "server",
-      "ttl": null
-    },
-    {
-      "key": "scheduling:agent:coverage:result",
-      "value": {
-        "agentName": "coverage",
-        "content": "{\n  \"status\": \"ok\",\n  \"violations\": [],\n  \"recommendations\": [\n    {\n      \"shiftId\": \"slot-1\",\n      \"suggestedProviderId\": \"dr-smith\",\n      \"reason\": \"Coverage verified under deterministic schedule constraints.\"\n    }\n  ],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-        "parsedContent": {
-          "status": "ok",
-          "violations": [],
-          "recommendations": [
-            {
-              "shiftId": "slot-1",
-              "suggestedProviderId": "dr-smith",
-              "reason": "Coverage verified under deterministic schedule constraints."
-            }
-          ],
-          "tag": "[TASK_COMPLETE]"
-        },
-        "completed": true,
-        "timestamp": 1786831808659
-      },
-      "version": 1,
-      "timestamp": 1786831808659,
-      "source": "server",
-      "ttl": null
-    },
-    {
-      "key": "scheduling:agent:fairness:result",
-      "value": {
-        "agentName": "fairness",
-        "content": "{\n  \"status\": \"ok\",\n  \"imbalances\": [],\n  \"recommendations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-        "parsedContent": {
-          "status": "ok",
-          "imbalances": [],
-          "recommendations": [],
-          "tag": "[TASK_COMPLETE]"
-        },
-        "completed": true,
-        "timestamp": 1786831808659
-      },
-      "version": 1,
-      "timestamp": 1786831808659,
-      "source": "server",
-      "ttl": null
-    },
-    {
-      "key": "scheduling:agent:preference:result",
-      "value": {
-        "agentName": "preference",
-        "content": "{\n  \"status\": \"ok\",\n  \"unmetPreferences\": [],\n  \"recommendations\": [],\n  \"satisfactionScore\": 92,\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-        "parsedContent": {
-          "status": "ok",
-          "unmetPreferences": [],
-          "recommendations": [],
-          "satisfactionScore": 92,
-          "tag": "[TASK_COMPLETE]"
-        },
-        "completed": true,
-        "timestamp": 1786831808659
-      },
-      "version": 1,
-      "timestamp": 1786831808659,
-      "source": "server",
-      "ttl": null
-    },
-    {
-      "key": "scheduling:agent:compliance:result",
-      "value": {
-        "agentName": "compliance",
-        "content": "{\n  \"compliant\": true,\n  \"violations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-        "parsedContent": {
-          "compliant": true,
-          "violations": [],
-          "tag": "[TASK_COMPLETE]"
-        },
-        "completed": true,
-        "timestamp": 1786831808659
-      },
-      "version": 1,
-      "timestamp": 1786831808659,
-      "source": "server",
-      "ttl": null
-    },
-    {
-      "key": "scheduling:optimization:result",
-      "value": {
-        "success": true,
-        "schedule": {
-          "providers": [
-            {
-              "id": "dr-smith",
-              "name": "Dr. Smith",
-              "skills": [
-                "trauma",
-                "stroke"
-              ]
-            }
-          ],
-          "slots": [
-            {
-              "id": "s1",
-              "date": "2026-03-01",
-              "shiftType": "day",
-              "requiredSkill": "trauma",
-              "providerId": null
-            }
-          ]
-        },
-        "decisions": [],
-        "metrics": {},
-        "agentResults": {
-          "coverage": {
-            "agentName": "coverage",
-            "content": "{\n  \"status\": \"ok\",\n  \"violations\": [],\n  \"recommendations\": [\n    {\n      \"shiftId\": \"slot-1\",\n      \"suggestedProviderId\": \"dr-smith\",\n      \"reason\": \"Coverage verified under deterministic schedule constraints.\"\n    }\n  ],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-            "parsedContent": {
-              "status": "ok",
-              "violations": [],
-              "recommendations": [
-                {
-                  "shiftId": "slot-1",
-                  "suggestedProviderId": "dr-smith",
-                  "reason": "Coverage verified under deterministic schedule constraints."
-                }
-              ],
-              "tag": "[TASK_COMPLETE]"
-            },
-            "completed": true,
-            "timestamp": 1786831808659
-          },
-          "fairness": {
-            "agentName": "fairness",
-            "content": "{\n  \"status\": \"ok\",\n  \"imbalances\": [],\n  \"recommendations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-            "parsedContent": {
-              "status": "ok",
-              "imbalances": [],
-              "recommendations": [],
-              "tag": "[TASK_COMPLETE]"
-            },
-            "completed": true,
-            "timestamp": 1786831808659
-          },
-          "preference": {
-            "agentName": "preference",
-            "content": "{\n  \"status\": \"ok\",\n  \"unmetPreferences\": [],\n  \"recommendations\": [],\n  \"satisfactionScore\": 92,\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-            "parsedContent": {
-              "status": "ok",
-              "unmetPreferences": [],
-              "recommendations": [],
-              "satisfactionScore": 92,
-              "tag": "[TASK_COMPLETE]"
-            },
-            "completed": true,
-            "timestamp": 1786831808659
-          },
-          "compliance": {
-            "agentName": "compliance",
-            "content": "{\n  \"compliant\": true,\n  \"violations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
-            "parsedContent": {
-              "compliant": true,
-              "violations": [],
-              "tag": "[TASK_COMPLETE]"
-            },
-            "completed": true,
-            "timestamp": 1786831808659
-          }
-        },
-        "iterations": 1,
-        "duration": 3,
-        "timestamp": 1786831808659
-      },
-      "version": 1,
-      "timestamp": 1786831808659,
-      "source": "server",
-      "ttl": null
-    },
     {
       "key": "forecast:2024-03-15:7",
       "value": {
@@ -989,6 +803,192 @@
       "ttl": null
     },
     {
+      "key": "scheduling:optimization:status",
+      "value": {
+        "status": "running",
+        "iteration": 2,
+        "startedAt": 1786839918473
+      },
+      "version": 3,
+      "timestamp": 1786839918473,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "scheduling:agent:coverage:result",
+      "value": {
+        "agentName": "coverage",
+        "content": "{\n  \"status\": \"ok\",\n  \"violations\": [],\n  \"recommendations\": [\n    {\n      \"shiftId\": \"slot-1\",\n      \"suggestedProviderId\": \"dr-smith\",\n      \"reason\": \"Coverage verified under deterministic schedule constraints.\"\n    }\n  ],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+        "parsedContent": {
+          "status": "ok",
+          "violations": [],
+          "recommendations": [
+            {
+              "shiftId": "slot-1",
+              "suggestedProviderId": "dr-smith",
+              "reason": "Coverage verified under deterministic schedule constraints."
+            }
+          ],
+          "tag": "[TASK_COMPLETE]"
+        },
+        "completed": true,
+        "timestamp": 1786831808659
+      },
+      "version": 1,
+      "timestamp": 1786831808659,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "scheduling:agent:fairness:result",
+      "value": {
+        "agentName": "fairness",
+        "content": "{\n  \"status\": \"ok\",\n  \"imbalances\": [],\n  \"recommendations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+        "parsedContent": {
+          "status": "ok",
+          "imbalances": [],
+          "recommendations": [],
+          "tag": "[TASK_COMPLETE]"
+        },
+        "completed": true,
+        "timestamp": 1786831808659
+      },
+      "version": 1,
+      "timestamp": 1786831808659,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "scheduling:agent:preference:result",
+      "value": {
+        "agentName": "preference",
+        "content": "{\n  \"status\": \"ok\",\n  \"unmetPreferences\": [],\n  \"recommendations\": [],\n  \"satisfactionScore\": 92,\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+        "parsedContent": {
+          "status": "ok",
+          "unmetPreferences": [],
+          "recommendations": [],
+          "satisfactionScore": 92,
+          "tag": "[TASK_COMPLETE]"
+        },
+        "completed": true,
+        "timestamp": 1786831808659
+      },
+      "version": 1,
+      "timestamp": 1786831808659,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "scheduling:agent:compliance:result",
+      "value": {
+        "agentName": "compliance",
+        "content": "{\n  \"compliant\": true,\n  \"violations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+        "parsedContent": {
+          "compliant": true,
+          "violations": [],
+          "tag": "[TASK_COMPLETE]"
+        },
+        "completed": true,
+        "timestamp": 1786831808659
+      },
+      "version": 1,
+      "timestamp": 1786831808659,
+      "source": "server",
+      "ttl": null
+    },
+    {
+      "key": "scheduling:optimization:result",
+      "value": {
+        "success": true,
+        "schedule": {
+          "providers": [
+            {
+              "id": "dr-smith",
+              "name": "Dr. Smith",
+              "skills": [
+                "trauma",
+                "stroke"
+              ]
+            }
+          ],
+          "slots": [
+            {
+              "id": "s1",
+              "date": "2026-03-01",
+              "shiftType": "day",
+              "requiredSkill": "trauma",
+              "providerId": null
+            }
+          ]
+        },
+        "decisions": [],
+        "metrics": {},
+        "agentResults": {
+          "coverage": {
+            "agentName": "coverage",
+            "content": "{\n  \"status\": \"ok\",\n  \"violations\": [],\n  \"recommendations\": [\n    {\n      \"shiftId\": \"slot-1\",\n      \"suggestedProviderId\": \"dr-smith\",\n      \"reason\": \"Coverage verified under deterministic schedule constraints.\"\n    }\n  ],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+            "parsedContent": {
+              "status": "ok",
+              "violations": [],
+              "recommendations": [
+                {
+                  "shiftId": "slot-1",
+                  "suggestedProviderId": "dr-smith",
+                  "reason": "Coverage verified under deterministic schedule constraints."
+                }
+              ],
+              "tag": "[TASK_COMPLETE]"
+            },
+            "completed": true,
+            "timestamp": 1786831808659
+          },
+          "fairness": {
+            "agentName": "fairness",
+            "content": "{\n  \"status\": \"ok\",\n  \"imbalances\": [],\n  \"recommendations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+            "parsedContent": {
+              "status": "ok",
+              "imbalances": [],
+              "recommendations": [],
+              "tag": "[TASK_COMPLETE]"
+            },
+            "completed": true,
+            "timestamp": 1786831808659
+          },
+          "preference": {
+            "agentName": "preference",
+            "content": "{\n  \"status\": \"ok\",\n  \"unmetPreferences\": [],\n  \"recommendations\": [],\n  \"satisfactionScore\": 92,\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+            "parsedContent": {
+              "status": "ok",
+              "unmetPreferences": [],
+              "recommendations": [],
+              "satisfactionScore": 92,
+              "tag": "[TASK_COMPLETE]"
+            },
+            "completed": true,
+            "timestamp": 1786831808659
+          },
+          "compliance": {
+            "agentName": "compliance",
+            "content": "{\n  \"compliant\": true,\n  \"violations\": [],\n  \"tag\": \"[TASK_COMPLETE]\"\n}\n[TASK_COMPLETE]",
+            "parsedContent": {
+              "compliant": true,
+              "violations": [],
+              "tag": "[TASK_COMPLETE]"
+            },
+            "completed": true,
+            "timestamp": 1786831808659
+          }
+        },
+        "iterations": 1,
+        "duration": 3,
+        "timestamp": 1786831808659
+      },
+      "version": 1,
+      "timestamp": 1786831808659,
+      "source": "server",
+      "ttl": null
+    },
+    {
       "key": "forecast:2024-03-15:3",
       "value": {
         "generatedAt": 1772815104936,
@@ -1148,11 +1148,11 @@
           "rule": "test",
           "severity": "HIGH",
           "title": "Test Alert",
-          "timestamp": 1786826382523
+          "timestamp": 1786839918473
         }
       ],
-      "version": 2,
-      "timestamp": 1786826382523,
+      "version": 3,
+      "timestamp": 1786839918473,
       "source": "server",
       "ttl": null
     }

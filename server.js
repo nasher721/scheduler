@@ -2025,26 +2025,31 @@ app.post("/api/ai/explain", async (req, res) => {
 // POST /api/copilot/chat - Main chat endpoint
 app.post("/api/copilot/chat", async (req, res) => {
   if (!req.body || typeof req.body !== "object") {
-    return res.status(400).json({ error: "Chat payload must be an object." });
+    return res.status(400).json({ ok: false, error: "Chat payload must be an object.", code: "INVALID_PARAMETERS" });
   }
 
   const { message, context, conversationHistory } = req.body;
 
   if (!message || typeof message !== "string") {
-    return res.status(400).json({ error: "Message is required and must be a string." });
+    return res.status(400).json({ ok: false, error: "Message is required and must be a string.", code: "INVALID_PARAMETERS" });
   }
 
   try {
     const result = await processCopilotMessage({ message, context, conversationHistory });
     return res.json({
+      ok: true,
+      data: result,
       result,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      meta: { timestamp: new Date().toISOString() },
     });
   } catch (error) {
     console.error("Copilot chat error:", error);
     return res.status(500).json({
+      ok: false,
       error: "Failed to process message",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: error instanceof Error ? error.message : "Unknown error",
+      code: "COPILOT_ERROR",
     });
   }
 });
@@ -2052,26 +2057,31 @@ app.post("/api/copilot/chat", async (req, res) => {
 // POST /api/copilot/intent - Parse intent only (no execution)
 app.post("/api/copilot/intent", async (req, res) => {
   if (!req.body || typeof req.body !== "object") {
-    return res.status(400).json({ error: "Intent payload must be an object." });
+    return res.status(400).json({ ok: false, error: "Intent payload must be an object.", code: "INVALID_PARAMETERS" });
   }
 
   const { text, context } = req.body;
 
   if (!text || typeof text !== "string") {
-    return res.status(400).json({ error: "Text is required and must be a string." });
+    return res.status(400).json({ ok: false, error: "Text is required and must be a string.", code: "INVALID_PARAMETERS" });
   }
 
   try {
     const result = await parseIntent({ text, context });
     return res.json({
+      ok: true,
+      data: result,
       result,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      meta: { timestamp: new Date().toISOString() },
     });
   } catch (error) {
     console.error("Intent parsing error:", error);
     return res.status(500).json({
+      ok: false,
       error: "Failed to parse intent",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: error instanceof Error ? error.message : "Unknown error",
+      code: "INTENT_ERROR",
     });
   }
 });
@@ -2090,31 +2100,41 @@ app.get("/api/copilot/suggestions", async (req, res) => {
 
     const result = await getCopilotSuggestions({ context });
     return res.json({
+      ok: true,
+      data: result,
       result,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      meta: { timestamp: new Date().toISOString() },
     });
   } catch (error) {
     console.error("Suggestions error:", error);
     return res.status(500).json({
+      ok: false,
       error: "Failed to get suggestions",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: error instanceof Error ? error.message : "Unknown error",
+      code: "SUGGESTIONS_ERROR",
     });
   }
 });
 
 // GET /api/copilot/capabilities - Discover supported intents/actions
 app.get("/api/copilot/capabilities", (_req, res) => {
+  const capabilities = listCopilotCapabilities();
   return res.json({
-    result: listCopilotCapabilities(),
+    ok: true,
+    data: capabilities,
+    result: capabilities,
     updatedAt: new Date().toISOString(),
+    meta: { timestamp: new Date().toISOString() },
   });
 });
 
-// GET /api/copilot/stream - SSE for streaming responses (placeholder for future)
+// GET /api/copilot/stream - SSE for streaming responses
 app.get("/api/copilot/stream", (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.write('retry: 3000\n\n');
 
   // Send initial connection message
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Stream connected' })}\n\n`);
@@ -2122,7 +2142,7 @@ app.get("/api/copilot/stream", (req, res) => {
   // Keep connection alive
   const keepAlive = setInterval(() => {
     res.write(`data: ${JSON.stringify({ type: 'ping' })}\n\n`);
-  }, 30000);
+  }, 25000);
 
   // Clean up on client disconnect
   req.on('close', () => {

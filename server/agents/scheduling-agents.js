@@ -147,9 +147,10 @@ Your job is to ensure schedules follow all rules and regulations.
 
 Validate against:
 - ACGME duty hour limits (80 hrs/week, 24+4 max shift)
-- State nursing regulations
+- Circadian turnaround rest (mandatory >= 24h rest following night shifts before day assignments)
+- Max consecutive night shifts (prevent sleep deficit accumulation)
+- Active credentials validation (ACLS, BLS, Board Certifications)
 - Hospital policies (mandatory rest periods)
-- Union agreements
 - Provider contract terms (FTE commitments)
 - Minimum staffing ratios
 

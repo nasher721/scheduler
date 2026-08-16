@@ -32,6 +32,18 @@ export const CONFLICT_TYPES = {
     severity: "medium",
     message: "Provider exceeds configured maximum shifts for this week.",
   },
+  circadian_turnaround_violation: {
+    severity: "high",
+    message: "Provider is assigned to a day shift immediately following a night shift (< 24h rest).",
+  },
+  consecutive_nights_exceeded: {
+    severity: "high",
+    message: "Provider exceeds maximum allowed consecutive night shifts.",
+  },
+  workload_target_imbalance: {
+    severity: "low",
+    message: "Provider shift count deviates significantly from baseline FTE target.",
+  },
 };
 
 /**

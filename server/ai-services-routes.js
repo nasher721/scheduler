@@ -21,11 +21,29 @@ export function registerAIServicesRoutes(app) {
   app.post('/api/ai/agents/optimize', async (req, res) => {
     try {
       const scheduleState = req.body?.scheduleState || req.body?.state || req.body;
+      if (!scheduleState || typeof scheduleState !== 'object') {
+        return res.status(400).json({
+          ok: false,
+          error: 'Missing or invalid scheduleState payload',
+          code: 'INVALID_PARAMETERS',
+        });
+      }
+
       const orchestrator = getSchedulingOrchestrator();
       const result = await orchestrator.optimizeSchedule(scheduleState);
-      res.json(result);
+      res.json({
+        ok: true,
+        data: result,
+        ...result,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Services] Optimize failed:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message || 'Optimization failed',
+        code: 'OPTIMIZATION_ERROR',
+      });
     }
   });
 
@@ -37,11 +55,24 @@ export function registerAIServicesRoutes(app) {
       const orchestrator = getSchedulingOrchestrator();
       const result = orchestrator.getLastResult();
       if (!result) {
-        return res.status(404).json({ error: 'No optimization result available. Run POST /api/ai/agents/optimize first.' });
+        return res.status(404).json({
+          ok: false,
+          error: 'No optimization result available. Run POST /api/ai/agents/optimize first.',
+          code: 'NOT_FOUND',
+        });
       }
-      res.json(result);
+      res.json({
+        ok: true,
+        data: result,
+        ...result,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'INTERNAL_ERROR',
+      });
     }
   });
 
@@ -54,6 +85,7 @@ export function registerAIServicesRoutes(app) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.write('retry: 3000\n\n');
 
     const onStart = (data) => res.write(`data: ${JSON.stringify({ event: 'start', data })}\n\n`);
     const onAgentStart = (data) => res.write(`data: ${JSON.stringify({ event: 'agent-start', data })}\n\n`);
@@ -68,7 +100,13 @@ export function registerAIServicesRoutes(app) {
     orchestrator.on('agent:complete', onAgentComplete);
     orchestrator.on('optimization:complete', onComplete);
 
+    // Keepalive ping
+    const keepalive = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 25000);
+
     req.on('close', () => {
+      clearInterval(keepalive);
       orchestrator.off('optimization:start', onStart);
       orchestrator.off('agent:start', onAgentStart);
       orchestrator.off('agent:complete', onAgentComplete);
@@ -83,12 +121,23 @@ export function registerAIServicesRoutes(app) {
    */
   app.post('/api/ai/forecast', async (req, res) => {
     try {
-      const { startDate, days } = req.body;
+      const startDate = req.body?.startDate || new Date().toISOString().split('T')[0];
+      const days = Math.max(1, Math.min(90, parseInt(req.body?.days, 10) || 14));
       const service = getDemandForecastService();
       const forecast = await service.generateForecast(startDate, days);
-      res.json({ forecast });
+      res.json({
+        ok: true,
+        data: { forecast, startDate, days },
+        forecast,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Services] Forecast POST error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'FORECAST_ERROR',
+      });
     }
   });
 
@@ -97,12 +146,23 @@ export function registerAIServicesRoutes(app) {
    */
   app.get('/api/ai/forecast', async (req, res) => {
     try {
-      const { startDate, days = 14 } = req.query;
+      const startDate = req.query.startDate || new Date().toISOString().split('T')[0];
+      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 14));
       const service = getDemandForecastService();
-      const forecast = await service.generateForecast(startDate, parseInt(days));
-      res.json({ forecast });
+      const forecast = await service.generateForecast(startDate, days);
+      res.json({
+        ok: true,
+        data: { forecast, startDate, days },
+        forecast,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Services] Forecast GET error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'FORECAST_ERROR',
+      });
     }
   });
 
@@ -111,12 +171,27 @@ export function registerAIServicesRoutes(app) {
    */
   app.post('/api/ai/forecast/learn', async (req, res) => {
     try {
-      const { scheduleData } = req.body;
+      const { scheduleData } = req.body || {};
+      if (!scheduleData) {
+        return res.status(400).json({
+          ok: false,
+          error: 'scheduleData is required',
+          code: 'INVALID_PARAMETERS',
+        });
+      }
       const service = getDemandForecastService();
       await service.updatePatterns(scheduleData);
-      res.json({ success: true });
+      res.json({
+        ok: true,
+        success: true,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'LEARN_ERROR',
+      });
     }
   });
 
@@ -127,12 +202,30 @@ export function registerAIServicesRoutes(app) {
    */
   app.post('/api/ai/assistant/chat', async (req, res) => {
     try {
-      const { message, userId, context } = req.body;
+      const { message, userId = 'default_user', context } = req.body || {};
+      if (!message || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({
+          ok: false,
+          error: 'message string is required',
+          code: 'INVALID_PARAMETERS',
+        });
+      }
+
       const assistant = getNLPAssistant();
-      const result = await assistant.processInput(userId, message, context);
-      res.json(result);
+      const result = await assistant.processInput(userId, message.trim(), context);
+      res.json({
+        ok: true,
+        data: result,
+        ...result,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Assistant] Chat error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'ASSISTANT_ERROR',
+      });
     }
   });
 
@@ -140,18 +233,43 @@ export function registerAIServicesRoutes(app) {
    * Get conversation history
    */
   app.get('/api/ai/assistant/history/:userId', (req, res) => {
-    const assistant = getNLPAssistant();
-    const history = assistant.getHistory(req.params.userId);
-    res.json({ history });
+    try {
+      const assistant = getNLPAssistant();
+      const history = assistant.getHistory(req.params.userId);
+      res.json({
+        ok: true,
+        data: { history },
+        history,
+        meta: { timestamp: new Date().toISOString() },
+      });
+    } catch (error) {
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'HISTORY_ERROR',
+      });
+    }
   });
 
   /**
    * Clear conversation history
    */
   app.delete('/api/ai/assistant/history/:userId', (req, res) => {
-    const assistant = getNLPAssistant();
-    assistant.clearHistory(req.params.userId);
-    res.json({ success: true });
+    try {
+      const assistant = getNLPAssistant();
+      assistant.clearHistory(req.params.userId);
+      res.json({
+        ok: true,
+        success: true,
+        meta: { timestamp: new Date().toISOString() },
+      });
+    } catch (error) {
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'HISTORY_ERROR',
+      });
+    }
   });
 
   // ============ PREFERENCE LEARNING ============
@@ -161,12 +279,31 @@ export function registerAIServicesRoutes(app) {
    */
   app.post('/api/ai/preferences/learn/:providerId', async (req, res) => {
     try {
-      const { historicalData } = req.body;
+      const { historicalData } = req.body || {};
+      const { providerId } = req.params;
+      if (!providerId) {
+        return res.status(400).json({
+          ok: false,
+          error: 'providerId is required',
+          code: 'INVALID_PARAMETERS',
+        });
+      }
+
       const service = getPreferenceLearningService();
-      const model = await service.learnProviderPreferences(req.params.providerId, historicalData);
-      res.json({ model });
+      const model = await service.learnProviderPreferences(providerId, historicalData || {});
+      res.json({
+        ok: true,
+        data: { model },
+        model,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Preferences] Learn error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'LEARN_ERROR',
+      });
     }
   });
 
@@ -175,12 +312,22 @@ export function registerAIServicesRoutes(app) {
    */
   app.post('/api/ai/preferences/learn-all', async (req, res) => {
     try {
-      const { scheduleState } = req.body;
+      const scheduleState = req.body?.scheduleState || req.body;
       const service = getPreferenceLearningService();
-      const results = await service.learnAllProviders(scheduleState);
-      res.json({ results });
+      const results = await service.learnAllProviders(scheduleState || {});
+      res.json({
+        ok: true,
+        data: { results },
+        results,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Preferences] Learn-all error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'LEARN_ALL_ERROR',
+      });
     }
   });
 
@@ -191,9 +338,18 @@ export function registerAIServicesRoutes(app) {
     const service = getPreferenceLearningService();
     const model = service.models.get(req.params.providerId);
     if (!model) {
-      return res.status(404).json({ error: 'Model not found' });
+      return res.status(404).json({
+        ok: false,
+        error: `Preference model not found for provider ${req.params.providerId}`,
+        code: 'NOT_FOUND',
+      });
     }
-    res.json({ model });
+    res.json({
+      ok: true,
+      data: { model },
+      model,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
@@ -202,17 +358,27 @@ export function registerAIServicesRoutes(app) {
   app.get('/api/ai/preferences', (req, res) => {
     const service = getPreferenceLearningService();
     const models = service.getAllModels();
-    res.json({ models });
+    res.json({
+      ok: true,
+      data: { models },
+      models,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
    * Get shift recommendation based on preferences
    */
   app.post('/api/ai/preferences/recommend/:providerId', (req, res) => {
-    const { shift } = req.body;
+    const { shift } = req.body || {};
     const service = getPreferenceLearningService();
-    const recommendation = service.getShiftRecommendation(req.params.providerId, shift);
-    res.json({ recommendation });
+    const recommendation = service.getShiftRecommendation(req.params.providerId, shift || {});
+    res.json({
+      ok: true,
+      data: { recommendation },
+      recommendation,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   // ============ ANOMALY DETECTION ============
@@ -223,7 +389,11 @@ export function registerAIServicesRoutes(app) {
   app.post('/api/ai/anomalies/start', (req, res) => {
     const service = getAnomalyDetectionService();
     service.start();
-    res.json({ status: 'started' });
+    res.json({
+      ok: true,
+      status: 'started',
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
@@ -232,7 +402,11 @@ export function registerAIServicesRoutes(app) {
   app.post('/api/ai/anomalies/stop', (req, res) => {
     const service = getAnomalyDetectionService();
     service.stop();
-    res.json({ status: 'stopped' });
+    res.json({
+      ok: true,
+      status: 'stopped',
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
@@ -242,9 +416,20 @@ export function registerAIServicesRoutes(app) {
     try {
       const service = getAnomalyDetectionService();
       await service.runDetection();
-      res.json({ success: true });
+      const active = service.getActiveAlerts();
+      res.json({
+        ok: true,
+        success: true,
+        count: active.length,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('[AI Anomalies] Run detection error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'DETECTION_ERROR',
+      });
     }
   });
 
@@ -255,27 +440,50 @@ export function registerAIServicesRoutes(app) {
     const { severity } = req.query;
     const service = getAnomalyDetectionService();
     const alerts = service.getActiveAlerts(severity);
-    res.json({ alerts, count: alerts.length });
+    res.json({
+      ok: true,
+      data: { alerts, count: alerts.length },
+      alerts,
+      count: alerts.length,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
    * Get alert history
    */
   app.get('/api/ai/anomalies/history', (req, res) => {
-    const { limit } = req.query;
+    const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 100));
     const service = getAnomalyDetectionService();
-    const history = service.getAlertHistory(parseInt(limit) || 100);
-    res.json({ history });
+    const history = service.getAlertHistory(limit);
+    res.json({
+      ok: true,
+      data: { history, count: history.length },
+      history,
+      count: history.length,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
    * Resolve an alert
    */
   app.post('/api/ai/anomalies/alerts/:alertId/resolve', (req, res) => {
-    const { resolution } = req.body;
+    const { resolution = 'Resolved by operator' } = req.body || {};
     const service = getAnomalyDetectionService();
     const success = service.resolveAlert(req.params.alertId, resolution);
-    res.json({ success });
+    if (!success) {
+      return res.status(404).json({
+        ok: false,
+        error: `Alert ${req.params.alertId} not found`,
+        code: 'NOT_FOUND',
+      });
+    }
+    res.json({
+      ok: true,
+      success: true,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
@@ -287,6 +495,7 @@ export function registerAIServicesRoutes(app) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.write('retry: 3000\n\n');
 
     const onAnomaly = (alert) => {
       res.write(`data: ${JSON.stringify({ event: 'anomaly', alert })}\n\n`);
@@ -299,12 +508,18 @@ export function registerAIServicesRoutes(app) {
     service.on('anomaly:detected', onAnomaly);
     service.on('anomaly:critical', onCritical);
 
+    // Keepalive ping
+    const keepalive = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 25000);
+
     req.on('close', () => {
+      clearInterval(keepalive);
       service.off('anomaly:detected', onAnomaly);
       service.off('anomaly:critical', onCritical);
     });
 
-    res.write(`data: ${JSON.stringify({ event: 'connected' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ event: 'connected', timestamp: Date.now() })}\n\n`);
   });
 
   // ============ UNIFIED STATUS ============
@@ -313,9 +528,23 @@ export function registerAIServicesRoutes(app) {
    * Get all AI services status
    */
   app.get('/api/ai/status', async (req, res) => {
-    const { getAIServicesStatus } = await import('./ai-services/index.js');
-    const status = getAIServicesStatus();
-    res.json(status);
+    try {
+      const { getAIServicesStatus } = await import('./ai-services/index.js');
+      const status = await getAIServicesStatus();
+      res.json({
+        ok: true,
+        data: status,
+        ...status,
+        meta: { timestamp: new Date().toISOString() },
+      });
+    } catch (error) {
+      console.error('[AI Status] Error:', error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'STATUS_ERROR',
+      });
+    }
   });
 
   console.log('[AI Services] Routes registered');

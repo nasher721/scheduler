@@ -80,6 +80,20 @@ export class AnomalyDetectionService extends EventEmitter {
         severity: 'HIGH',
         check: (schedule) => this.checkBurnoutRisk(schedule),
       },
+
+      // Circadian turnaround rules
+      circadianTurnaround: {
+        enabled: true,
+        severity: 'CRITICAL',
+        check: (schedule) => this.checkCircadianTurnaround(schedule),
+      },
+
+      // Credential validation rules
+      credentialExpiry: {
+        enabled: true,
+        severity: 'CRITICAL',
+        check: (schedule) => this.checkCredentialExpiry(schedule),
+      },
       
       // Pattern anomaly rules
       patternAnomaly: {
@@ -503,6 +517,78 @@ export class AnomalyDetectionService extends EventEmitter {
   }
 
   /**
+   * Check circadian turnaround violations (Night shift followed by Day shift within < 24h)
+   */
+  checkCircadianTurnaround(schedule) {
+    const violations = [];
+    const byProvider = {};
+
+    for (const slot of schedule.slots || []) {
+      if (!slot.providerId) continue;
+      if (!byProvider[slot.providerId]) byProvider[slot.providerId] = [];
+      byProvider[slot.providerId].push(slot);
+    }
+
+    for (const [providerId, pSlots] of Object.entries(byProvider)) {
+      const provider = (schedule.providers || []).find((p) => p.id === providerId);
+      const sorted = [...pSlots].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      let lastNightDate = null;
+      for (const slot of sorted) {
+        if (slot.type === 'NIGHT') {
+          lastNightDate = new Date(slot.date);
+        } else if (slot.type === 'DAY' && lastNightDate) {
+          const diffDays = (new Date(slot.date) - lastNightDate) / (1000 * 60 * 60 * 24);
+          if (diffDays === 1) {
+            violations.push({
+              title: 'Circadian Turnaround Violation',
+              description: `${provider?.name || providerId} assigned to DAY shift on ${slot.date} immediately following a NIGHT shift (< 24h rest)`,
+              severity: 'CRITICAL',
+              affectedProviders: [providerId],
+              affectedShifts: [slot.id],
+              suggestedAction: 'Reassign day shift to provide required >= 24h rest period',
+            });
+          }
+        }
+      }
+    }
+
+    return violations;
+  }
+
+  /**
+   * Check for expired or expiring provider credentials
+   */
+  checkCredentialExpiry(schedule) {
+    const violations = [];
+    const providersMap = new Map((schedule.providers || []).map((p) => [p.id, p]));
+
+    for (const slot of schedule.slots || []) {
+      if (!slot.providerId) continue;
+      const provider = providersMap.get(slot.providerId);
+      if (!provider || !Array.isArray(provider.credentials)) continue;
+
+      const slotDate = new Date(slot.date);
+      for (const cred of provider.credentials) {
+        if (!cred.expiresAt) continue;
+        const expiresAt = new Date(cred.expiresAt);
+        if (expiresAt < slotDate) {
+          violations.push({
+            title: 'Expired Credential on Active Shift',
+            description: `${provider.name} has expired ${cred.credentialType || 'credential'} for shift on ${slot.date}`,
+            severity: 'CRITICAL',
+            affectedProviders: [provider.id],
+            affectedShifts: [slot.id],
+            suggestedAction: `Verify and renew ${cred.credentialType || 'credential'} or reassign shift`,
+          });
+        }
+      }
+    }
+
+    return violations;
+  }
+
+  /**
    * Check for pattern anomalies using AI
    */
   async checkPatternAnomalies(schedule) {
@@ -580,6 +666,8 @@ Respond with JSON array of anomalies found, or empty array if none.`;
       skillGaps: 'COVERAGE',
       acgmeViolation: 'COMPLIANCE',
       consecutiveShifts: 'COMPLIANCE',
+      circadianTurnaround: 'COMPLIANCE',
+      credentialExpiry: 'COMPLIANCE',
       workloadImbalance: 'FAIRNESS',
       weekendImbalance: 'FAIRNESS',
       burnoutRisk: 'RISK',

@@ -28,13 +28,17 @@ export function useAIOptimization() {
       eventSourceRef.current = es;
 
       es.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        setProgress(data);
+        try {
+          const data = JSON.parse(event.data);
+          setProgress(data);
 
-        if (data.event === 'complete') {
-          setResult(data.data);
-          setIsOptimizing(false);
-          es.close();
+          if (data.event === 'complete') {
+            setResult(data.data || data);
+            setIsOptimizing(false);
+            es.close();
+          }
+        } catch {
+          // ignore parse errors on keepalive comments
         }
       };
 
@@ -56,6 +60,9 @@ export function useAIOptimization() {
         throw new Error('Optimization request failed');
       }
 
+      const responseData = await response.json();
+      const finalResult = responseData?.data || responseData;
+      setResult(finalResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setIsOptimizing(false);
@@ -111,8 +118,9 @@ export function useDemandForecast() {
       if (!response.ok) throw new Error('Forecast request failed');
 
       const data = await response.json();
-      setForecast(data.forecast);
-      return data.forecast;
+      const forecastList = data?.data?.forecast || data?.forecast || [];
+      setForecast(forecastList);
+      return forecastList;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       return null;
@@ -159,16 +167,17 @@ export function useNLPAssistant(userId: string) {
       if (!response.ok) throw new Error('Chat request failed');
 
       const data = await response.json();
+      const content = data?.data?.response || data?.response || 'I processed your request.';
 
       // Add assistant message
       const assistantMsg: ChatMessage = {
         role: 'assistant',
-        content: data.response,
+        content,
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, assistantMsg]);
 
-      return data;
+      return data?.data || data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       return null;
@@ -216,9 +225,10 @@ export function usePreferenceLearning() {
       // Fetch all models
       const modelsResponse = await fetch(`${API_BASE}/api/ai/preferences`);
       const modelsData = await modelsResponse.json();
-      setModels(modelsData.models);
+      const modelsMap = modelsData?.data?.models || modelsData?.models || {};
+      setModels(modelsMap);
 
-      return data.results;
+      return data?.data?.results || data?.results;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       return null;
@@ -238,7 +248,7 @@ export function usePreferenceLearning() {
       if (!response.ok) throw new Error('Recommendation request failed');
 
       const data = await response.json();
-      return data.recommendation;
+      return data?.data?.recommendation || data?.recommendation;
     } catch (err) {
       console.error('Failed to get recommendation:', err);
       return null;
@@ -274,9 +284,13 @@ export function useAnomalyDetection() {
       eventSourceRef.current = es;
 
       es.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === 'anomaly' || data.event === 'critical') {
-          setAlerts(prev => [data.alert, ...prev]);
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'anomaly' || data.event === 'critical') {
+            setAlerts(prev => [data.alert, ...prev]);
+          }
+        } catch {
+          // ignore keepalive pings
         }
       };
 
@@ -310,8 +324,9 @@ export function useAnomalyDetection() {
       if (!response.ok) throw new Error('Failed to fetch alerts');
 
       const data = await response.json();
-      setAlerts(data.alerts);
-      return data.alerts;
+      const list = data?.data?.alerts || data?.alerts || [];
+      setAlerts(list);
+      return list;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       return [];
@@ -354,10 +369,7 @@ export function useAnomalyDetection() {
 
 // ============ UNIFIED AI STATUS HOOK ============
 
-// Maximum number of consecutive network failures before polling is paused.
 const AI_STATUS_MAX_FAILURES = 3;
-// After MAX_FAILURES the interval backs off to 5 minutes so the console stays
-// quiet when the AI backend is unreachable.
 const AI_STATUS_BACKOFF_MS = 5 * 60 * 1000;
 
 export function useAIStatus() {
@@ -373,14 +385,13 @@ export function useAIStatus() {
       const response = await fetch(`${API_BASE}/api/ai/status`);
       if (response.ok) {
         const data = await response.json();
-        setStatus(data);
+        setStatus(data?.data || data);
         consecutiveFailuresRef.current = 0;
         setIsAvailable(true);
       }
     } catch {
       consecutiveFailuresRef.current += 1;
       if (consecutiveFailuresRef.current === AI_STATUS_MAX_FAILURES) {
-        // Log once instead of on every poll cycle.
         console.warn(
           `[NICU Scheduler] AI status endpoint unreachable after ${AI_STATUS_MAX_FAILURES} attempts. ` +
           'Polling paused — click Refresh to retry.',
@@ -392,8 +403,6 @@ export function useAIStatus() {
     }
   }, []);
 
-  // Reschedule the interval dynamically: normal cadence while reachable, backed-
-  // off cadence once the failure threshold is crossed.
   useEffect(() => {
     const scheduleNext = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -409,9 +418,7 @@ export function useAIStatus() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-    // fetchStatus is stable (useCallback with no deps), so this runs once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchStatus]);
 
   return { status, isLoading, isAvailable, refresh: fetchStatus };
 }

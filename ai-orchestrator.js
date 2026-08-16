@@ -37,7 +37,7 @@ const DEFAULT_PROVIDERS = [
   {
     id: "ollama",
     label: "Ollama (Local)",
-    models: ["llama3.3", "qwen2.5", "mistral"],
+    models: ["llama3.3", "qwen2.5", "mistral", "deepseek-r1"],
     envKey: "OLLAMA_BASE_URL",
   },
 ];
@@ -258,7 +258,15 @@ function computeObjectiveBreakdown(state, input = {}) {
 
 function evaluateGuardrails(state) {
   const analysis = deterministicConflicts(state, "local");
-  const hardConstraintTypes = ["missing_provider", "skill_mismatch", "time_off_violation", "double_booked", "expired_credential"];
+  const hardConstraintTypes = [
+    "missing_provider",
+    "skill_mismatch",
+    "time_off_violation",
+    "double_booked",
+    "expired_credential",
+    "consecutive_nights_exceeded",
+    "circadian_turnaround_violation",
+  ];
   const hardViolations = analysis.conflicts.filter((entry) => hardConstraintTypes.includes(entry.type));
 
   return {
@@ -326,6 +334,11 @@ function chooseBestProvider(state, slot, providerStats) {
       const nextIsConsecutiveNight = stats.lastNightDate ? getDayDiff(stats.lastNightDate, slot.date) === 1 : false;
       const projectedConsecutiveNights = nextIsConsecutiveNight ? stats.consecutiveNights + 1 : 1;
       if (projectedConsecutiveNights > maxConsecutive) continue;
+    } else {
+      // Avoid circadian turnaround (night shift immediately before day shift)
+      if (stats.lastNightDate && getDayDiff(stats.lastNightDate, slot.date) === 1) {
+        continue;
+      }
     }
 
     candidates.push({ provider, score: stats.totalAssigned * 100 + assignedThisWeek * 10 });
@@ -511,6 +524,43 @@ function deterministicConflicts(state, provider) {
     if (Number.isFinite(maxShifts) && weeklyAssignments.get(weekKey) > maxShifts) {
       const { severity, message } = getConflictMessage("max_shifts_per_week_exceeded");
       conflicts.push({ type: "max_shifts_per_week_exceeded", severity, slotId: slot?.id || null, message });
+    }
+  }
+
+  // Check consecutive nights & circadian turnaround per provider
+  const providerSlotsMap = new Map();
+  for (const slot of slots) {
+    if (!slot?.providerId) continue;
+    if (!providerSlotsMap.has(slot.providerId)) providerSlotsMap.set(slot.providerId, []);
+    providerSlotsMap.get(slot.providerId).push(slot);
+  }
+
+  for (const [providerId, pSlots] of providerSlotsMap.entries()) {
+    const providerProfile = providers.get(providerId);
+    const sorted = [...pSlots].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    let consecutiveNights = 0;
+    let lastNightDate = null;
+    const maxConsecutive = Number.isFinite(providerProfile?.maxConsecutiveNights) ? providerProfile.maxConsecutiveNights : 3;
+
+    for (const current of sorted) {
+      if (isNightShift(current)) {
+        if (lastNightDate && getDayDiff(lastNightDate, current.date) === 1) {
+          consecutiveNights += 1;
+        } else {
+          consecutiveNights = 1;
+        }
+        lastNightDate = current.date;
+        if (consecutiveNights > maxConsecutive) {
+          const { severity, message } = getConflictMessage("consecutive_nights_exceeded");
+          conflicts.push({ type: "consecutive_nights_exceeded", severity, slotId: current.id, providerId, message });
+        }
+      } else {
+        // Circadian turnaround violation: night shift immediately followed by day shift next day
+        if (lastNightDate && getDayDiff(lastNightDate, current.date) === 1) {
+          const { severity, message } = getConflictMessage("circadian_turnaround_violation");
+          conflicts.push({ type: "circadian_turnaround_violation", severity, slotId: current.id, providerId, message });
+        }
+      }
     }
   }
 

@@ -236,3 +236,39 @@ test("copilot parses adjust_parameters intent for filter updates", async () => {
   assert.equal(result.intent, "adjust_parameters");
   assert.ok(result.actions.some((action) => action.type === "adjust_parameters"));
 });
+
+test("conflicts detect circadian turnaround violation when night is immediately followed by day", async () => {
+  const state = {
+    ...sampleState,
+    slots: [
+      { id: "c1", date: "2026-01-01", type: "NIGHT", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+      { id: "c2", date: "2026-01-02", type: "DAY", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+    ],
+  };
+
+  const result = await detectConflicts(state);
+  assert.ok(result.conflicts.some((entry) => entry.type === "circadian_turnaround_violation"));
+});
+
+test("conflicts detect consecutive nights exceeding maxConsecutiveNights", async () => {
+  const state = {
+    ...sampleState,
+    providers: [
+      {
+        id: "p1",
+        name: "Dr. A",
+        skills: ["NEURO_CRITICAL"],
+        timeOffRequests: [],
+        maxConsecutiveNights: 2,
+      },
+    ],
+    slots: [
+      { id: "cn1", date: "2026-01-01", type: "NIGHT", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+      { id: "cn2", date: "2026-01-02", type: "NIGHT", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+      { id: "cn3", date: "2026-01-03", type: "NIGHT", providerId: "p1", requiredSkill: "NEURO_CRITICAL", priority: "CRITICAL" },
+    ],
+  };
+
+  const result = await detectConflicts(state);
+  assert.ok(result.conflicts.some((entry) => entry.type === "consecutive_nights_exceeded"));
+});

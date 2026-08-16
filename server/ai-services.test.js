@@ -381,6 +381,41 @@ describe('AI Services Integration', () => {
       assert.strictEqual(newAlerts[0].title, 'Different Alert');
     });
 
+    it('should detect circadian turnaround violations', () => {
+      const schedule = {
+        ...mockScheduleState,
+        slots: [
+          { id: 'slot-night', date: '2024-03-15', type: 'NIGHT', providerId: 'dr-smith' },
+          { id: 'slot-day', date: '2024-03-16', type: 'DAY', providerId: 'dr-smith' },
+        ],
+      };
+
+      const violations = services.anomalyDetection.checkCircadianTurnaround(schedule);
+      assert.ok(Array.isArray(violations));
+      assert.ok(violations.length > 0);
+      assert.strictEqual(violations[0].title, 'Circadian Turnaround Violation');
+    });
+
+    it('should detect expired credentials on active shifts', () => {
+      const schedule = {
+        providers: [
+          {
+            id: 'dr-exp',
+            name: 'Dr. Expired',
+            credentials: [{ credentialType: 'ACLS', expiresAt: '2024-01-01' }],
+          },
+        ],
+        slots: [
+          { id: 'slot-exp', date: '2024-03-15', type: 'DAY', providerId: 'dr-exp' },
+        ],
+      };
+
+      const violations = services.anomalyDetection.checkCredentialExpiry(schedule);
+      assert.ok(Array.isArray(violations));
+      assert.ok(violations.length > 0);
+      assert.strictEqual(violations[0].title, 'Expired Credential on Active Shift');
+    });
+
     it('should manage alert resolution', () => {
       const alert = {
         id: 'test-alert-1',

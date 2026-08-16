@@ -18,16 +18,27 @@ export function registerAgentsRoutes(app) {
       const scheduleState = req.body?.scheduleState || req.body?.state || req.body;
       
       if (!scheduleState || typeof scheduleState !== 'object') {
-        return res.status(400).json({ error: 'scheduleState is required' });
+        return res.status(400).json({
+          ok: false,
+          error: 'scheduleState object is required',
+          code: 'INVALID_PARAMETERS',
+        });
       }
 
       const result = await orchestrator.optimizeSchedule(scheduleState);
-      res.json(result);
+      res.json({
+        ok: true,
+        data: result,
+        ...result,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
       console.error('Multi-agent optimization failed:', error);
       res.status(500).json({ 
+        ok: false,
         error: 'Optimization failed', 
-        message: error.message 
+        message: error.message,
+        code: 'OPTIMIZATION_ERROR',
       });
     }
   });
@@ -36,8 +47,21 @@ export function registerAgentsRoutes(app) {
    * Get optimization status
    */
   app.get('/api/agents/optimize/status', (req, res) => {
-    const status = orchestrator.getStatus();
-    res.json(status);
+    try {
+      const status = orchestrator.getStatus();
+      res.json({
+        ok: true,
+        data: status,
+        ...status,
+        meta: { timestamp: new Date().toISOString() },
+      });
+    } catch (error) {
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+        code: 'STATUS_ERROR',
+      });
+    }
   });
 
   /**
@@ -45,21 +69,30 @@ export function registerAgentsRoutes(app) {
    */
   app.post('/api/agents/explain', async (req, res) => {
     try {
-      const { shiftId, scheduleState } = req.body;
+      const { shiftId, scheduleState } = req.body || {};
       
       if (!shiftId || !scheduleState) {
         return res.status(400).json({ 
-          error: 'shiftId and scheduleState are required' 
+          ok: false,
+          error: 'shiftId and scheduleState are required',
+          code: 'INVALID_PARAMETERS',
         });
       }
 
       const explanation = await orchestrator.explainDecision(shiftId, scheduleState);
-      res.json(explanation);
+      res.json({
+        ok: true,
+        data: explanation,
+        ...explanation,
+        meta: { timestamp: new Date().toISOString() },
+      });
     } catch (error) {
       console.error('Decision explanation failed:', error);
       res.status(500).json({ 
+        ok: false,
         error: 'Explanation failed', 
-        message: error.message 
+        message: error.message,
+        code: 'EXPLAIN_ERROR',
       });
     }
   });
@@ -72,10 +105,19 @@ export function registerAgentsRoutes(app) {
     const result = memory.get(`scheduling:agent:${agentName}:result`);
     
     if (!result) {
-      return res.status(404).json({ error: 'No results found for this agent' });
+      return res.status(404).json({
+        ok: false,
+        error: `No results found for agent '${agentName}'`,
+        code: 'NOT_FOUND',
+      });
     }
     
-    res.json(result);
+    res.json({
+      ok: true,
+      data: result,
+      ...result,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
@@ -92,7 +134,12 @@ export function registerAgentsRoutes(app) {
       }
     }
     
-    res.json(results);
+    res.json({
+      ok: true,
+      data: results,
+      ...results,
+      meta: { timestamp: new Date().toISOString() },
+    });
   });
 
   /**
@@ -102,6 +149,7 @@ export function registerAgentsRoutes(app) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.write('retry: 3000\n\n');
 
     const sendEvent = (event, data) => {
       res.write(`event: ${event}\n`);
@@ -127,8 +175,14 @@ export function registerAgentsRoutes(app) {
     orchestrator.on('optimization:complete', onComplete);
     orchestrator.on('optimization:error', onError);
 
+    // Keepalive ping
+    const keepalive = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 25000);
+
     // Clean up on client disconnect
     req.on('close', () => {
+      clearInterval(keepalive);
       orchestrator.off('optimization:start', onStart);
       orchestrator.off('agent:start', onAgentStart);
       orchestrator.off('agent:complete', onAgentComplete);
