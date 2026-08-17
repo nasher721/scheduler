@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Zap, Loader2, AlertTriangle } from "lucide-react";
@@ -35,17 +36,7 @@ export function AutoScheduleButton({ className }: AutoScheduleButtonProps) {
   const [stage, setStage] = useState<ProgressStage>("idle");
   const [errorResult, setErrorResult] = useState<MultiAgentOptimizeResult | null>(null);
 
-  const {
-    slots,
-    providers,
-    startDate,
-    numWeeks,
-    scenarios,
-    customRules,
-    auditLog,
-    showToast,
-    openChangePreviewWithMultiAgentResult,
-  } = useScheduleStore();
+  const { slots, providers, startDate, numWeeks, scenarios, customRules, auditLog, showToast, openChangePreviewWithMultiAgentResult } = useScheduleStore(useShallow((s) => ({ slots: s.slots, providers: s.providers, startDate: s.startDate, numWeeks: s.numWeeks, scenarios: s.scenarios, customRules: s.customRules, auditLog: s.auditLog, showToast: s.showToast, openChangePreviewWithMultiAgentResult: s.openChangePreviewWithMultiAgentResult })));
 
   const safeSlots = useMemo(() => Array.isArray(slots) ? slots : [], [slots]);
   const safeProviders = useMemo(() => Array.isArray(providers) ? providers : [], [providers]);

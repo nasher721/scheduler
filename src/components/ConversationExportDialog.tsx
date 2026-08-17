@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore } from "@/store";
@@ -26,7 +27,7 @@ interface ConversationExportDialogProps {
 }
 
 export function ConversationExportDialog({ isOpen, onClose }: ConversationExportDialogProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ copilotConversations: s.copilotConversations, copilotFeedback: s.copilotFeedback, currentConversationId: s.currentConversationId, deleteConversation: s.deleteConversation, showToast: s.showToast })));
   const [activeTab, setActiveTab] = useState<"export" | "import" | "stats">("export");
   const [importResult, setImportResult] = useState<{
     success: boolean;

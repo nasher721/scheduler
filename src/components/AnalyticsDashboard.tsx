@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useScheduleStore, getProviderCounts, getProviderCredentialSummary } from "../store";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
@@ -8,7 +9,7 @@ import { format, parseISO } from "date-fns";
 import { ExportCenter } from "./ExportCenter";
 
 export function AnalyticsDashboard() {
-    const { slots, providers, auditLog, customRules } = useScheduleStore();
+    const { slots, providers, auditLog, customRules } = useScheduleStore(useShallow((s) => ({ slots: s.slots, providers: s.providers, auditLog: s.auditLog, customRules: s.customRules })));
     const { records: applyRecords, summary: applySummary, isLoading: applyLoading, error: applyError, refresh: refreshApply } = useAiApplyHistory({ limit: 10, days: 30 });
     const { alerts: anomalyAlerts, isLoading: anomalyLoading, error: anomalyError, refresh: refreshAnomaly } = useAnomalyAlerts();
 

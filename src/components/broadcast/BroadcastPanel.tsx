@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ const CHANNEL_OPTIONS: { value: BroadcastChannel; label: string; icon: typeof Me
 ];
 
 export function BroadcastPanel({ shift, isOpen, onClose, onBroadcastSuccess }: BroadcastPanelProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ providers: s.providers, showToast: s.showToast, slots: s.slots })));
   const { dispatch, isDispatching, error } = useBroadcast();
   
   const [selectedChannel, setSelectedChannel] = useState<BroadcastChannel>("sms");

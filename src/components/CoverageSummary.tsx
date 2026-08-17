@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useScheduleStore } from "../store";
 import { buildScheduleRiskDigest } from "@/lib/scheduleRisk";
 
@@ -6,7 +7,7 @@ interface CoverageSummaryProps {
 }
 
 export function CoverageSummary({ className }: CoverageSummaryProps) {
-  const { slots, providers, customRules } = useScheduleStore();
+  const { slots, providers, customRules } = useScheduleStore(useShallow((s) => ({ slots: s.slots, providers: s.providers, customRules: s.customRules })));
   const safeSlots = Array.isArray(slots) ? slots : [];
 
   const riskDigest = buildScheduleRiskDigest(safeSlots, providers, customRules);

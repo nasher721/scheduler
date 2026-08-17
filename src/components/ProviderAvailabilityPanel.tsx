@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore, type ShiftSlot, type Provider } from "../store";
@@ -88,7 +89,7 @@ export function ProviderAvailabilityPanel({
   displayMode = "drawer",
   defaultView
 }: ProviderAvailabilityPanelProps) {
-  const { providers, slots, assignShift } = useScheduleStore();
+  const { providers, slots, assignShift } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots, assignShift: s.assignShift })));
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAvailableOnly, setFilterAvailableOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'slot' | 'dashboard'>(() => defaultView ?? (selectedSlot ? 'slot' : 'dashboard'));

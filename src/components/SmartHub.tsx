@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from 'react';
 import { useScheduleStore } from '@/store';
 import { ProviderProfileEditor } from './profiles/ProviderProfileEditor';
@@ -13,7 +14,7 @@ interface SmartHubProps {
 }
 
 export function SmartHub({ className }: SmartHubProps) {
-  const { providers } = useScheduleStore();
+  const { providers } = useScheduleStore(useShallow((s) => ({ providers: s.providers })));
   const [activeTab, setActiveTab] = useState<TabType>('profiles');
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);

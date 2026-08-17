@@ -1,19 +1,10 @@
+import { useShallow } from 'zustand/react/shallow';
 import { addDays, format, parseISO, isValid } from "date-fns";
 import { useMemo } from "react";
 import { useScheduleStore, type ShiftSlot } from "@/store";
 
 export function useScheduleViewport() {
-  const {
-    startDate,
-    scheduleViewport,
-    setCurrentWeekOffset,
-    shiftWeekOffset,
-    setShiftTypeFilter,
-    setShowConflictsOnly,
-    setShowUnfilledOnly,
-    setProviderSearchTerm,
-    resetScheduleViewportFilters,
-  } = useScheduleStore();
+  const { startDate, scheduleViewport, setCurrentWeekOffset, shiftWeekOffset, setShiftTypeFilter, setShowConflictsOnly, setShowUnfilledOnly, setProviderSearchTerm, resetScheduleViewportFilters } = useScheduleStore(useShallow((s) => ({ startDate: s.startDate, scheduleViewport: s.scheduleViewport, setCurrentWeekOffset: s.setCurrentWeekOffset, shiftWeekOffset: s.shiftWeekOffset, setShiftTypeFilter: s.setShiftTypeFilter, setShowConflictsOnly: s.setShowConflictsOnly, setShowUnfilledOnly: s.setShowUnfilledOnly, setProviderSearchTerm: s.setProviderSearchTerm, resetScheduleViewportFilters: s.resetScheduleViewportFilters })));
 
   const weekDates = useMemo(() => {
     let baseStart = parseISO(startDate);

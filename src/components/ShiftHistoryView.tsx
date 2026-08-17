@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore, type AuditLogEntry } from "../store";
@@ -54,7 +55,7 @@ const actionConfig: Record<string, { icon: React.ReactNode; color: string; label
 };
 
 export function ShiftHistoryView({ isOpen, onClose, selectedSlotId }: ShiftHistoryViewProps) {
-  const { auditLog, slots, providers } = useScheduleStore();
+  const { auditLog, slots, providers } = useScheduleStore(useShallow((s) => ({ auditLog: s.auditLog, slots: s.slots, providers: s.providers })));
   const [filterAction, setFilterAction] = useState<ActionType>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
@@ -356,7 +357,7 @@ export function ShiftHistoryView({ isOpen, onClose, selectedSlotId }: ShiftHisto
 
 // Quick history button for shift cards
 export function ShiftHistoryButton({ slotId, onClick }: { slotId: string; onClick: () => void }) {
-  const { auditLog } = useScheduleStore();
+  const { auditLog } = useScheduleStore(useShallow((s) => ({ auditLog: s.auditLog })));
   const entryCount = auditLog.filter(e => e.slotId === slotId).length;
 
   if (entryCount === 0) return null;

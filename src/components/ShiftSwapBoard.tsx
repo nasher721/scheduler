@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, transform } from "framer-motion";
 import { useScheduleStore, type SwapRequest } from "../store";
@@ -168,13 +169,7 @@ const columnConfig: Record<SwapStatusColumn, {
 };
 
 export function ShiftSwapBoard({ isOpen, onClose }: ShiftSwapBoardProps) {
-  const { 
-    swapRequests, 
-    providers, 
-    approveSwapRequest, 
-    rejectSwapRequest,
-    currentUser 
-  } = useScheduleStore();
+  const { swapRequests, providers, approveSwapRequest, rejectSwapRequest, currentUser } = useScheduleStore(useShallow((s) => ({ swapRequests: s.swapRequests, providers: s.providers, approveSwapRequest: s.approveSwapRequest, rejectSwapRequest: s.rejectSwapRequest, currentUser: s.currentUser })));
   
   const [filterStatus, setFilterStatus] = useState<SwapStatusColumn | 'all'>('all');
   const [selectedSwap, setSelectedSwap] = useState<SwapRequest | null>(null);

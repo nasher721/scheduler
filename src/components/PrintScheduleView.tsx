@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { useScheduleStore, type ShiftSlot, type Provider } from "../store";
@@ -11,7 +12,7 @@ interface PrintScheduleViewProps {
 }
 
 export function PrintScheduleView({ isOpen, onClose }: PrintScheduleViewProps) {
-  const { slots, providers, startDate, numWeeks } = useScheduleStore();
+  const { slots, providers, startDate, numWeeks } = useScheduleStore(useShallow((s) => ({ slots: s.slots, providers: s.providers, startDate: s.startDate, numWeeks: s.numWeeks })));
   const printRef = useRef<HTMLDivElement>(null);
 
   // Get all weeks in the schedule

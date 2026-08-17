@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useScheduleStore, type ShiftType, type Provider, type ShiftSlot } from "../store";
 import { useDroppable } from "@dnd-kit/core";
 import { parseISO, format, startOfMonth, isToday } from "date-fns";
@@ -50,7 +51,7 @@ function CalendarSlot({ slot, provider }: { slot: ShiftSlot; provider?: Provider
 }
 
 export function MonthlyCalendar() {
-  const { slots, providers, startDate } = useScheduleStore();
+  const { slots, providers, startDate } = useScheduleStore(useShallow((s) => ({ slots: s.slots, providers: s.providers, startDate: s.startDate })));
   const [currentDate, setCurrentDate] = useState(startDate || format(new Date(), 'yyyy-MM-dd'));
   const [selectedDate, setSelectedDate] = useState(startDate || format(new Date(), 'yyyy-MM-dd'));
 

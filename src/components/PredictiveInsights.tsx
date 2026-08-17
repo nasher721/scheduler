@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from "react";
 import { useScheduleStore } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,16 +16,7 @@ import {
 import { format, parseISO } from "date-fns";
 
 export function PredictiveInsights() {
-  const {
-    preferenceProfiles,
-    mlSuggestions,
-    providers,
-    slots,
-    analyzeProviderPatterns,
-    generateMLSuggestions,
-    applyMLSuggestion,
-    dismissMLSuggestion,
-  } = useScheduleStore();
+  const { preferenceProfiles, mlSuggestions, providers, slots, analyzeProviderPatterns, generateMLSuggestions, applyMLSuggestion, dismissMLSuggestion } = useScheduleStore(useShallow((s) => ({ preferenceProfiles: s.preferenceProfiles, mlSuggestions: s.mlSuggestions, providers: s.providers, slots: s.slots, analyzeProviderPatterns: s.analyzeProviderPatterns, generateMLSuggestions: s.generateMLSuggestions, applyMLSuggestion: s.applyMLSuggestion, dismissMLSuggestion: s.dismissMLSuggestion })));
   
   const [activeTab, setActiveTab] = useState<"suggestions" | "profiles">("suggestions");
   const [isAnalyzing, setIsAnalyzing] = useState(false);

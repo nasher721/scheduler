@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useState } from "react";
 import { useScheduleStore, type Conflict, type ConflictSeverity } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,7 +45,7 @@ const conflictTypeLabels: Record<string, string> = {
 };
 
 function ConflictCard({ conflict }: { conflict: Conflict }) {
-  const { acknowledgeConflict, resolveConflict, ignoreConflict, providers } = useScheduleStore();
+  const { acknowledgeConflict, resolveConflict, ignoreConflict, providers } = useScheduleStore(useShallow((s) => ({ acknowledgeConflict: s.acknowledgeConflict, resolveConflict: s.resolveConflict, ignoreConflict: s.ignoreConflict, providers: s.providers })));
   const config = severityConfig[conflict.severity];
   const provider = providers.find(p => p.id === conflict.providerId);
 
@@ -144,7 +145,7 @@ function ConflictCard({ conflict }: { conflict: Conflict }) {
 }
 
 export function ConflictDashboard() {
-  const { conflicts, detectConflicts, slots, providers, resolveConflict } = useScheduleStore();
+  const { conflicts, detectConflicts, slots, providers, resolveConflict } = useScheduleStore(useShallow((s) => ({ conflicts: s.conflicts, detectConflicts: s.detectConflicts, slots: s.slots, providers: s.providers, resolveConflict: s.resolveConflict })));
   const [filter, setFilter] = useState<"all" | ConflictSeverity>("all");
   const [lastScan, setLastScan] = useState<Date | null>(null);
 

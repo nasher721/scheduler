@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useCallback } from 'react';
 import { useScheduleStore } from '@/store';
 import { BroadcastChannel } from '@/types';
@@ -7,7 +8,7 @@ export function useBroadcast() {
   const [isDispatching, setIsDispatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { broadcastHistory, addBroadcastEntry, escalateBroadcast } = useScheduleStore();
+  const { broadcastHistory, addBroadcastEntry, escalateBroadcast } = useScheduleStore(useShallow((s) => ({ broadcastHistory: s.broadcastHistory, addBroadcastEntry: s.addBroadcastEntry, escalateBroadcast: s.escalateBroadcast })));
 
   const dispatch = useCallback(async (
     shiftId: string,

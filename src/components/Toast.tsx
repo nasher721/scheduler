@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useScheduleStore } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from "lucide-react";
@@ -24,7 +25,7 @@ const iconColorMap = {
 };
 
 export function ToastContainer() {
-  const { toasts, dismissToast } = useScheduleStore();
+  const { toasts, dismissToast } = useScheduleStore(useShallow((s) => ({ toasts: s.toasts, dismissToast: s.dismissToast })));
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">

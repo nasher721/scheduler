@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { CalendarDays, ChevronLeft, ChevronRight, List, Rows3, Table2, TimerReset, BarChart3, CalendarIcon, Clock4, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useScheduleStore, type CalendarPresentationMode, type ShiftTypeFilter } from "@/store";
@@ -24,7 +25,7 @@ export function ScheduleToolbar() {
     setProviderSearchTerm,
     resetScheduleViewportFilters,
   } = useScheduleViewport();
-  const { setScheduleSurfaceView, setCalendarPresentationMode } = useScheduleStore();
+  const { setScheduleSurfaceView, setCalendarPresentationMode } = useScheduleStore(useShallow((s) => ({ setScheduleSurfaceView: s.setScheduleSurfaceView, setCalendarPresentationMode: s.setCalendarPresentationMode })));
 
   return (
     <section className="satin-panel mb-3 rounded-xl border border-border/80 p-2.5 shadow-xs" aria-label="Schedule View Controls">

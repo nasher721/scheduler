@@ -1,10 +1,11 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from 'react';
 import { useScheduleStore, type CustomRuleType } from '../store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Plus, Trash2, Users, CalendarClock, AlertCircle } from 'lucide-react';
 
 export function RuleBuilder() {
-    const { providers, customRules, addCustomRule, removeCustomRule } = useScheduleStore();
+    const { providers, customRules, addCustomRule, removeCustomRule } = useScheduleStore(useShallow((s) => ({ providers: s.providers, customRules: s.customRules, addCustomRule: s.addCustomRule, removeCustomRule: s.removeCustomRule })));
     const [isAdding, setIsAdding] = useState(false);
 
     const [newRuleType, setNewRuleType] = useState<CustomRuleType>('AVOID_PAIRING');

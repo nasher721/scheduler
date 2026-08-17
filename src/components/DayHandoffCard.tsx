@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore } from "../store";
@@ -17,7 +18,7 @@ interface DayHandoffCardProps {
 
 export function DayHandoffCard({ date, isExpanded: defaultExpanded = false }: DayHandoffCardProps) {
   const dateStr = format(date, "yyyy-MM-dd");
-  const { dayHandoffs, setDayHandoff, clearDayHandoff } = useScheduleStore();
+  const { dayHandoffs, setDayHandoff, clearDayHandoff } = useScheduleStore(useShallow((s) => ({ dayHandoffs: s.dayHandoffs, setDayHandoff: s.setDayHandoff, clearDayHandoff: s.clearDayHandoff })));
   
   const handoff = dayHandoffs.find(h => h.date === dateStr);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -187,7 +188,7 @@ interface DayHandoffIndicatorProps {
 
 export function DayHandoffIndicator({ date, onClick }: DayHandoffIndicatorProps) {
   const dateStr = format(date, "yyyy-MM-dd");
-  const { dayHandoffs } = useScheduleStore();
+  const { dayHandoffs } = useScheduleStore(useShallow((s) => ({ dayHandoffs: s.dayHandoffs })));
   const handoff = dayHandoffs.find(h => h.date === dateStr);
 
   if (!handoff?.notes) return null;

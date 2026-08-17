@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore, type ShiftSlot, type Provider } from "../store";
@@ -278,7 +279,7 @@ interface ProviderWorkloadBadgeProps {
 }
 
 export function ProviderWorkloadBadge({ providerId, slot }: ProviderWorkloadBadgeProps) {
-  const { providers, slots } = useScheduleStore();
+  const { providers, slots } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots })));
   const provider = providers.find(p => p.id === providerId);
   
   if (!provider) return null;

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useEffect } from 'react';
 import { useScheduleStore } from '@/store';
 import { CommunicationPreferences } from '@/types';
@@ -13,7 +14,7 @@ interface ProviderProfileEditorProps {
 }
 
 export function ProviderProfileEditor({ providerId, className, onClose }: ProviderProfileEditorProps) {
-  const { providers, updateProvider } = useScheduleStore();
+  const { providers, updateProvider } = useScheduleStore(useShallow((s) => ({ providers: s.providers, updateProvider: s.updateProvider })));
   const provider = providers.find((p) => p.id === providerId);
 
   const [communicationPrefs, setCommunicationPrefs] = useState<CommunicationPreferences>({

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCopilot } from "@/hooks/useCopilot";
@@ -36,7 +37,7 @@ interface CopilotPanelProps {
 }
 
 export function CopilotPanel({ isOpen, onToggle }: CopilotPanelProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ addMessageToConversation: s.addMessageToConversation, copilotConversations: s.copilotConversations, createConversation: s.createConversation, currentConversationId: s.currentConversationId, currentUser: s.currentUser, deleteConversation: s.deleteConversation, loadConversation: s.loadConversation, providers: s.providers, recordCopilotFeedback: s.recordCopilotFeedback, runMultiAgentOptimize: s.runMultiAgentOptimize, selectedDate: s.selectedDate, selectedProviderId: s.selectedProviderId, showToast: s.showToast, slots: s.slots })));
   const [inputValue, setInputValue] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [isListening, setIsListening] = useState(false);

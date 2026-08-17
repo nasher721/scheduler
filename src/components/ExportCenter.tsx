@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React from 'react';
 import { Download, Printer, Calendar as CalendarIcon, FileSpreadsheet } from 'lucide-react';
 import { exportScheduleToExcel } from '../lib/excelUtils';
@@ -5,7 +6,7 @@ import { useScheduleStore } from '../store';
 import { generateProviderICal } from '../lib/icalUtils';
 
 export const ExportCenter: React.FC = () => {
-    const { providers, slots, showToast } = useScheduleStore();
+    const { providers, slots, showToast } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots, showToast: s.showToast })));
 
     const handlePrint = () => {
         window.print();

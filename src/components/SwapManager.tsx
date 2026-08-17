@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from "react";
 import { useScheduleStore, type ShiftSlot, type Provider, type TimeOffRequest } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -82,15 +83,7 @@ function validateSwapRequest(
 }
 
 export function SwapManager() {
-  const {
-    providers,
-    slots,
-    swapRequests,
-    createSwapRequest,
-    approveSwapRequest,
-    rejectSwapRequest,
-    currentUser
-  } = useScheduleStore();
+  const { providers, slots, swapRequests, createSwapRequest, approveSwapRequest, rejectSwapRequest, currentUser } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots, swapRequests: s.swapRequests, createSwapRequest: s.createSwapRequest, approveSwapRequest: s.approveSwapRequest, rejectSwapRequest: s.rejectSwapRequest, currentUser: s.currentUser })));
 
   const [isCreating, setIsCreating] = useState(false);
   const [selectedRequestor, setSelectedRequestor] = useState<string>("");

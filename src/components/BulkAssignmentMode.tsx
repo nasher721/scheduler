@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore, type ShiftSlot, type Provider } from "../store";
@@ -20,7 +21,7 @@ interface BulkAssignmentModeProps {
 }
 
 export function BulkAssignmentMode({ isOpen, onClose, slots }: BulkAssignmentModeProps) {
-  const { providers, assignShift } = useScheduleStore();
+  const { providers, assignShift } = useScheduleStore(useShallow((s) => ({ providers: s.providers, assignShift: s.assignShift })));
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [searchTerm, setSearchTerm] = useState('');

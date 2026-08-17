@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { useScheduleStore, type ShiftType } from "../store";
 import { motion } from "framer-motion";
@@ -50,14 +51,7 @@ function getHolidayDate(holiday: typeof HOLIDAY_DEFINITIONS[0], year: number): D
 }
 
 export function HolidayTracker() {
-  const { 
-    providers, 
-    slots, 
-    holidayAssignments, 
-    addHolidayAssignment, 
-    removeHolidayAssignment,
-    getProviderHolidayCount 
-  } = useScheduleStore();
+  const { providers, slots, holidayAssignments, addHolidayAssignment, removeHolidayAssignment, getProviderHolidayCount } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots, holidayAssignments: s.holidayAssignments, addHolidayAssignment: s.addHolidayAssignment, removeHolidayAssignment: s.removeHolidayAssignment, getProviderHolidayCount: s.getProviderHolidayCount })));
   
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedHoliday, setSelectedHoliday] = useState<string | null>(null);

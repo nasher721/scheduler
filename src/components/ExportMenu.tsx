@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from "react";
 import { Calendar, ChevronDown, Download, FileSpreadsheet, Printer } from "lucide-react";
 import { exportScheduleToExcel } from "../lib/excelUtils";
@@ -5,7 +6,7 @@ import { generateProviderICal } from "../lib/icalUtils";
 import { useScheduleStore } from "../store";
 
 export function ExportMenu() {
-  const { providers, slots, showToast } = useScheduleStore();
+  const { providers, slots, showToast } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots, showToast: s.showToast })));
   const [isOpen, setIsOpen] = useState(false);
 
   const handleExcelExport = async () => {

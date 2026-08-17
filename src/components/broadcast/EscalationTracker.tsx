@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,7 @@ const DEFAULT_ESCALATION_MINUTES = 30;
 const MAX_TIERS = 3;
 
 export function EscalationTracker({ shift }: EscalationTrackerProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ showToast: s.showToast })));
   const { escalate, isDispatching } = useBroadcast();
   const [timeRemaining, setTimeRemaining] = useState<number>(DEFAULT_ESCALATION_MINUTES * 60);
   const [currentTier, setCurrentTier] = useState<number>(1);

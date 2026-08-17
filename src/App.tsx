@@ -3,9 +3,13 @@ import { useState, useEffect } from "react";
 const CopilotPanel = lazy(() => import("./components/CopilotPanel").then(m => ({ default: m.CopilotPanel })));
 const ProviderAvailabilityPanel = lazy(() => import("./components/ProviderAvailabilityPanel").then(m => ({ default: m.ProviderAvailabilityPanel })));
 
-import { ProviderManager } from "./components/ProviderManager";
-import { LandingPage } from "./components/LandingPage";
-import { ScheduleChangePreview, type OptimizationPreview } from "./components/ScheduleChangePreview";
+const ProviderManager = lazy(() => import("./components/ProviderManager").then(m => ({ default: m.ProviderManager })));
+const LandingPage = lazy(() => import("./components/LandingPage").then(m => ({ default: m.LandingPage })));
+const ScheduleChangePreview = lazy(() => import("./components/ScheduleChangePreview").then(m => ({ default: m.ScheduleChangePreview })));
+const Login = lazy(() => import("./components/Login").then(m => ({ default: m.Login })));
+const ProviderDashboard = lazy(() => import("./components/ProviderDashboard").then(m => ({ default: m.ProviderDashboard })));
+const OnboardingTour = lazy(() => import("./components/OnboardingTour").then(m => ({ default: m.OnboardingTour })));
+const AdminReadinessBanner = lazy(() => import("./components/schedule/AdminReadinessBanner").then(m => ({ default: m.AdminReadinessBanner })));
 import { SparkAnnotation } from "spark-banana";
 import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { NotificationBanner } from "./components/NotificationBanner";
@@ -13,10 +17,7 @@ import { ExportMenu } from "./components/ExportMenu";
 import { ToastContainer } from "./components/Toast";
 import { ErrorBoundary, ViewContent } from "./components/layout";
 import { useScheduleStore } from "./store";
-import { Login } from "./components/Login";
-import { ProviderDashboard } from "./components/ProviderDashboard";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { OnboardingTour } from "./components/OnboardingTour";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { TourPrompt } from "@/components/TourPrompt";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -45,7 +46,7 @@ import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSe
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState, loadScheduleState, multiAgentOptimize, buildOptimizationPreview } from "./lib/api";
 import { AutoScheduleButton } from "./components/AutoScheduleButton";
-import { AdminReadinessBanner } from "./components/schedule/AdminReadinessBanner";
+import type { OptimizationPreview } from "./components/ScheduleChangePreview";
 import { useScheduleReadiness } from "./components/schedule/useScheduleReadiness";
 import { supabase } from "./lib/supabase";
 import { useMemo, useRef, useCallback } from "react";
@@ -449,11 +450,11 @@ export default function App() {
     // Skip landing page for #admin hash - auto-login will handle it
     const isAdminHash = window.location.hash === '#admin';
     if (showLanding && !isAdminHash) {
-      return <LandingPage onLogin={() => setShowLanding(false)} />;
+      return <Suspense><LandingPage onLogin={() => setShowLanding(false)} /></Suspense>;
     }
     return (
       <>
-        <Login />
+        <Suspense><Login /></Suspense>
         <ToastContainer />
       </>
     );
@@ -462,7 +463,7 @@ export default function App() {
   if (currentUser.role === "CLINICIAN") {
     return (
       <>
-        <ProviderDashboard />
+        <Suspense><ProviderDashboard /></Suspense>
         <ToastContainer />
       </>
     );
@@ -822,7 +823,7 @@ export default function App() {
 
         <div className="mx-auto grid max-w-[1800px] grid-cols-1 gap-4 px-3 py-4 sm:px-5 xl:grid-cols-[300px_minmax(0,1fr)]">
           <aside className="hidden min-w-0 flex-col gap-4 xl:flex">
-            <ProviderManager />
+            <Suspense><ProviderManager /></Suspense>
             {showAvailabilityPanel && (
               <Suspense fallback={<div className="rounded-lg border border-border bg-surface p-4 text-sm text-foreground-muted">Loading staff dashboard...</div>}>
                 <ProviderAvailabilityPanel
@@ -853,10 +854,12 @@ export default function App() {
             </div>
 
             {viewMode === 'schedule' && (
-              <AdminReadinessBanner
-                readiness={scheduleReadiness}
-                onViewAlerts={() => setViewMode("notifications")}
-              />
+              <Suspense>
+                <AdminReadinessBanner
+                  readiness={scheduleReadiness}
+                  onViewAlerts={() => setViewMode("notifications")}
+                />
+              </Suspense>
             )}
 
             <button
@@ -898,7 +901,7 @@ export default function App() {
                       </button>
                     </div>
                     <div className="p-4">
-                      <ProviderManager />
+                      <Suspense><ProviderManager /></Suspense>
                     </div>
                   </motion.aside>
                 </>
@@ -1008,21 +1011,25 @@ export default function App() {
         </Suspense>
       )}
 
-      <OnboardingTour
-        isOpen={onboarding.isOpen}
-        onClose={onboarding.closeTour}
-        onComplete={onboarding.completeTour}
-      />
+      <Suspense>
+        <OnboardingTour
+          isOpen={onboarding.isOpen}
+          onClose={onboarding.closeTour}
+          onComplete={onboarding.completeTour}
+        />
+      </Suspense>
 
       {/* AI Change Preview Modal */}
       {showChangePreview && !!changePreviewData && (
-        <ScheduleChangePreview
-          preview={changePreviewData as OptimizationPreview}
-          isOpen={showChangePreview}
-          onClose={closeChangePreview}
-          onAccept={applyAllAISuggestions}
-          onReject={rejectAISuggestions}
-        />
+        <Suspense>
+          <ScheduleChangePreview
+            preview={changePreviewData as OptimizationPreview}
+            isOpen={showChangePreview}
+            onClose={closeChangePreview}
+            onAccept={applyAllAISuggestions}
+            onReject={rejectAISuggestions}
+          />
+        </Suspense>
       )}
 
       {import.meta.env.DEV && (

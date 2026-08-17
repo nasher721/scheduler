@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useState } from "react";
 import { useScheduleStore, type Notification, type NotificationType } from "../store";
 import { deleteNotification, listNotificationHistory, type NotificationRecord, updateNotification } from "../lib/api";
@@ -36,7 +37,7 @@ const notificationColors: Record<NotificationType, string> = {
 };
 
 function NotificationCard({ notification }: { notification: Notification }) {
-  const { markNotificationRead } = useScheduleStore();
+  const { markNotificationRead } = useScheduleStore(useShallow((s) => ({ markNotificationRead: s.markNotificationRead })));
   const isUnread = !notification.readAt;
 
   return (
@@ -99,13 +100,7 @@ function NotificationCard({ notification }: { notification: Notification }) {
 }
 
 export function NotificationCenter() {
-  const { 
-    notifications, 
-    markNotificationRead, 
-    currentUser,
-    notificationPreferences,
-    updateNotificationPreferences
-  } = useScheduleStore();
+  const { notifications, markNotificationRead, currentUser, notificationPreferences, updateNotificationPreferences } = useScheduleStore(useShallow((s) => ({ notifications: s.notifications, markNotificationRead: s.markNotificationRead, currentUser: s.currentUser, notificationPreferences: s.notificationPreferences, updateNotificationPreferences: s.updateNotificationPreferences })));
   
   const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -376,7 +371,7 @@ export function NotificationCenter() {
 
 // Notification bell button for the header
 export function NotificationBell() {
-  const { notifications, currentUser } = useScheduleStore();
+  const { notifications, currentUser } = useScheduleStore(useShallow((s) => ({ notifications: s.notifications, currentUser: s.currentUser })));
   const unreadCount = notifications.filter(n => 
     !n.readAt && (n.providerId === currentUser?.id || !n.providerId)
   ).length;

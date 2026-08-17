@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { useScheduleStore, getProviderCounts, type TimeOffType, getProviderCredentialSummary } from "../store";
 import { Users, Plus, Trash2, GripVertical, Sparkles, Clock, Calendar, Moon, Sun, X } from "lucide-react";
@@ -84,7 +85,7 @@ function ProgressBar({ target, current, label, icon }: { target: number; current
 const parseCsv = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 
 export function ProviderManager() {
-  const { providers, addProvider, removeProvider, slots, updateProvider, deduplicateProviders, showToast } = useScheduleStore();
+  const { providers, addProvider, removeProvider, slots, updateProvider, deduplicateProviders, showToast } = useScheduleStore(useShallow((s) => ({ providers: s.providers, addProvider: s.addProvider, removeProvider: s.removeProvider, slots: s.slots, updateProvider: s.updateProvider, deduplicateProviders: s.deduplicateProviders, showToast: s.showToast })));
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");

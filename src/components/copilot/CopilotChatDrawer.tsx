@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ interface CopilotChatDrawerProps {
 }
 
 export function CopilotChatDrawer({ isOpen, onClose, context = {} }: CopilotChatDrawerProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ copilotConversations: s.copilotConversations, createConversation: s.createConversation, currentConversationId: s.currentConversationId, currentUser: s.currentUser, deleteConversation: s.deleteConversation, loadConversation: s.loadConversation, providers: s.providers, selectedDate: s.selectedDate, selectedProviderId: s.selectedProviderId, slots: s.slots })));
   const [inputValue, setInputValue] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

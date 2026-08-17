@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { useScheduleStore, type ShiftType, type ShiftTypeFilter, type ServicePriority, type LocationGroup } from "../store";
 import { motion } from "framer-motion";
@@ -118,7 +119,7 @@ interface GroupedColumn {
 }
 
 export function ExcelGridView() {
-  const { slots, providers, assignShift, detectConflicts, conflicts } = useScheduleStore();
+  const { slots, providers, assignShift, detectConflicts, conflicts } = useScheduleStore(useShallow((s) => ({ slots: s.slots, providers: s.providers, assignShift: s.assignShift, detectConflicts: s.detectConflicts, conflicts: s.conflicts })));
   const { scheduleViewport, weekDates, setShiftTypeFilter, setProviderSearchTerm, setShowUnfilledOnly } = useScheduleViewport();
   const [editingCell, setEditingCell] = useState<CellEditState | null>(null);
   const [editingNotes, setEditingNotes] = useState<NotesEditState | null>(null);

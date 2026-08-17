@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ interface MobileCopilotSheetProps {
 }
 
 export function MobileCopilotSheet({ isOpen, onToggle }: MobileCopilotSheetProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ copilotConversations: s.copilotConversations, createConversation: s.createConversation, currentConversationId: s.currentConversationId, deleteConversation: s.deleteConversation, loadConversation: s.loadConversation })));
   const [inputValue, setInputValue] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [isListening, setIsListening] = useState(false);

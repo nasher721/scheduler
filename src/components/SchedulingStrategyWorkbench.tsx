@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -87,7 +88,7 @@ const severityConfig: Record<RiskSeverity, { label: string; className: string; i
 };
 
 export function SchedulingStrategyWorkbench() {
-  const { providers, slots, customRules, addCustomRule, createScenario } = useScheduleStore();
+  const { providers, slots, customRules, addCustomRule, createScenario } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots, customRules: s.customRules, addCustomRule: s.addCustomRule, createScenario: s.createScenario })));
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>(scenarioTemplates[0].id);
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [maxShifts, setMaxShifts] = useState<number>(4);

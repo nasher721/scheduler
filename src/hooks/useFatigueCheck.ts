@@ -1,10 +1,11 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useMemo, useCallback } from 'react';
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import { useScheduleStore } from '@/store';
 import { Provider, FatigueMetrics } from '@/types';
 
 export function useFatigueCheck(providerId?: string) {
-  const { providers, slots } = useScheduleStore();
+  const { providers, slots } = useScheduleStore(useShallow((s) => ({ providers: s.providers, slots: s.slots })));
 
   const calculateFatigue = useCallback((provider: Provider): FatigueMetrics => {
     const providerSlots = slots.filter(s => s.providerId === provider.id);

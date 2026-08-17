@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useEffect, useRef } from "react";
 import { useScheduleStore } from "@/store";
 import type { ShiftSlot, Provider } from "@/types";
@@ -37,7 +38,7 @@ export function InlineSuggestions({
   onClose,
   position 
 }: InlineSuggestionsProps) {
-  const store = useScheduleStore();
+  const store = useScheduleStore(useShallow((s) => ({ providers: s.providers, showToast: s.showToast, slots: s.slots, toggleCopilot: s.toggleCopilot })));
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);

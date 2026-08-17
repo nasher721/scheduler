@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState } from "react";
 import { useScheduleStore, type ShiftType } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,13 +19,7 @@ import {
 import { format, parseISO } from "date-fns";
 
 export function ScheduleTemplates() {
-  const {
-    scheduleTemplates,
-    currentUser,
-    createTemplate,
-    deleteTemplate,
-    applyTemplate,
-  } = useScheduleStore();
+  const { scheduleTemplates, currentUser, createTemplate, deleteTemplate, applyTemplate } = useScheduleStore(useShallow((s) => ({ scheduleTemplates: s.scheduleTemplates, currentUser: s.currentUser, createTemplate: s.createTemplate, deleteTemplate: s.deleteTemplate, applyTemplate: s.applyTemplate })));
   
   const [isCreating, setIsCreating] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");

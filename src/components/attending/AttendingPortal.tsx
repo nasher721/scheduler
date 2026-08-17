@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
@@ -50,17 +51,7 @@ const UPCOMING_PREVIEW_COUNT = 8;
  * feed the scheduler's existing approval queues.
  */
 export function AttendingPortal() {
-    const {
-        currentUser,
-        providers,
-        slots,
-        swapRequests,
-        logout,
-        updateProvider,
-        createSwapRequest,
-        cancelSwapRequest,
-        showToast,
-    } = useScheduleStore();
+    const { currentUser, providers, slots, swapRequests, logout, updateProvider, createSwapRequest, cancelSwapRequest, showToast } = useScheduleStore(useShallow((s) => ({ currentUser: s.currentUser, providers: s.providers, slots: s.slots, swapRequests: s.swapRequests, logout: s.logout, updateProvider: s.updateProvider, createSwapRequest: s.createSwapRequest, cancelSwapRequest: s.cancelSwapRequest, showToast: s.showToast })));
 
     const [month, setMonth] = useState(() => new Date());
     const [selectedDate, setSelectedDate] = useState<string | null>(null);

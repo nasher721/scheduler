@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore, type ShiftSlot } from "../store";
@@ -39,14 +40,7 @@ interface Alert {
 }
 
 export function CoverageAlertDashboard({ isOpen, onClose }: CoverageAlertDashboardProps) {
-  const { 
-    conflicts, 
-    slots, 
-    providers, 
-    resolveConflict,
-    ignoreConflict,
-    detectConflicts 
-  } = useScheduleStore();
+  const { conflicts, slots, providers, resolveConflict, ignoreConflict, detectConflicts } = useScheduleStore(useShallow((s) => ({ conflicts: s.conflicts, slots: s.slots, providers: s.providers, resolveConflict: s.resolveConflict, ignoreConflict: s.ignoreConflict, detectConflicts: s.detectConflicts })));
   
   const [filterSeverity, setFilterSeverity] = useState<AlertSeverity | 'all'>('all');
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
