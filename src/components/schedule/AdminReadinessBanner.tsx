@@ -55,6 +55,17 @@ const initialChecklistItems: SmokeChecklistItem[] = [
   { id: "undo-redo", label: "Undo/redo enablement behaves correctly", actionArea: "schedule", status: "not_checked", note: "" },
 ];
 
+const valueTone: Record<ReadinessSeverity, string> = {
+  success: "text-foreground",
+  info: "text-foreground",
+  warning: "text-warning",
+  error: "text-error",
+};
+
+/**
+ * One stat, stated as a phrase rather than a card. Six of these read as a
+ * sentence; six colour-filled tiles read as an alarm going off.
+ */
 function ReadinessMetric({
   label,
   value,
@@ -66,28 +77,26 @@ function ReadinessMetric({
   severity: ReadinessSeverity;
   onClick?: () => void;
 }) {
-  const classes = cn(
-    "flex min-h-[44px] min-w-[6.5rem] flex-1 flex-col justify-center rounded-lg border px-3 py-1.5 text-left transition-all",
-    severityStyles[severity],
-    onClick && "cursor-pointer hover:opacity-85 hover:scale-[1.01]"
-  );
-
   const content = (
     <>
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">{label}</span>
-      <span className="mt-0.5 text-sm font-semibold leading-none tabular-nums">{value}</span>
+      <span className={cn("text-[13px] font-semibold tabular-nums", valueTone[severity])}>{value}</span>
+      <span className="text-[13px] text-foreground-tertiary">{label}</span>
     </>
   );
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={classes}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex items-baseline gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-secondary/70"
+      >
         {content}
       </button>
     );
   }
 
-  return <div className={classes}>{content}</div>;
+  return <div className="flex items-baseline gap-1.5 px-1 py-0.5">{content}</div>;
 }
 
 function formatCheckedAt(value?: string) {
@@ -227,77 +236,75 @@ export function AdminReadinessBanner({
 
   return (
     <>
-      <section className="satin-panel flex flex-col gap-2.5 p-3" aria-label="Schedule Readiness Summary">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-bold", severityStyles[readiness.severity])}>
-              <SearchCheck className="h-3.5 w-3.5" />
-              {readiness.statusLabel}
-            </span>
-            {!readiness.hasSetupData && (
-              <span className="text-xs font-medium text-foreground-muted">Import a workbook or add staff to complete schedule setup.</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setIsChecklistOpen(true)}
-              className="command-button text-xs py-1 font-semibold text-primary hover:bg-primary/10"
-              title="Open Pre-Publish QA Checklist"
-            >
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              Pre-Publish QA
-            </button>
-            {readiness.alertCount > 0 && (
-              <button
-                type="button"
-                onClick={onViewAlerts}
-                className="command-button text-xs py-1 bg-warning/10 text-warning hover:bg-warning/20 border-warning/20"
-                title="View active alerts"
-              >
-                <Bell className="h-3.5 w-3.5" />
-                {readiness.alertCount} Alert{readiness.alertCount === 1 ? "" : "s"}
-              </button>
-            )}
-          </div>
+      <section className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1" aria-label="Schedule Readiness Summary">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold", severityStyles[readiness.severity])}>
+            <SearchCheck className="h-3.5 w-3.5" />
+            {readiness.statusLabel}
+          </span>
+          {!readiness.hasSetupData && (
+            <span className="text-[13px] text-foreground-tertiary">Import a workbook or add staff to finish setup.</span>
+          )}
         </div>
 
-        {/* Readiness Key Metrics */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="flex flex-1 flex-wrap items-center gap-x-1 gap-y-1">
           <ReadinessMetric
-            label="Coverage"
+            label="covered"
             value={`${readiness.coverage}%`}
             severity={readiness.coverage >= 95 ? "success" : readiness.coverage >= 50 ? "warning" : "error"}
           />
+          <span className="text-foreground-muted/50">·</span>
           <ReadinessMetric
-            label="Filled Slots"
-            value={`${readiness.assigned} / ${readiness.totalSlots}`}
+            label="filled"
+            value={`${readiness.assigned}/${readiness.totalSlots}`}
             severity={readiness.hasSetupData ? "info" : "warning"}
           />
+          <span className="text-foreground-muted/50">·</span>
           <ReadinessMetric
-            label="Critical Gaps"
+            label="critical gaps"
             value={readiness.criticalUnfilled}
             severity={readiness.criticalUnfilled > 0 ? "error" : "success"}
             onClick={readiness.criticalUnfilled > 0 ? onViewAlerts : undefined}
           />
+          <span className="text-foreground-muted/50">·</span>
           <ReadinessMetric
-            label="Skill Risks"
+            label="skill risks"
             value={readiness.skillMismatchRisk}
             severity={readiness.skillMismatchRisk > 0 ? "warning" : "success"}
             onClick={readiness.skillMismatchRisk > 0 ? onViewAlerts : undefined}
           />
+          <span className="text-foreground-muted/50">·</span>
           <ReadinessMetric
-            label="Fatigue Alert"
+            label="fatigue"
             value={readiness.fatigueExposure}
             severity={readiness.fatigueExposure > 0 ? "warning" : "success"}
             onClick={readiness.fatigueExposure > 0 ? onViewAlerts : undefined}
           />
-          <ReadinessMetric
-            label="Cloud Sync"
-            value={readiness.syncLabel}
-            severity={readiness.syncSeverity}
-          />
+          <span className="text-foreground-muted/50">·</span>
+          <ReadinessMetric label="sync" value={readiness.syncLabel} severity={readiness.syncSeverity} />
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsChecklistOpen(true)}
+            className="command-button text-xs py-1 font-semibold text-primary hover:bg-primary/10"
+            title="Open Pre-Publish QA Checklist"
+          >
+            <ClipboardCheck className="h-3.5 w-3.5" />
+            Pre-Publish QA
+          </button>
+          {readiness.alertCount > 0 && (
+            <button
+              type="button"
+              onClick={onViewAlerts}
+              className="command-button text-xs py-1 bg-warning/10 text-warning hover:bg-warning/20 border border-warning/20"
+              title="View active alerts"
+            >
+              <Bell className="h-3.5 w-3.5" />
+              {readiness.alertCount} alert{readiness.alertCount === 1 ? "" : "s"}
+            </button>
+          )}
         </div>
       </section>
 

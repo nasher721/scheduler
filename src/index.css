@@ -287,20 +287,26 @@
 
 @layer components {
 
-  /* Satin — soft elevation, minimal border */
+  /* Headings inside application chrome — the serif display face is for the
+     marketing surfaces, not for a toolbar people read forty times an hour. */
+  .ui-heading {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  /* Satin — one flat surface, one hairline border, no elevation.
+     Every view inherits this, so it is where the calm comes from. */
   .satin-panel {
-    background: hsla(var(--surface), 0.85);
-    -webkit-backdrop-filter: blur(16px) saturate(120%);
-    backdrop-filter: blur(16px) saturate(120%);
-    border: 1px solid hsla(var(--foreground), 0.06);
-    box-shadow: 0 4px 24px -8px hsla(var(--foreground), 0.06);
+    background: hsl(var(--surface));
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-xl);
-    transition: all var(--duration-normal) var(--ease-out);
+    transition: border-color var(--duration-fast) var(--ease-out);
   }
 
   .satin-panel:hover {
-    border-color: hsla(var(--foreground), 0.09);
-    box-shadow: 0 8px 32px -8px hsla(var(--foreground), 0.08);
+    border-color: hsl(var(--border-strong));
   }
 
   /* Stone — flat, clear surface */
@@ -729,21 +735,6 @@
     outline-offset: 2px;
   }
 
-  .command-shell h1 {
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-style: normal;
-    letter-spacing: -0.01em;
-  }
-
-  .command-group {
-    @apply inline-flex min-h-[38px] max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/45 p-1;
-    scrollbar-width: none;
-  }
-
-  .command-group::-webkit-scrollbar {
-    display: none;
-  }
-
   .command-button {
     @apply inline-flex min-h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground disabled:cursor-not-allowed;
   }
@@ -752,21 +743,6 @@
     @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-surface hover:text-primary disabled:cursor-not-allowed disabled:opacity-35;
   }
 
-  .ops-stat {
-    @apply relative flex min-h-[54px] flex-col justify-center rounded-lg border border-border bg-surface px-3 py-2 shadow-sm;
-  }
-
-  .ops-stat-label {
-    @apply text-[10px] font-bold uppercase tracking-[0.14em] text-foreground-muted;
-  }
-
-  .ops-stat-value {
-    @apply mt-1 text-lg font-semibold leading-none text-foreground tabular-nums;
-  }
-
-  .ops-stat-dot {
-    @apply absolute right-3 top-3 h-2 w-2 rounded-full;
-  }
 }
 
 /* ========== ANIMATIONS ========== */
