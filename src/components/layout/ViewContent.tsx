@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { ViewMode } from '../ViewToggle';
+import type { ViewMode } from './navigation';
 import { LoadingFallback } from './LoadingFallback';
 
 // Lazy-load view components for code splitting and faster initial load

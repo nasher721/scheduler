@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type CalendarPresentationMode, type ShiftType, type ServicePriority } from "../store";
+import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type ShiftType, type ServicePriority } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { format, parseISO, isToday, isWeekend, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns";
 import {
@@ -12,17 +12,10 @@ import {
   Sparkles,
   Activity,
   Stethoscope,
-  Calendar as CalendarIcon,
   Clock,
   User,
-  Bot,
   ChevronLeft,
   ChevronRight,
-  BarChart3,
-  Grid3X3,
-  List,
-  CalendarDays,
-  Clock4,
   StickyNote,
   ArrowRightLeft,
   History,
@@ -1118,51 +1111,14 @@ function CoverageSummary({ slots }: { slots: ShiftSlot[] }) {
   );
 }
 
-// View Selector Component
-function ViewSelector({
-  currentMode,
-  onChange
-}: {
-  currentMode: CalendarPresentationMode;
-  onChange: (mode: CalendarPresentationMode) => void;
-}) {
-  const views: { mode: CalendarPresentationMode; label: string; icon: React.ReactNode }[] = [
-    { mode: "grid", label: "Grid", icon: <Grid3X3 className="w-4 h-4" /> },
-    { mode: "list", label: "List", icon: <List className="w-4 h-4" /> },
-    { mode: "bar", label: "Bar", icon: <BarChart3 className="w-4 h-4" /> },
-    { mode: "week", label: "Week", icon: <CalendarDays className="w-4 h-4" /> },
-    { mode: "month", label: "Month", icon: <CalendarIcon className="w-4 h-4" /> },
-    { mode: "timeline", label: "Timeline", icon: <Clock4 className="w-4 h-4" /> },
-  ];
-
-  return (
-    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-      {views.map(({ mode, label, icon }) => (
-        <button
-          key={mode}
-          onClick={() => onChange(mode)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentMode === mode
-            ? 'bg-white text-slate-900 shadow-sm'
-            : 'text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          {icon}
-          <span className="hidden sm:inline">{label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // Main Enhanced Calendar Component
 export function EnhancedCalendar() {
-  const { slots, providers, conflicts, setSelectedDate, setCalendarPresentationMode } = useScheduleStore(
+  const { slots, providers, conflicts, setSelectedDate } = useScheduleStore(
     useShallow((s) => ({
       slots: s.slots,
       providers: s.providers,
       conflicts: s.conflicts,
       setSelectedDate: s.setSelectedDate,
-      setCalendarPresentationMode: s.setCalendarPresentationMode,
     })),
   );
   const { scheduleViewport, weekDates } = useScheduleViewport();
@@ -1250,88 +1206,65 @@ export function EnhancedCalendar() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="satin-panel bg-white/60 rounded-[2rem] border border-slate-200/40 overflow-hidden"
+      className="satin-panel overflow-hidden"
     >
-      {/* Header */}
-      <div className="p-6 border-b border-slate-100">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-primary/5 rounded-2xl text-primary">
-              <CalendarIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-xl font-serif text-slate-900">Calendar</h2>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
-                {visibleSlots.length} shifts
-              </p>
-              <p className="text-xs font-semibold text-slate-500 mt-1">{activeMonthLabel}</p>
-            </div>
-          </div>
+      {/* Header — the surface, layout and filter controls live in the schedule
+          toolbar above; only calendar-specific tools belong here. */}
+      <div className="border-b border-border/70 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[13px] text-foreground-tertiary">
+            <span className="font-semibold text-foreground">{activeMonthLabel}</span>
+            <span className="mx-1.5 text-foreground-muted/50">·</span>
+            {visibleSlots.length} shifts
+          </p>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Alert Badge */}
-            <button
-              onClick={() => setIsAlertDashboardOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <AlertBadge count={conflicts.filter(c => !c.acknowledged && c.severity === 'CRITICAL').length} />
-            </button>
-            
-            {/* Workload Heatmap Toggle */}
-            <WorkloadHeatmapToggle 
-              isActive={showWorkload} 
-              onToggle={() => setShowWorkload(!showWorkload)} 
-            />
-            
-            {/* View Selector */}
-            <ViewSelector
-              currentMode={scheduleViewport.calendarPresentationMode}
-              onChange={setCalendarPresentationMode}
-            />
-            
-            {/* Feature Buttons */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-              <button
-                onClick={() => setIsSwapBoardOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
-                title="Shift Swap Board"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Swaps</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsBulkModeOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-xs font-medium hover:bg-primary/20 hover:shadow-sm transition-all"
-                title="Bulk Assignment"
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Bulk</span>
-              </button>
-              <button
-                onClick={() => setIsHistoryViewOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 hover:shadow-sm transition-all"
-                title="History"
-              >
-                <History className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">History</span>
-              </button>
-              <PrintButton onClick={() => setIsPrintViewOpen(true)} />
-            </div>
+          <div className="flex-1" />
 
-            {/* AI Assistant Button */}
+          <button
+            onClick={() => setIsAlertDashboardOpen(true)}
+            className="flex items-center gap-2"
+            aria-label="Open coverage alerts"
+          >
+            <AlertBadge count={conflicts.filter(c => !c.acknowledged && c.severity === 'CRITICAL').length} />
+          </button>
+
+          <WorkloadHeatmapToggle
+            isActive={showWorkload}
+            onToggle={() => setShowWorkload(!showWorkload)}
+          />
+
+          <div className="flex items-center gap-0.5 rounded-lg bg-secondary/70 p-0.5">
             <button
-              onClick={() => useScheduleStore.getState().toggleCopilot()}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:shadow-lg hover:scale-105 transition-all"
+              onClick={() => setIsSwapBoardOpen(true)}
+              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+              title="Shift swap board"
             >
-              <Bot className="w-4 h-4" />
-              <span className="hidden sm:inline">AI Assistant</span>
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Swaps</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setIsBulkModeOpen(true)}
+              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+              title="Bulk assignment"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bulk</span>
+            </button>
+            <button
+              onClick={() => setIsHistoryViewOpen(true)}
+              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+              title="History"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            <PrintButton onClick={() => setIsPrintViewOpen(true)} />
           </div>
         </div>
 
         {/* Coverage Summary */}
-        <div className="mt-4">
+        <div className="mt-3">
           <CoverageSummary slots={visibleSlots} />
         </div>
       </div>
