@@ -25,7 +25,22 @@ export function registerAgentsRoutes(app) {
         });
       }
 
+      console.log('[Agents] Starting multi-agent optimization with state:', {
+        providers: Array.isArray(scheduleState.providers) ? scheduleState.providers.length : 0,
+        slots: Array.isArray(scheduleState.slots) ? scheduleState.slots.length : 0,
+        startDate: scheduleState.startDate,
+        numWeeks: scheduleState.numWeeks,
+      });
+
       const result = await orchestrator.optimizeSchedule(scheduleState);
+      
+      console.log('[Agents] Optimization completed successfully:', {
+        success: result.success,
+        changes: Array.isArray(result.changes) ? result.changes.length : 0,
+        objectiveScore: result.metrics?.objectiveScore,
+        duration: result.duration,
+      });
+
       res.json({
         ok: true,
         data: result,
@@ -33,12 +48,17 @@ export function registerAgentsRoutes(app) {
         meta: { timestamp: new Date().toISOString() },
       });
     } catch (error) {
-      console.error('Multi-agent optimization failed:', error);
+      console.error('[Agents] Multi-agent optimization failed:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
       res.status(500).json({ 
         ok: false,
         error: 'Optimization failed', 
         message: error.message,
         code: 'OPTIMIZATION_ERROR',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       });
     }
   });

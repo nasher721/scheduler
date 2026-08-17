@@ -931,12 +931,18 @@ export default function App() {
 
               {importPreview.requiresMapping && (
                 <div className="mb-5 rounded-xl p-4 bg-warning/5 border border-warning/20">
-                  <p className="text-sm font-medium text-foreground mb-3">Column mapping</p>
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="w-5 h-5 flex-shrink-0 mt-0.5 text-warning">⚠</span>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Column mapping required</p>
+                      <p className="text-xs text-foreground-muted mt-0.5">Map Excel columns to schedule fields below, then click "Re-validate" or use "AI Smart Map" for automatic mapping.</p>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {(["date", "night", "dayG20", "dayH22", "dayAkron", "consults", "dayAmet", "dayNmet", "jeopardy", "recovery", "vacation"] as ImportFieldKey[]).map((field) => (
                       <label key={field} className="flex flex-col gap-1 text-sm text-foreground-secondary">
-                        <span className="font-medium text-foreground">{field}</span>
-                        <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="input-base rounded-lg py-2">
+                        <span className="font-medium text-foreground">{field} {field === "date" && <span className="text-warning ml-1">*</span>}</span>
+                        <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="input-base rounded-lg py-2" required={field === "date"}>
                           <option value="">Select column</option>
                           {importPreview.availableHeaders.map((header) => <option key={header} value={header}>{header}</option>)}
                         </select>

@@ -529,6 +529,8 @@ interface ScheduleState {
   updateEscalationConfig: (config: Partial<EscalationConfig>) => void;
   addBroadcastEntry: (shiftId: string, recipients: BroadcastRecipient[], channel: BroadcastChannel) => void;
   updateBroadcastRecipientStatus: (entryId: string, providerId: string, status: "sent" | "delivered" | "failed") => void;
+  // Cloud sync actions
+  setSyncStatus: (status: "idle" | "loading" | "saving" | "synced" | "error", error?: string) => void;
 }
 
 const getWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -1121,8 +1123,13 @@ export const useScheduleStore = create<ScheduleState>()(
         showUnfilledOnly: false,
         providerSearchTerm: "",
       },
+      // Cloud sync status
+      syncStatus: "idle" as "idle" | "loading" | "saving" | "synced" | "error",
+      syncError: null as string | null,
+      lastSyncedAt: null as string | null,
 
       initialize: async () => {
+        get().setSyncStatus("loading");
         // Helper: given a Supabase session, find+set the matching provider as currentUser.
         // This is used both by the auth state listener and the post-load reconciliation step.
         const reconcileUser = (sessionEmail: string | null | undefined) => {
@@ -1160,9 +1167,13 @@ export const useScheduleStore = create<ScheduleState>()(
               auditLog: state.auditLog,
               dayHandoffs: state.dayHandoffs || [],
             });
+            get().setSyncStatus("synced");
+          } else {
+            get().setSyncStatus("idle");
           }
         } catch (error) {
           console.error("Failed to load initial state:", error);
+          get().setSyncStatus("error", error instanceof Error ? error.message : "Failed to load from cloud");
         }
 
         // 3. After providers are populated, reconcile currentUser against the active
@@ -2855,8 +2866,11 @@ export const useScheduleStore = create<ScheduleState>()(
             showConflictsOnly: false,
             showUnfilledOnly: false,
             providerSearchTerm: "",
+            currentWeekOffset: 0,
           },
+          startDate: getWeekStart(),
         }));
+        get().showToast({ type: "info", title: "Filters Reset", message: "All filters and date range have been reset." });
       },
 
       pendingAISuggestions: [],
@@ -3313,6 +3327,20 @@ export const useScheduleStore = create<ScheduleState>()(
           lastActionMessage: `Broadcast status updated to ${status} for entry ${entryId}`,
         });
       },
+
+      setSyncStatus: (status, error) => {
+        const now = new Date().toISOString();
+        set({
+          syncStatus: status,
+          syncError: error ?? null,
+          lastSyncedAt: status === "synced" ? now : get().lastSyncedAt,
+        });
+        if (error) {
+          get().showToast({ type: "error", title: "Sync Failed", message: error });
+        } else if (status === "synced") {
+          get().showToast({ type: "success", title: "Synced", message: "Changes saved to cloud" });
+        }
+      },
     }),
     {
       name: "nicu-schedule-store-v4",
@@ -3341,6 +3369,9 @@ export const useScheduleStore = create<ScheduleState>()(
         broadcastHistory: state.broadcastHistory.slice(-50),
         escalationConfig: state.escalationConfig,
         scheduleViewport: state.scheduleViewport,
+        syncStatus: state.syncStatus,
+        syncError: state.syncError,
+        lastSyncedAt: state.lastSyncedAt,
         // Keep only the 5 most recent AI conversations.
         copilotConversations: state.copilotConversations.slice(-5),
         copilotFeedback: state.copilotFeedback,

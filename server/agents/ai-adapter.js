@@ -132,22 +132,52 @@ export async function callAIProvider({ provider, model, messages, temperature = 
  */
 export async function executeAgentTask(task, payload) {
   try {
+    console.log('[AI Adapter] Executing task:', task);
+    let result;
     switch (task) {
       case 'optimize':
-        return await optimizeSchedule(payload);
+        result = await optimizeSchedule(payload);
+        break;
       case 'explain':
-        return await explainDecision(payload);
+        result = await explainDecision(payload);
+        break;
       case 'recommend':
-        return await buildRecommendations(payload);
+        result = await buildRecommendations(payload);
+        break;
       default:
-        return await buildRecommendations({
+        result = await buildRecommendations({
           state: payload,
           prompt: task,
         });
     }
+    console.log('[AI Adapter] Task completed:', task, result?.source || 'unknown');
+    return result;
   } catch (error) {
-    console.error('[AI Adapter] Task execution failed:', error);
-    throw error;
+    console.error('[AI Adapter] Task execution failed:', {
+      task,
+      message: error.message,
+      stack: error.stack,
+    });
+    // Return a deterministic fallback instead of throwing
+    const fallbackResult = await getFallbackResult(task, payload);
+    console.log('[AI Adapter] Returning fallback result for:', task);
+    return fallbackResult;
+  }
+}
+
+/**
+ * Get deterministic fallback result when AI provider fails
+ */
+async function getFallbackResult(task, payload) {
+  switch (task) {
+    case 'optimize':
+      return await import('../../ai-orchestrator.js').then(m => m.deterministicOptimize(payload, 'fallback'));
+    case 'explain':
+      return await import('../../ai-orchestrator.js').then(m => m.deterministicExplain(payload, 'fallback'));
+    case 'recommend':
+      return await import('../../ai-orchestrator.js').then(m => m.deterministicRecommendations(payload, 'fallback'));
+    default:
+      return await import('../../ai-orchestrator.js').then(m => m.deterministicRecommendations({ state: payload, prompt: task }, 'fallback'));
   }
 }
 

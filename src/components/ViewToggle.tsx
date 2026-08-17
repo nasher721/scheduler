@@ -86,8 +86,8 @@ export const NAV_HUBS: NavHub[] = [
     icon: BarChart3,
     views: [
       { value: "analytics", label: "Analytics", shortLabel: "Analytics", icon: BarChart3 },
-      { value: "conflicts", label: "Conflicts", shortLabel: "Conflicts", icon: AlertTriangle },
-      { value: "notifications", label: "Alerts", shortLabel: "Alerts", icon: Bell },
+      { value: "conflicts", label: "Conflicts", shortLabel: "Conflicts", icon: AlertTriangle, badgeCount: (s) => s.conflicts?.filter((c: any) => !c.resolvedAt && !c.acknowledged).length || 0 },
+      { value: "notifications", label: "Alerts", shortLabel: "Alerts", icon: Bell, badgeCount: (s) => s.notifications?.filter((n: any) => !n.readAt).length || 0 },
       { value: "predictive", label: "Predictive ML", shortLabel: "ML Forecast", icon: Sparkles },
       { value: "smarthub", label: "SmartHub", shortLabel: "SmartHub", icon: Activity },
     ],
@@ -100,7 +100,6 @@ interface ViewToggleProps {
 }
 
 export function ViewToggle({ view, onChange }: ViewToggleProps) {
-  // Find which hub owns the current view
   const currentHub = useMemo(() => {
     for (const hub of NAV_HUBS) {
       if (hub.views.some((v) => v.value === view)) {
@@ -111,7 +110,7 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
   }, [view]);
 
   // Read alert & conflict counts for notification badges
-  const conflictCount = useScheduleStore((s) => s.customRules?.length || 0);
+  const conflictCount = useScheduleStore((s) => s.conflicts?.filter((c) => !c.resolvedAt && !c.acknowledged).length || 0);
 
   const handleHubSelect = (hub: NavHub) => {
     // If current view is not in this hub, switch to the first view in this hub
@@ -140,6 +139,7 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
                     : "text-foreground-muted hover:text-foreground hover:bg-surface/50"
                 )}
                 aria-current={isHubActive ? "true" : undefined}
+                aria-pressed={isHubActive}
               >
                 <HubIcon className={cn("h-3.5 w-3.5 shrink-0", isHubActive ? "text-primary" : "text-foreground-muted")} />
                 <span>{hub.label}</span>
@@ -157,6 +157,7 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
         {currentHub.views.map((v) => {
           const isActive = v.value === view;
           const ViewIcon = v.icon;
+          const badge = v.badgeCount ? v.badgeCount(useScheduleStore.getState()) : 0;
           return (
             <button
               key={v.value}
@@ -169,15 +170,16 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
                   : "bg-surface/70 border border-border/60 text-foreground hover:bg-secondary hover:border-border text-foreground-secondary"
               )}
               aria-current={isActive ? "page" : undefined}
+              aria-pressed={isActive}
             >
               <ViewIcon className="h-3 w-3 shrink-0" />
               <span>{v.label}</span>
-              {v.value === "conflicts" && conflictCount > 0 && (
+              {badge > 0 && (
                 <span className={cn(
                   "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
                   isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-warning/20 text-warning"
                 )}>
-                  {conflictCount}
+                  {badge}
                 </span>
               )}
             </button>
