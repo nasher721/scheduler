@@ -24,6 +24,12 @@ dist-ssr
 *.sw?
 .vercel
 
+# Secrets — never commit. server.js loads .env.local via dotenv, and
+# SUPABASE_SERVICE_ROLE_KEY bypasses every RLS policy in the database.
+.env
+.env.*
+!.env.example
+
 # Backend runtime state
 data/schedule-state.json
 data/ai-apply-history.json

@@ -63,13 +63,60 @@ pnpm dev
 pnpm server
 ```
 
-## Environment Variables
+## Supabase Backend Setup
 
-Create a `.env` file if your API is not on localhost:4000:
+The schema lives in `supabase/`:
+
+- `supabase/schema.sql` — consolidated reference snapshot of the deployed schema.
+- `supabase/migrations/*.sql` — the source of truth, applied in filename order.
+
+Apply them to a project with `supabase db push`, or paste `schema.sql` into the
+SQL editor of a fresh project.
+
+### Keys: which one goes where
+
+Every table has Row Level Security enabled, and **all policies are granted to
+the `authenticated` role — the `anon` role is granted nothing**.
+
+| Consumer | Key | Why |
+| --- | --- | --- |
+| Browser (`VITE_SUPABASE_ANON_KEY`) | anon | Safe to ship. A signed-in user's JWT is what unlocks their rows. |
+| API server (`SUPABASE_SERVICE_ROLE_KEY`) | service role | The server acts for the whole department and carries no user session. |
+
+Running `server.js` with an anon key is a misconfiguration with a quiet failure
+mode: RLS denies the `anon` role, so `SELECT`s return **empty result sets rather
+than errors** and writes are rejected. The server logs a warning at boot when it
+detects this, and `GET /api/health/db` reports which key kind is in use:
 
 ```bash
-VITE_API_BASE_URL=https://your-api-host
+curl http://localhost:4000/api/health/db
 ```
+
+### Authorization model
+
+- `profiles.role` is one of `ADMIN`, `SCHEDULER`, `CLINICIAN` and is **not
+  client-writable** — a trigger rejects direct changes; use
+  `private.set_app_role()`.
+- Schedulers and admins manage slots, providers, rules, scenarios and requests.
+- Clinicians can read the schedule, edit their own provider preferences, and
+  create/withdraw their own **pending** shift requests.
+- New sign-ups get a `profiles` row automatically and are linked to a
+  pre-provisioned `providers` row matching their email address.
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in what you need — it documents every
+variable. The minimum for a full-stack run against Supabase:
+
+```bash
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=...          # browser
+SUPABASE_SERVICE_ROLE_KEY=...       # API server only, never shipped to the browser
+VITE_API_BASE_URL=https://your-api-host   # only if the API is not on localhost:4000
+```
+
+AI provider keys are entirely optional — see [AI Environment
+Variables](#ai-environment-variables).
 
 ## Available Scripts
 
@@ -79,15 +126,24 @@ pnpm server          # Backend API only
 pnpm dev:fullstack   # Frontend + backend concurrently
 pnpm build
 pnpm lint
+pnpm typecheck
+pnpm test            # Vitest (browser/store) + node:test (API + AI) suites
+pnpm test:node       # Node-side API and AI suites only
 pnpm preview
 ```
 
 ## Persistence Notes
 
-- Server persistence file: `data/schedule-state.json`
-- Browser persistence key: `nicu-schedule-store-v4`
+With Supabase configured, schedule state is stored across dedicated tables:
+`providers`, `slots`, `scenarios`, `custom_rules` and `audit_logs`, with only
+`startDate`/`numWeeks` left in `global_settings.schedule_config`. AI apply/rollback
+snapshots live in `ai_apply_history`.
 
-If backend storage is empty, `Load API` will report that no server snapshot exists yet.
+Without Supabase credentials the API falls back to in-memory state, which is
+useful for local development and tests but is **not persisted across restarts**;
+the server says so at boot.
+
+Browser persistence key: `nicu-schedule-store-v4`.
 
 ## AI API (Implemented Scaffold)
 

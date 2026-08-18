@@ -8,10 +8,107 @@ import { getBroadcaster } from './broadcaster.js';
 
 /**
  * Register shared memory routes
+ *
+ * Route order matters: Express matches in registration order, so every literal
+ * path under /api/memory (snapshot, history, stats, restore, clear, persist)
+ * must be registered BEFORE the /api/memory/:key wildcard. Registering the
+ * wildcard first made those endpoints unreachable — GET /api/memory/stats
+ * resolved to the :key handler and answered 404 "Key not found".
  */
 export function registerSharedMemoryRoutes(app) {
   const memory = getSharedMemoryService();
   const broadcaster = getBroadcaster();
+
+  // -------------------------------------------------------------------------
+  // Literal /api/memory/* routes — must precede /api/memory/:key
+  // -------------------------------------------------------------------------
+
+  /**
+   * Create snapshot
+   */
+  app.get('/api/memory/snapshot', (req, res) => {
+    res.json(memory.snapshot());
+  });
+
+  /**
+   * Get change history
+   */
+  app.get('/api/memory/history', (req, res) => {
+    const { limit } = req.query;
+    const parsedLimit = limit === undefined ? undefined : Number.parseInt(limit, 10);
+    const history = memory.getHistory(Number.isFinite(parsedLimit) ? parsedLimit : undefined);
+    res.json(history);
+  });
+
+  /**
+   * Get memory statistics
+   */
+  app.get('/api/memory/stats', (req, res) => {
+    res.json(memory.getStats());
+  });
+
+  /**
+   * Restore from snapshot
+   */
+  app.post('/api/memory/restore', (req, res) => {
+    const { snapshot } = req.body;
+
+    if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.entries)) {
+      return res.status(400).json({
+        error: 'Snapshot is required and must be an object with an "entries" array.',
+      });
+    }
+
+    memory.restore(snapshot);
+    res.json({ success: true });
+  });
+
+  /**
+   * Clear all memory
+   */
+  app.post('/api/memory/clear', (req, res) => {
+    memory.clear();
+    res.json({ success: true });
+  });
+
+  /**
+   * Persist to disk
+   */
+  app.post('/api/memory/persist', async (req, res) => {
+    await memory.persistToDisk();
+    res.json({ success: true });
+  });
+
+  // -------------------------------------------------------------------------
+  // Collection routes
+  // -------------------------------------------------------------------------
+
+  /**
+   * Query memory
+   */
+  app.get('/api/memory', (req, res) => {
+    const { pattern, key, source, since } = req.query;
+
+    const results = memory.query({
+      pattern,
+      key,
+      source,
+      since: since ? parseInt(since) : undefined,
+    });
+
+    res.json(results);
+  });
+
+  /**
+   * Get all memory entries
+   */
+  app.get('/api/memory-all', (req, res) => {
+    res.json(memory.getAll());
+  });
+
+  // -------------------------------------------------------------------------
+  // Per-key routes — registered last so they never shadow the routes above
+  // -------------------------------------------------------------------------
 
   /**
    * Get a value by key
@@ -78,81 +175,9 @@ export function registerSharedMemoryRoutes(app) {
     res.json({ success: true });
   });
 
-  /**
-   * Query memory
-   */
-  app.get('/api/memory', (req, res) => {
-    const { pattern, key, source, since } = req.query;
-
-    const results = memory.query({
-      pattern,
-      key,
-      source,
-      since: since ? parseInt(since) : undefined,
-    });
-
-    res.json(results);
-  });
-
-  /**
-   * Get all memory entries
-   */
-  app.get('/api/memory-all', (req, res) => {
-    res.json(memory.getAll());
-  });
-
-  /**
-   * Create snapshot
-   */
-  app.get('/api/memory/snapshot', (req, res) => {
-    res.json(memory.snapshot());
-  });
-
-  /**
-   * Restore from snapshot
-   */
-  app.post('/api/memory/restore', (req, res) => {
-    const { snapshot } = req.body;
-
-    if (!snapshot) {
-      return res.status(400).json({ error: 'Snapshot is required' });
-    }
-
-    memory.restore(snapshot);
-    res.json({ success: true });
-  });
-
-  /**
-   * Get change history
-   */
-  app.get('/api/memory/history', (req, res) => {
-    const { limit } = req.query;
-    const history = memory.getHistory(limit ? parseInt(limit) : undefined);
-    res.json(history);
-  });
-
-  /**
-   * Clear all memory
-   */
-  app.post('/api/memory/clear', (req, res) => {
-    memory.clear();
-    res.json({ success: true });
-  });
-
-  /**
-   * Get memory statistics
-   */
-  app.get('/api/memory/stats', (req, res) => {
-    res.json(memory.getStats());
-  });
-
-  /**
-   * Persist to disk
-   */
-  app.post('/api/memory/persist', async (req, res) => {
-    await memory.persistToDisk();
-    res.json({ success: true });
-  });
+  // -------------------------------------------------------------------------
+  // Broadcast
+  // -------------------------------------------------------------------------
 
   /**
    * Broadcast to all clients

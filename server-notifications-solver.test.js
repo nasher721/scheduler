@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 
-const PORT = 4111;
+const PORT = 4109;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 async function waitForHealth(url, timeoutMs = 10000) {

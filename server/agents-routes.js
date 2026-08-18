@@ -89,12 +89,14 @@ export function registerAgentsRoutes(app) {
    */
   app.post('/api/agents/explain', async (req, res) => {
     try {
-      const { shiftId, scheduleState } = req.body || {};
-      
+      // `slotId` is what the schedule model calls a shift; accept both spellings.
+      const { scheduleState } = req.body || {};
+      const shiftId = req.body?.shiftId || req.body?.slotId;
+
       if (!shiftId || !scheduleState) {
         return res.status(400).json({ 
           ok: false,
-          error: 'shiftId and scheduleState are required',
+          error: 'shiftId (or slotId) and scheduleState are required',
           code: 'INVALID_PARAMETERS',
         });
       }

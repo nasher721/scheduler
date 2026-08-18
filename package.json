@@ -10,14 +10,15 @@
     "preview": "vite preview",
     "server": "node server.js",
     "dev:fullstack": "concurrently \"npm run server\" \"npm run dev\"",
-    "test": "vitest run --coverage",
+    "test": "vitest run --coverage && npm run test:node",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:node": "node --test ai-orchestrator.test.js server-*.test.js server/*.test.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -39,6 +40,7 @@
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
     "express-validator": "^7.2.0",
@@ -66,6 +68,7 @@
     "@eslint/js": "^9.39.1",
     "@parcel/config-default": "^2.16.4",
     "@playwright/test": "^1.48.2",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",

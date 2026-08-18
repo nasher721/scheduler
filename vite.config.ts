@@ -44,6 +44,15 @@ export default defineConfig({
           if (id.includes('node_modules/xlsx')) {
             return 'vendor-xlsx';
           }
+          // Supabase (auth + postgrest + realtime) is ~120 kB gzipped and
+          // changes only when the dependency is upgraded. Splitting it out of
+          // the app entry keeps it cached across application deploys.
+          if (id.includes('node_modules/@supabase/')) {
+            return 'vendor-supabase';
+          }
+          if (id.includes('node_modules/@tanstack/') || id.includes('node_modules/zustand')) {
+            return 'vendor-state';
+          }
         },
       },
     },

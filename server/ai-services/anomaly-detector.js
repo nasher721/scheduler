@@ -116,10 +116,12 @@ export class AnomalyDetectionService extends EventEmitter {
     // Run initial check
     this.runDetection();
     
-    // Set up interval
+    // Set up interval. unref() so monitoring never blocks process exit on its
+    // own (see the same note in shared-memory-service.js).
     this.intervalId = setInterval(() => {
       this.runDetection();
     }, this.checkInterval);
+    this.intervalId.unref?.();
     
     this.emit('started');
   }
