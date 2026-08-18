@@ -99,6 +99,16 @@ const inMemoryStore = {
 const app = express();
 const port = Number(process.env.PORT || 4000);
 
+// Behind Vercel (or any reverse proxy) the client IP arrives in X-Forwarded-For.
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on
+// every request and cannot tell callers apart, so the limiter is not actually
+// enforcing per-client limits. Only enable it when a proxy is really in front,
+// otherwise a direct client could spoof X-Forwarded-For to dodge the limiter.
+const isBehindProxy = Boolean(process.env.VERCEL || process.env.TRUST_PROXY);
+if (isBehindProxy) {
+  app.set("trust proxy", 1);
+}
+
 app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
@@ -1184,10 +1194,22 @@ app.get(["/health", "/api/health"], (_req, res) => {
  * nothing to `anon`, so reads come back empty rather than erroring.
  */
 app.get("/api/health/db", async (_req, res) => {
+  // The host and project ref are not secrets — every browser request carries
+  // them — and reporting them is what makes a connection failure diagnosable
+  // (wrong project, paused project, typo'd ref). The key itself is never shown.
+  let supabaseHost = null;
+  try {
+    supabaseHost = supabaseUrl ? new URL(supabaseUrl).host : null;
+  } catch {
+    supabaseHost = "invalid-url";
+  }
+
   const base = {
     configured: hasValidSupabase,
     keyKind: supabaseKeyKind,
     usingServiceRole: supabaseKeyKind === "service_role",
+    host: supabaseHost,
+    projectRef: supabaseHost ? supabaseHost.split(".")[0] : null,
     lastError: lastSupabaseError,
   };
 
@@ -1206,7 +1228,19 @@ app.get("/api/health/db", async (_req, res) => {
 
   if (error) {
     reportSupabaseError("health probe", error);
-    return res.status(503).json({ ...base, ok: false, mode: "supabase", error: error.message });
+    // A bare "fetch failed" means the host never answered: the project is
+    // paused/deleted, or the ref in SUPABASE_URL is wrong. Say so, because the
+    // raw message gives no hint.
+    const unreachable = /fetch failed|ENOTFOUND|ECONNREFUSED|getaddrinfo/i.test(error.message || "");
+    return res.status(503).json({
+      ...base,
+      ok: false,
+      mode: "supabase",
+      error: error.message,
+      hint: unreachable
+        ? `Could not reach ${supabaseHost}. Check that SUPABASE_URL points at a project that exists and is not paused.`
+        : null,
+    });
   }
 
   return res.json({
