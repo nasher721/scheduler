@@ -42,12 +42,41 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env.local') });
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+// ---------------------------------------------------------------------------
+// Supabase client
+// ---------------------------------------------------------------------------
+// Every table in this project has RLS enabled with policies granted to the
+// `authenticated` role only — the `anon` role is denied everything. This API
+// server acts on behalf of the whole department and holds no end-user session,
+// so it MUST authenticate with the service role key. Running it with the anon
+// key makes every SELECT return zero rows and every write fail, which used to
+// be invisible because the failures were swallowed by empty catch blocks.
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseKey = serviceRoleKey || anonKey;
+const supabaseKeyKind = serviceRoleKey ? 'service_role' : (anonKey ? 'anon' : 'none');
 const hasValidSupabase = Boolean(supabaseUrl.startsWith('https://') && supabaseKey.length > 10 && !supabaseUrl.includes('placeholder'));
 const supabase = hasValidSupabase
-  ? createClient(supabaseUrl, supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
   : createClient('https://placeholder.supabase.co', 'placeholder-anon-key');
+
+/** Last error seen from Supabase, surfaced by GET /api/health/db. */
+let lastSupabaseError = null;
+
+/**
+ * Log (and remember) a Supabase failure instead of swallowing it. Returns true
+ * when an error was present so callers can branch on it.
+ */
+function reportSupabaseError(operation, error) {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : (error?.message || String(error));
+  lastSupabaseError = { operation, message, at: new Date().toISOString() };
+  console.error(`[Supabase] ${operation} failed: ${message}`);
+  return true;
+}
 
 const baseProviders = [
   { id: "1", name: "Dr. Adams", email: "adams@hospital.org", role: "ADMIN", targetWeekDays: 10, targetWeekendDays: 4, targetWeekNights: 3, targetWeekendNights: 2, timeOffRequests: [], preferredDates: [], skills: ["NEURO_CRITICAL", "AIRWAY", "STROKE"], maxConsecutiveNights: 2, minDaysOffAfterNight: 1, credentials: [{ credentialType: "ACLS", expiresAt: "2027-01-01", status: "active" }] },
@@ -59,6 +88,9 @@ const inMemoryStore = {
   settings: new Map(),
   providers: [...baseProviders],
   slots: [],
+  scenarios: [],
+  customRules: [],
+  auditLog: [],
   shiftRequests: [],
   notifications: [],
   emailEvents: [],
@@ -147,6 +179,8 @@ function invalidateCache() {
 }
 
 const isArray = (value) => Array.isArray(value);
+
+const VALID_PROVIDER_ROLES = new Set(["ADMIN", "SCHEDULER", "CLINICIAN"]);
 
 const VALID_CREDENTIAL_STATUSES = new Set(["active", "expiring_soon", "expired", "pending_verification"]);
 
@@ -292,11 +326,14 @@ async function getSupabaseSetting(key, defaultValue) {
     const { data, error } = await supabase.from('global_settings')
       .select('value')
       .eq('key', key)
-      .single();
+      // maybeSingle(): a missing key is a normal empty result, not an error.
+      .maybeSingle();
 
+    reportSupabaseError(`read setting ${key}`, error);
     if (error || !data) return inMemoryStore.settings.has(key) ? inMemoryStore.settings.get(key) : defaultValue;
     return data.value;
-  } catch {
+  } catch (error) {
+    reportSupabaseError(`read setting ${key}`, error);
     return inMemoryStore.settings.has(key) ? inMemoryStore.settings.get(key) : defaultValue;
   }
 }
@@ -305,12 +342,203 @@ async function setSupabaseSetting(key, value) {
   inMemoryStore.settings.set(key, value);
   if (!hasValidSupabase) return;
   try {
-    await supabase.from('global_settings').upsert({
+    const { error } = await supabase.from('global_settings').upsert({
       key,
       value,
       updated_at: new Date().toISOString()
     });
-  } catch {}
+    reportSupabaseError(`write setting ${key}`, error);
+  } catch (error) {
+    reportSupabaseError(`write setting ${key}`, error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Schedule state persistence
+// ---------------------------------------------------------------------------
+// Scenarios, custom rules and audit entries each have a dedicated, indexed
+// table. They used to be nested inside the single `schedule_config` JSON blob,
+// which meant every state write rewrote the entire history as one row and the
+// blob grew without bound. `schedule_config` now holds only the two scalar
+// settings; the arrays come from their own tables. Blob values are still read
+// as a fallback so a database written by the previous layout still loads.
+const AUDIT_LOG_LIMIT = 500;
+const APPLY_HISTORY_LIMIT = 100;
+const UPSERT_CHUNK_SIZE = 500;
+
+function chunk(items, size = UPSERT_CHUNK_SIZE) {
+  const out = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+function defaultScheduleConfig() {
+  return {
+    startDate: new Date().toISOString().split("T")[0],
+    numWeeks: 4,
+  };
+}
+
+function mapProviderRow(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    email: p.email,
+    role: p.role,
+    targetWeekDays: p.target_week_days,
+    targetWeekendDays: p.target_weekend_days,
+    targetWeekNights: p.target_week_nights,
+    targetWeekendNights: p.target_weekend_nights,
+    timeOffRequests: p.time_off_requests || [],
+    preferredDates: p.preferred_dates || [],
+    skills: p.skills || [],
+    maxConsecutiveNights: p.max_consecutive_nights,
+    minDaysOffAfterNight: p.min_days_off_after_night,
+    credentials: p.credentials || [],
+    schedulingRestrictions: p.scheduling_restrictions || {},
+    notes: p.notes,
+  };
+}
+
+function mapProviderToRow(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    email: p.email || `${p.id}@placeholder.org`,
+    role: p.role || "CLINICIAN",
+    target_week_days: p.targetWeekDays,
+    target_weekend_days: p.targetWeekendDays,
+    target_week_nights: p.targetWeekNights,
+    target_weekend_nights: p.targetWeekendNights,
+    time_off_requests: p.timeOffRequests || [],
+    preferred_dates: p.preferredDates || [],
+    skills: p.skills || [],
+    max_consecutive_nights: p.maxConsecutiveNights,
+    min_days_off_after_night: p.minDaysOffAfterNight,
+    credentials: p.credentials || [],
+    scheduling_restrictions: p.schedulingRestrictions || {},
+    notes: p.notes || null,
+  };
+}
+
+function mapSlotRow(s) {
+  return {
+    id: s.id,
+    date: s.date,
+    type: s.type,
+    providerId: s.provider_id,
+    isWeekendLayout: s.is_weekend_layout,
+    requiredSkill: s.required_skill,
+    priority: s.priority,
+    location: s.location,
+    secondaryProviderIds: s.secondary_provider_ids || [],
+    isSharedAssignment: s.is_shared_assignment || false,
+    locationGroup: s.location_group,
+    servicePriority: s.service_priority,
+    serviceLocation: s.service_location,
+  };
+}
+
+function mapSlotToRow(s) {
+  return {
+    id: s.id,
+    date: s.date,
+    type: s.type,
+    provider_id: s.providerId || null,
+    is_weekend_layout: Boolean(s.isWeekendLayout),
+    required_skill: s.requiredSkill || null,
+    priority: s.priority || "STANDARD",
+    location: s.location || null,
+    secondary_provider_ids: s.secondaryProviderIds || [],
+    is_shared_assignment: Boolean(s.isSharedAssignment),
+    location_group: s.locationGroup || null,
+    service_priority: s.servicePriority || "STANDARD",
+    service_location: s.serviceLocation || null,
+  };
+}
+
+function mapScenarioRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    startDate: row.start_date,
+    numWeeks: row.num_weeks,
+    providers: row.providers || [],
+    slots: row.slots || [],
+  };
+}
+
+function mapScenarioToRow(scenario) {
+  return {
+    id: scenario.id,
+    name: scenario.name,
+    created_at: scenario.createdAt || new Date().toISOString(),
+    start_date: scenario.startDate,
+    num_weeks: scenario.numWeeks,
+    providers: scenario.providers || [],
+    slots: scenario.slots || [],
+  };
+}
+
+function mapCustomRuleRow(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    providerA: row.provider_a ?? undefined,
+    providerB: row.provider_b ?? undefined,
+    providerId: row.provider_id ?? undefined,
+    maxShifts: row.max_shifts ?? undefined,
+  };
+}
+
+function mapCustomRuleToRow(rule) {
+  return {
+    id: rule.id,
+    type: rule.type,
+    provider_a: rule.providerA ?? null,
+    provider_b: rule.providerB ?? null,
+    provider_id: rule.providerId ?? null,
+    max_shifts: Number.isFinite(rule.maxShifts) ? rule.maxShifts : null,
+  };
+}
+
+function mapAuditRow(row) {
+  return {
+    id: row.id,
+    timestamp: row.timestamp,
+    action: row.action,
+    details: row.details,
+    slotId: row.slot_id ?? undefined,
+    providerId: row.provider_id ?? undefined,
+    user: row.actor ?? undefined,
+  };
+}
+
+function mapAuditToRow(entry) {
+  return {
+    id: entry.id,
+    timestamp: entry.timestamp || new Date().toISOString(),
+    action: entry.action,
+    // AI audit entries carry a structured `details` object; the column is TEXT.
+    details: typeof entry.details === "string" ? entry.details : JSON.stringify(entry.details ?? null),
+    slot_id: entry.slotId ?? null,
+    provider_id: entry.providerId ?? null,
+    actor: entry.user ?? null,
+  };
+}
+
+function buildInMemoryState() {
+  const baseConfig = inMemoryStore.settings.get('schedule_config') || defaultScheduleConfig();
+  return {
+    startDate: baseConfig.startDate || defaultScheduleConfig().startDate,
+    numWeeks: baseConfig.numWeeks || 4,
+    scenarios: inMemoryStore.scenarios,
+    customRules: inMemoryStore.customRules,
+    auditLog: inMemoryStore.auditLog,
+    providers: inMemoryStore.providers.length > 0 ? inMemoryStore.providers : baseProviders,
+    slots: inMemoryStore.slots,
+  };
 }
 
 async function readState() {
@@ -320,212 +548,221 @@ async function readState() {
   }
 
   if (!hasValidSupabase) {
-    const baseConfig = inMemoryStore.settings.get('schedule_config') || {
-      startDate: new Date().toISOString().split("T")[0],
-      numWeeks: 4,
-      scenarios: [],
-      customRules: [],
-      auditLog: []
-    };
-    const state = {
-      startDate: baseConfig.startDate || new Date().toISOString().split("T")[0],
-      numWeeks: baseConfig.numWeeks || 4,
-      scenarios: baseConfig.scenarios || [],
-      customRules: baseConfig.customRules || [],
-      auditLog: baseConfig.auditLog || [],
-      providers: inMemoryStore.providers.length > 0 ? inMemoryStore.providers : baseProviders,
-      slots: inMemoryStore.slots,
-    };
+    const state = buildInMemoryState();
     setCachedState(state);
     return state;
   }
 
   try {
-    const { data: configData } = await supabase
-      .from('global_settings')
-      .select('value')
-      .eq('key', 'schedule_config')
-      .single();
+    // One round trip per table, all in flight together rather than serially.
+    const [configRes, providersRes, slotsRes, scenariosRes, rulesRes, auditRes] = await Promise.all([
+      supabase.from('global_settings').select('value').eq('key', 'schedule_config').maybeSingle(),
+      supabase.from('providers').select('*'),
+      supabase.from('slots').select('*'),
+      supabase.from('scenarios').select('*').order('created_at', { ascending: false }),
+      supabase.from('custom_rules').select('*'),
+      supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(AUDIT_LOG_LIMIT),
+    ]);
 
-    const baseState = configData?.value || {
-      startDate: new Date().toISOString().split("T")[0],
-      numWeeks: 4,
-      scenarios: [],
-      customRules: [],
-      auditLog: []
-    };
+    reportSupabaseError('read schedule_config', configRes.error);
+    reportSupabaseError('read providers', providersRes.error);
+    reportSupabaseError('read slots', slotsRes.error);
+    reportSupabaseError('read scenarios', scenariosRes.error);
+    reportSupabaseError('read custom_rules', rulesRes.error);
+    reportSupabaseError('read audit_logs', auditRes.error);
 
-    const { data: providersData } = await supabase.from('providers').select('*');
-    const providers = (providersData || []).map(p => ({
-      id: p.id,
-      name: p.name,
-      email: p.email,
-      role: p.role,
-      targetWeekDays: p.target_week_days,
-      targetWeekendDays: p.target_weekend_days,
-      targetWeekNights: p.target_week_nights,
-      targetWeekendNights: p.target_weekend_nights,
-      timeOffRequests: p.time_off_requests || [],
-      preferredDates: p.preferred_dates || [],
-      skills: p.skills || [],
-      maxConsecutiveNights: p.max_consecutive_nights,
-      minDaysOffAfterNight: p.min_days_off_after_night,
-      credentials: p.credentials || [],
-      schedulingRestrictions: p.scheduling_restrictions || {},
-      notes: p.notes,
-    }));
+    const baseState = configRes.data?.value || defaultScheduleConfig();
+    const providers = (providersRes.data || []).map(mapProviderRow);
+    const slots = (slotsRes.data || []).map(mapSlotRow);
 
-    const { data: slotsData } = await supabase.from('slots').select('*');
-    const slots = (slotsData || []).map(s => ({
-      id: s.id,
-      date: s.date,
-      type: s.type,
-      providerId: s.provider_id,
-      isWeekendLayout: s.is_weekend_layout,
-      requiredSkill: s.required_skill,
-      priority: s.priority,
-      location: s.location,
-      secondaryProviderIds: s.secondary_provider_ids || [],
-      isSharedAssignment: s.is_shared_assignment || false,
-      locationGroup: s.location_group,
-      servicePriority: s.service_priority,
-      serviceLocation: s.service_location,
-    }));
+    // Legacy fallback: a database still using the old nested-blob layout.
+    const scenarios = scenariosRes.data?.length
+      ? scenariosRes.data.map(mapScenarioRow)
+      : (isArray(baseState.scenarios) ? baseState.scenarios : []);
+    const customRules = rulesRes.data?.length
+      ? rulesRes.data.map(mapCustomRuleRow)
+      : (isArray(baseState.customRules) ? baseState.customRules : []);
+    const auditLog = auditRes.data?.length
+      ? auditRes.data.map(mapAuditRow)
+      : (isArray(baseState.auditLog) ? baseState.auditLog : []);
 
     const result = {
       providers: providers.length > 0 ? providers : baseProviders,
       slots,
-      startDate: baseState.startDate || new Date().toISOString().split("T")[0],
+      startDate: baseState.startDate || defaultScheduleConfig().startDate,
       numWeeks: baseState.numWeeks || 4,
-      scenarios: baseState.scenarios || [],
-      customRules: baseState.customRules || [],
-      auditLog: baseState.auditLog || [],
+      scenarios,
+      customRules,
+      auditLog,
     };
-    
+
     setCachedState(result);
     return result;
-  } catch {
-    const fallback = {
-      providers: inMemoryStore.providers.length > 0 ? inMemoryStore.providers : baseProviders,
-      slots: inMemoryStore.slots,
-      startDate: new Date().toISOString().split("T")[0],
-      numWeeks: 4,
-      scenarios: [],
-      customRules: [],
-      auditLog: [],
-    };
+  } catch (error) {
+    reportSupabaseError('read state', error);
+    const fallback = buildInMemoryState();
     setCachedState(fallback);
     return fallback;
   }
 }
 
+/**
+ * Replace the rows of `table` so they match `rows` exactly: upsert everything
+ * incoming, then delete whatever is no longer present.
+ */
+async function syncTable(table, rows) {
+  const incomingIds = new Set(rows.map((row) => row.id));
+
+  for (const batch of chunk(rows)) {
+    const { error } = await supabase.from(table).upsert(batch);
+    if (reportSupabaseError(`upsert ${table}`, error)) return false;
+  }
+
+  const { data: existing, error: listError } = await supabase.from(table).select('id');
+  if (reportSupabaseError(`list ${table} ids`, listError)) return false;
+
+  const stale = (existing || []).map((row) => row.id).filter((id) => !incomingIds.has(id));
+  for (const batch of chunk(stale)) {
+    const { error } = await supabase.from(table).delete().in('id', batch);
+    if (reportSupabaseError(`delete ${table}`, error)) return false;
+  }
+  return true;
+}
+
 /** Primitive: persist schedule state to DB only. No email or audit. Use queueScheduleChangeEmails for notify. */
 async function writeState(state) {
-  inMemoryStore.providers = isArray(state.providers) ? [...state.providers] : [];
-  inMemoryStore.slots = isArray(state.slots) ? [...state.slots] : [];
+  const providers = isArray(state.providers) ? state.providers : [];
+  const slots = isArray(state.slots) ? state.slots : [];
+  const scenarios = isArray(state.scenarios) ? state.scenarios : [];
+  const customRules = isArray(state.customRules) ? state.customRules : [];
+  // The audit log is append-only and unbounded on the client; keep the most
+  // recent window so a single write never grows without limit.
+  const auditLog = (isArray(state.auditLog) ? state.auditLog : []).slice(0, AUDIT_LOG_LIMIT);
+
+  inMemoryStore.providers = [...providers];
+  inMemoryStore.slots = [...slots];
+  inMemoryStore.scenarios = [...scenarios];
+  inMemoryStore.customRules = [...customRules];
+  inMemoryStore.auditLog = [...auditLog];
   inMemoryStore.settings.set('schedule_config', {
     startDate: state.startDate,
     numWeeks: state.numWeeks,
-    scenarios: state.scenarios,
-    customRules: state.customRules,
-    auditLog: state.auditLog,
   });
 
   if (hasValidSupabase) {
     try {
-      if (state.providers && state.providers.length > 0) {
-        const providersToUpsert = state.providers.map(p => ({
-          id: p.id,
-          name: p.name,
-          email: p.email || `${p.id}@placeholder.org`,
-          role: p.role || "CLINICIAN",
-          target_week_days: p.targetWeekDays,
-          target_weekend_days: p.targetWeekendDays,
-          target_week_nights: p.target_week_nights,
-          target_weekend_nights: p.targetWeekendNights,
-          time_off_requests: p.timeOffRequests,
-          preferred_dates: p.preferredDates,
-          skills: p.skills,
-          max_consecutive_nights: p.maxConsecutiveNights,
-          min_days_off_after_night: p.minDaysOffAfterNight,
-          credentials: p.credentials || [],
-          scheduling_restrictions: p.schedulingRestrictions || {},
-          notes: p.notes || null,
-        }));
-        await supabase.from("providers").upsert(providersToUpsert);
+      // slots.provider_id references providers, so providers must land first.
+      // Everything after that is independent, so it goes out concurrently
+      // instead of as five sequential round trips.
+      if (providers.length > 0) {
+        await syncTable('providers', providers.map(mapProviderToRow));
       }
 
-      const { data: existingProviders } = await supabase.from("providers").select("id");
-      if (existingProviders && state.providers) {
-        const incomingProviderIds = new Set(state.providers.map(p => p.id));
-        const providersToDelete = existingProviders.filter(p => !incomingProviderIds.has(p.id)).map(p => p.id);
-        if (providersToDelete.length > 0) {
-          await supabase.from("providers").delete().in("id", providersToDelete);
-        }
-      }
-
-      if (state.slots && state.slots.length > 0) {
-        const slotsToUpsert = state.slots.map(s => ({
-          id: s.id,
-          date: s.date,
-          type: s.type,
-          provider_id: s.providerId,
-          is_weekend_layout: s.isWeekendLayout,
-          required_skill: s.requiredSkill,
-          priority: s.priority,
-          location: s.location,
-          secondary_provider_ids: s.secondaryProviderIds || [],
-          is_shared_assignment: s.isSharedAssignment || false,
-          location_group: s.locationGroup,
-          service_priority: s.servicePriority,
-          service_location: s.serviceLocation,
-        }));
-
-        for (let i = 0; i < slotsToUpsert.length; i += 500) {
-          const chunk = slotsToUpsert.slice(i, i + 500);
-          await supabase.from("slots").upsert(chunk);
-        }
-      }
-
-      const { data: existingSlots } = await supabase.from("slots").select("id");
-      if (existingSlots && state.slots) {
-        const incomingSlotIds = new Set(state.slots.map(s => s.id));
-        const slotsToDelete = existingSlots.filter(s => !incomingSlotIds.has(s.id)).map(s => s.id);
-        if (slotsToDelete.length > 0) {
-          for (let i = 0; i < slotsToDelete.length; i += 500) {
-            const chunk = slotsToDelete.slice(i, i + 500);
-            await supabase.from("slots").delete().in("id", chunk);
+      await Promise.all([
+        syncTable('slots', slots.map(mapSlotToRow)),
+        syncTable('scenarios', scenarios.map(mapScenarioToRow)),
+        syncTable('custom_rules', customRules.map(mapCustomRuleToRow)),
+        // Audit entries are append-only: upsert by id, never delete.
+        (async () => {
+          for (const batch of chunk(auditLog.map(mapAuditToRow))) {
+            const { error } = await supabase.from('audit_logs').upsert(batch);
+            reportSupabaseError('upsert audit_logs', error);
           }
-        }
-      }
-
-      const configValues = {
-        startDate: state.startDate,
-        numWeeks: state.numWeeks,
-        scenarios: state.scenarios,
-        customRules: state.customRules,
-        auditLog: state.auditLog,
-      };
-
-      await supabase.from("global_settings").upsert({
-        key: "schedule_config",
-        value: configValues,
-      });
-    } catch {}
+        })(),
+        (async () => {
+          const { error } = await supabase.from("global_settings").upsert({
+            key: "schedule_config",
+            value: { startDate: state.startDate, numWeeks: state.numWeeks },
+          });
+          reportSupabaseError('upsert schedule_config', error);
+        })(),
+      ]);
+    } catch (error) {
+      reportSupabaseError('write state', error);
+    }
   }
-  
+
   invalidateCache();
 }
 
+// ---------------------------------------------------------------------------
+// AI apply history
+// ---------------------------------------------------------------------------
+// Each entry embeds a full before/after schedule snapshot. These live in their
+// own table so reads can be paginated and old entries pruned; previously the
+// whole history was one JSON value in global_settings, rewritten on every
+// apply. `global_settings.ai_apply_history` is still read once as a fallback so
+// history written by the old layout is not lost.
+function mapApplyHistoryRow(row) {
+  return {
+    id: row.id,
+    timestamp: row.applied_at,
+    approvedBy: row.approved_by,
+    rolloutMode: row.rollout_mode,
+    result: row.result || {},
+    previousState: row.previous_state || {},
+    appliedState: row.applied_state || {},
+    rolledBackAt: row.rolled_back_at,
+    rolledBackBy: row.rolled_back_by,
+    rollbackReason: row.rollback_reason,
+  };
+}
+
+function mapApplyHistoryToRow(entry) {
+  return {
+    id: entry.id,
+    applied_at: entry.timestamp || new Date().toISOString(),
+    approved_by: entry.approvedBy ?? null,
+    rollout_mode: entry.rolloutMode || 'shadow',
+    result: entry.result || {},
+    previous_state: entry.previousState || {},
+    applied_state: entry.appliedState || {},
+    rolled_back_at: entry.rolledBackAt ?? null,
+    rolled_back_by: entry.rolledBackBy ?? null,
+    rollback_reason: entry.rollbackReason ?? null,
+  };
+}
+
 async function readApplyHistory() {
-  const history = await getSupabaseSetting('ai_apply_history', []);
-  return isArray(history) ? history : [];
+  if (!hasValidSupabase) {
+    const history = inMemoryStore.settings.get('ai_apply_history');
+    return isArray(history) ? history : [];
+  }
+
+  const { data, error } = await supabase
+    .from('ai_apply_history')
+    .select('*')
+    .order('applied_at', { ascending: true })
+    .limit(APPLY_HISTORY_LIMIT);
+
+  if (reportSupabaseError('read ai_apply_history', error)) {
+    const history = await getSupabaseSetting('ai_apply_history', []);
+    return isArray(history) ? history : [];
+  }
+
+  if (!data || data.length === 0) {
+    // Legacy fallback for databases written before the table existed.
+    const history = await getSupabaseSetting('ai_apply_history', []);
+    return isArray(history) ? history : [];
+  }
+
+  return data.map(mapApplyHistoryRow);
 }
 
 async function writeApplyHistory(history) {
-  await setSupabaseSetting('ai_apply_history', history);
-}
+  const entries = (isArray(history) ? history : []).slice(-APPLY_HISTORY_LIMIT);
+  inMemoryStore.settings.set('ai_apply_history', entries);
+  if (!hasValidSupabase) return;
 
+  for (const batch of chunk(entries.map(mapApplyHistoryToRow))) {
+    const { error } = await supabase.from('ai_apply_history').upsert(batch);
+    if (reportSupabaseError('upsert ai_apply_history', error)) {
+      // Table unavailable — keep the previous blob behaviour so history survives.
+      await setSupabaseSetting('ai_apply_history', entries);
+      return;
+    }
+  }
+}
 async function readShiftRequests() {
   if (!hasValidSupabase) {
     return [...inMemoryStore.shiftRequests];
@@ -535,7 +772,7 @@ async function readShiftRequests() {
       .from("shift_requests")
       .select("*")
       .order("requested_at", { ascending: false });
-    if (error) return [...inMemoryStore.shiftRequests];
+    if (reportSupabaseError("read shift_requests", error)) return [...inMemoryStore.shiftRequests];
     return (data || []).map((entry) => ({
       id: entry.id,
       providerName: entry.provider_name || "",
@@ -550,7 +787,8 @@ async function readShiftRequests() {
       reviewedBy: entry.resolved_by,
       source: entry.source || "app",
     }));
-  } catch {
+  } catch (error) {
+    reportSupabaseError("read shift_requests", error);
     return [...inMemoryStore.shiftRequests];
   }
 }
@@ -564,7 +802,7 @@ async function readEmailEvents() {
       .from("email_events")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) return [...inMemoryStore.emailEvents];
+    if (reportSupabaseError("read email_events", error)) return [...inMemoryStore.emailEvents];
     return (data || []).map((entry) => ({
       id: entry.id,
       type: entry.type,
@@ -572,7 +810,8 @@ async function readEmailEvents() {
       ...(entry.raw_payload && typeof entry.raw_payload === "object" ? entry.raw_payload : {}),
       createdAt: entry.created_at,
     }));
-  } catch {
+  } catch (error) {
+    reportSupabaseError("read email_events", error);
     return [...inMemoryStore.emailEvents];
   }
 }
@@ -586,7 +825,7 @@ async function readNotifications() {
       .from("notifications")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) return [...inMemoryStore.notifications];
+    if (reportSupabaseError("read notifications", error)) return [...inMemoryStore.notifications];
     return (data || []).map((entry) => ({
       id: entry.id,
       eventType: entry.event_type || null,
@@ -598,7 +837,8 @@ async function readNotifications() {
       metadata: entry.metadata && typeof entry.metadata === "object" ? entry.metadata : {},
       createdAt: entry.created_at,
     }));
-  } catch {
+  } catch (error) {
+    reportSupabaseError("read notifications", error);
     return [...inMemoryStore.notifications];
   }
 }
@@ -934,6 +1174,50 @@ app.get(["/health", "/api/health"], (_req, res) => {
     timestamp: new Date().toISOString(),
     version: "1.0.0",
     uptime: process.uptime(),
+  });
+});
+
+/**
+ * Database diagnostic. Reports whether Supabase is configured, which key kind
+ * the server is authenticating with, and whether a representative read
+ * actually returns rows. An anon key here is a misconfiguration: RLS grants
+ * nothing to `anon`, so reads come back empty rather than erroring.
+ */
+app.get("/api/health/db", async (_req, res) => {
+  const base = {
+    configured: hasValidSupabase,
+    keyKind: supabaseKeyKind,
+    usingServiceRole: supabaseKeyKind === "service_role",
+    lastError: lastSupabaseError,
+  };
+
+  if (!hasValidSupabase) {
+    return res.json({
+      ...base,
+      ok: true,
+      mode: "in-memory",
+      warning: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set. Running with in-memory state only.",
+    });
+  }
+
+  const { count, error } = await supabase
+    .from("providers")
+    .select("id", { count: "exact", head: true });
+
+  if (error) {
+    reportSupabaseError("health probe", error);
+    return res.status(503).json({ ...base, ok: false, mode: "supabase", error: error.message });
+  }
+
+  return res.json({
+    ...base,
+    ok: true,
+    mode: "supabase",
+    providerCount: count ?? 0,
+    warning:
+      supabaseKeyKind === "anon"
+        ? "Server is using an anon key. Row Level Security grants the anon role no access, so reads return empty and writes fail. Set SUPABASE_SERVICE_ROLE_KEY."
+        : null,
   });
 });
 
@@ -1977,6 +2261,18 @@ app.post("/api/register", async (req, res) => {
   if (!name || !email || !role) {
     return res.status(400).json({ error: "Name, email, and role are required for registration." });
   }
+  if (typeof email !== "string" || !email.includes("@")) {
+    return res.status(400).json({ error: "A valid email address is required for registration." });
+  }
+  if (!VALID_PROVIDER_ROLES.has(role)) {
+    return res.status(400).json({
+      error: `Invalid role. Must be one of: ${[...VALID_PROVIDER_ROLES].join(", ")}`,
+    });
+  }
+
+  // providers.email carries a unique index on lower(email); normalize so the
+  // duplicate check here matches what the database will enforce.
+  const normalizedEmail = email.trim().toLowerCase();
 
   let state = await readState();
   if (!state) {
@@ -1992,13 +2288,14 @@ app.post("/api/register", async (req, res) => {
   }
 
   const providers = isArray(state.providers) ? state.providers : [];
-  const existing = providers.find(p => p.email?.toLowerCase() === email.toLowerCase());
+  const existing = providers.find(p => p.email?.toLowerCase() === normalizedEmail);
   if (existing) {
     return res.status(409).json({ error: "Email already in use." });
   }
 
   const newProvider = {
     ...req.body,
+    email: normalizedEmail,
     id: `provider-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timeOffRequests: isArray(req.body.timeOffRequests) ? req.body.timeOffRequests : [],
     preferredDates: isArray(req.body.preferredDates) ? req.body.preferredDates : [],
@@ -2060,10 +2357,16 @@ app.post("/api/copilot/intent", async (req, res) => {
     return res.status(400).json({ ok: false, error: "Intent payload must be an object.", code: "INVALID_PARAMETERS" });
   }
 
-  const { text, context } = req.body;
+  // Accept either `text` (copilot client) or `message` (chat-style callers).
+  const { context } = req.body;
+  const text = typeof req.body.text === "string" ? req.body.text : req.body.message;
 
-  if (!text || typeof text !== "string") {
-    return res.status(400).json({ ok: false, error: "Text is required and must be a string.", code: "INVALID_PARAMETERS" });
+  if (!text || typeof text !== "string" || !text.trim()) {
+    return res.status(400).json({
+      ok: false,
+      error: 'A non-empty "text" (or "message") string is required.',
+      code: "INVALID_PARAMETERS",
+    });
   }
 
   try {
@@ -2098,7 +2401,11 @@ app.get("/api/copilot/suggestions", async (req, res) => {
       visibleProviderCount: parseInt(req.query.visibleProviderCount || '0', 10)
     };
 
-    const result = await getCopilotSuggestions({ context });
+    // Suggestions are derived from the live schedule. Without this the
+    // recommendation builder saw an undefined state and every suggestion was
+    // computed against an empty schedule (0 providers, 0 slots, 0% coverage).
+    const state = await readState();
+    const result = await getCopilotSuggestions({ state, context });
     return res.json({
       ok: true,
       data: result,
@@ -2127,6 +2434,105 @@ app.get("/api/copilot/capabilities", (_req, res) => {
     updatedAt: new Date().toISOString(),
     meta: { timestamp: new Date().toISOString() },
   });
+});
+
+// Maps the orchestrator's fine-grained intents onto the coarse vocabulary the
+// marketplace copilot client expects.
+const COPILOT_QUERY_INTENT_MAP = {
+  request_swap: "coverage_request",
+  request_time_off: "availability_check",
+  check_coverage: "schedule_query",
+  assign_shift: "coverage_request",
+  unassign_shift: "coverage_request",
+  optimize_schedule: "schedule_query",
+};
+
+/**
+ * POST /api/copilot/query — marketplace copilot.
+ *
+ * Answers "who can cover X" style questions: classifies the query, then ranks
+ * providers who are actually available on the requested date, least-loaded
+ * first. Ranking is deterministic and works with no AI provider configured.
+ */
+app.post("/api/copilot/query", async (req, res) => {
+  const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
+  if (!query) {
+    return res.status(400).json({ ok: false, error: 'A non-empty "query" string is required.', code: "INVALID_PARAMETERS" });
+  }
+
+  try {
+    const parsed = await parseIntent({ text: query, context: req.body?.context || {} });
+    const entities = parsed?.entities || {};
+    const intent = COPILOT_QUERY_INTENT_MAP[parsed?.intent] || "unknown";
+
+    const state = await readState();
+    const providers = isArray(state.providers) ? state.providers : [];
+    const slots = isArray(state.slots) ? state.slots : [];
+
+    const dateRange = isArray(req.body?.context?.dateRange) ? req.body.context.dateRange : [];
+    // Slots are keyed by ISO date, so only an ISO-shaped entity can be matched
+    // against them. Relative phrases ("friday") fall through to the caller's
+    // supplied dateRange rather than being treated as a real date.
+    const isoDate = typeof entities.date === "string" && DATE_REGEX.test(entities.date) ? entities.date : null;
+    const targetDate = isoDate || dateRange[0] || null;
+    const shiftType = entities.shiftType || null;
+
+    // Assignment load per provider, used to prefer the least-loaded candidates.
+    const assignmentCount = new Map();
+    const busyOnTargetDate = new Set();
+    for (const slot of slots) {
+      if (!slot?.providerId) continue;
+      assignmentCount.set(slot.providerId, (assignmentCount.get(slot.providerId) || 0) + 1);
+      if (targetDate && slot.date === targetDate) busyOnTargetDate.add(slot.providerId);
+    }
+
+    const maxLoad = Math.max(1, ...assignmentCount.values());
+
+    const matches = providers
+      .filter((provider) => {
+        if (!provider?.id) return false;
+        if (targetDate && busyOnTargetDate.has(provider.id)) return false;
+        if (targetDate && isArray(provider.timeOffRequests) && provider.timeOffRequests.includes(targetDate)) return false;
+        return true;
+      })
+      .map((provider) => {
+        const load = assignmentCount.get(provider.id) || 0;
+        // Availability weighs most; a light current load breaks ties.
+        const loadScore = 1 - load / maxLoad;
+        const skillScore = shiftType && isArray(provider.skills) && provider.skills.includes(shiftType) ? 0.2 : 0;
+        return {
+          providerId: provider.id,
+          providerName: provider.name,
+          score: Number(Math.min(1, 0.6 * loadScore + 0.2 + skillScore).toFixed(3)),
+          availability: targetDate ? [targetDate] : [],
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    return res.json({
+      query,
+      intent,
+      entities: {
+        providerName: entities.providerName ?? undefined,
+        date: targetDate ?? undefined,
+        shiftType: shiftType ?? undefined,
+      },
+      matches,
+      explanation: targetDate
+        ? `${matches.length} provider(s) are unassigned and not on requested time off for ${targetDate}, ranked by lightest current schedule load.`
+        : `No specific date was detected in the query, so all ${matches.length} provider(s) are ranked by current schedule load.`,
+      source: parsed?.source || "deterministic-fallback",
+    });
+  } catch (error) {
+    console.error("Copilot query failed:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to process copilot query",
+      message: error instanceof Error ? error.message : "Unknown error",
+      code: "COPILOT_QUERY_ERROR",
+    });
+  }
 });
 
 // GET /api/copilot/stream - SSE for streaming responses
@@ -2170,8 +2576,29 @@ app.use(globalErrorHandler);
 
 export default app;
 
+/** Make the persistence mode obvious at boot instead of failing silently later. */
+function logSupabaseStartupStatus() {
+  if (!hasValidSupabase) {
+    console.warn(
+      "[Supabase] Not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing). " +
+        "Running with in-memory state — nothing is persisted across restarts.",
+    );
+    return;
+  }
+  if (supabaseKeyKind === "service_role") {
+    console.log(`[Supabase] Connected to ${supabaseUrl} using the service role key.`);
+    return;
+  }
+  console.warn(
+    `[Supabase] Connected to ${supabaseUrl} using an ANON key. Row Level Security grants the ` +
+      "anon role no access, so reads return empty result sets and writes are rejected. " +
+      "Set SUPABASE_SERVICE_ROLE_KEY for the API server.",
+  );
+}
+
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
+    logSupabaseStartupStatus();
     console.log(`Scheduler API listening on http://localhost:${port}`);
   });
 }

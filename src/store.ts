@@ -529,6 +529,10 @@ interface ScheduleState {
   updateEscalationConfig: (config: Partial<EscalationConfig>) => void;
   addBroadcastEntry: (shiftId: string, recipients: BroadcastRecipient[], channel: BroadcastChannel) => void;
   updateBroadcastRecipientStatus: (entryId: string, providerId: string, status: "sent" | "delivered" | "failed") => void;
+  // Cloud sync state
+  syncStatus: "idle" | "loading" | "saving" | "synced" | "error";
+  syncError: string | null;
+  lastSyncedAt: string | null;
   // Cloud sync actions
   setSyncStatus: (status: "idle" | "loading" | "saving" | "synced" | "error", error?: string) => void;
 }
@@ -542,6 +546,11 @@ function isNetworkRegistrationError(message: string): boolean {
     || normalized.includes("fetch failed")
     || normalized.includes("network")
     || normalized.includes("connection failed")
+    // Registration goes through the API server, so an unreachable or slow
+    // server surfaces as a client timeout. Treat it as a transport failure so
+    // the offline fallback below still applies.
+    || normalized.includes("timed out")
+    || normalized.includes("timeout")
   );
 }
 

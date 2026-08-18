@@ -3,6 +3,24 @@
  * Endpoints for shift marketplace operations and broadcast notifications
  */
 
+/**
+ * True when a provider has requested time off on `date`.
+ *
+ * The persisted column is `time_off_requests` and each entry is an object of
+ * the form { date, type } (see Provider.timeOffRequests in src/types.ts). The
+ * previous check read `provider.time_off` / `provider.timeOff`, neither of
+ * which exists on a provider row, so it always evaluated to false and
+ * providers on approved time off were still offered and allowed to claim
+ * shifts. Plain date strings are accepted too for older rows.
+ */
+function hasTimeOffOn(provider, date) {
+  const requests = provider?.time_off_requests ?? provider?.timeOffRequests ?? [];
+  if (!Array.isArray(requests)) return false;
+  return requests.some((entry) =>
+    typeof entry === 'string' ? entry === date : entry?.date === date,
+  );
+}
+
 export function registerMarketplaceRoutes(app, supabase) {
   app.post('/api/marketplace/shifts', async (req, res) => {
     try {
@@ -112,8 +130,7 @@ export function registerMarketplaceRoutes(app, supabase) {
         return res.status(404).json({ error: 'Provider not found' });
       }
 
-      const timeOff = provider.time_off || provider.timeOff || [];
-      if (timeOff.includes(shift.date)) {
+      if (hasTimeOffOn(provider, shift.date)) {
         return res.status(409).json({ error: 'Provider has time off on this date' });
       }
 
@@ -161,8 +178,7 @@ export function registerMarketplaceRoutes(app, supabase) {
       const eligibleProviders = allProviders.filter(p => {
         if (p.id === shift.posted_by_provider_id) return false;
         
-        const timeOff = p.time_off || p.timeOff || [];
-        if (timeOff.includes(shift.date)) return false;
+        if (hasTimeOffOn(p, shift.date)) return false;
 
         if (broadcastRecipients.includes(p.id)) return false;
 
@@ -322,8 +338,7 @@ export function registerMarketplaceRoutes(app, supabase) {
       
       const eligibleProviders = allProviders.filter(p => {
         if (p.id === shift.posted_by_provider_id) return false;
-        const timeOff = p.time_off || p.timeOff || [];
-        if (timeOff.includes(shift.date)) return false;
+        if (hasTimeOffOn(p, shift.date)) return false;
         if (existingRecipients.includes(p.id)) return false;
         return true;
       });
@@ -431,8 +446,7 @@ export function registerMarketplaceRoutes(app, supabase) {
       
       const eligibleProviders = allProviders.filter(p => {
         if (p.id === shift.posted_by_provider_id) return false;
-        const timeOff = p.time_off || p.timeOff || [];
-        if (timeOff.includes(shift.date)) return false;
+        if (hasTimeOffOn(p, shift.date)) return false;
         if (existingRecipients.includes(p.id)) return false;
         return true;
       });

@@ -13,7 +13,7 @@ const DEFAULT_PROVIDERS = [
   {
     id: "anthropic",
     label: "Anthropic",
-    models: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
+    models: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5", "claude-opus-4-8"],
     envKey: "ANTHROPIC_API_KEY",
   },
   {
@@ -42,9 +42,12 @@ const DEFAULT_PROVIDERS = [
   },
 ];
 
+// Blended input/output estimate per 1K tokens, used only for the cost figures
+// shown on the AI metrics dashboard. Anthropic reflects Claude Opus 5
+// ($5/1M input, $25/1M output).
 const PROVIDER_PRICING_USD_PER_1K_TOKENS = {
   openai: 0.005,
-  anthropic: 0.006,
+  anthropic: 0.015,
   google: 0.001,
   deepseek: 0.0005,
   groq: 0.0008,
@@ -641,6 +644,11 @@ async function callOpenAI(task, payload) {
   return { provider: "openai", model, source: "llm", text };
 }
 
+// Claude models that reject temperature/top_p/top_k (Fable 5, Opus 5, Opus 4.8,
+// Opus 4.7, Sonnet 5). Anything else — including Opus/Sonnet 4.6 and earlier —
+// still accepts sampling parameters.
+const ANTHROPIC_NO_SAMPLING_MODELS = /^claude-(fable-5|mythos-5|opus-5|opus-4-[78]|sonnet-5)/;
+
 async function callAnthropic(task, payload) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
@@ -658,6 +666,11 @@ async function callAnthropic(task, payload) {
     messages = messages.filter((_, idx) => idx !== sysIdx);
   }
 
+  // Sampling parameters (temperature/top_p/top_k) were removed on the current
+  // Claude generation — sending temperature to those models returns a 400.
+  // Older models still accept it, so only send it where it is supported.
+  const supportsTemperature = !ANTHROPIC_NO_SAMPLING_MODELS.test(model);
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -667,8 +680,8 @@ async function callAnthropic(task, payload) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4000,
-      temperature: payload?.temperature ?? 0.2,
+      max_tokens: 16000,
+      ...(supportsTemperature ? { temperature: payload?.temperature ?? 0.2 } : {}),
       ...(system ? { system } : {}),
       messages,
     }),
@@ -1053,19 +1066,94 @@ export async function explainDecision(input) {
   return executeTask("explain", input, deterministicExplain);
 }
 
-export async function parseExcelStructure(input) {
-  const task = "Analyze the provided Excel sample data and suggest a mapping to the target schedule fields. " +
-    "Target fields are: date, dayG20, dayH22, dayAkron, night, consults, nmet, jeopardy, recovery, vacation. " +
-    "Return a JSON object with 'mapping' (a Record<TargetField, SourceHeader>) and 'confidence' (0-1).";
+// Header spellings seen in the department's spreadsheets, keyed by the import
+// field they map to. Mirrors HEADER_ALIASES in src/lib/excelUtils.ts.
+const EXCEL_HEADER_ALIASES = {
+  date: ["month / date", "month", "date", "schedule date"],
+  dayG20: ["g20", "g20 unit", "day g20"],
+  dayH22: ["h22", "h22 unit", "day h22"],
+  dayAkron: ["akron", "akron unit", "day akron"],
+  night: ["nights", "night", "overnight"],
+  consults: ["consults", "consult", "consult service"],
+  dayAmet: ["amet", "day amet"],
+  dayNmet: ["nmet", "day nmet"],
+  nmet: ["nmet", "day nmet"],
+  jeopardy: ["jeopardy", "backup", "backup jeopardy"],
+  recovery: ["recovery", "post call", "post-call"],
+  vacation: ["vacations", "vacation", "time off", "pto"],
+};
 
-  return executeTask("parse-excel", input, (payload) => {
+function normalizeHeader(value) {
+  return String(value ?? "").toLowerCase().replace(/[\s_\-/]+/g, " ").trim();
+}
+
+/**
+ * Map spreadsheet headers onto import fields without an LLM.
+ *
+ * Exact alias match scores highest, then a containment match, so a column
+ * called "Nights (G20)" still resolves to `night`. Returns the same
+ * { mapping, confidence } shape the LLM path produces.
+ */
+function deterministicExcelMapping(payload, provider) {
+  const sampleData = isArray(payload?.sampleData) ? payload.sampleData : [];
+  const targetFields = isArray(payload?.targetFields) && payload.targetFields.length > 0
+    ? payload.targetFields
+    : Object.keys(EXCEL_HEADER_ALIASES);
+
+  const headers = [...new Set(sampleData.flatMap((row) => (row && typeof row === "object" ? Object.keys(row) : [])))];
+
+  if (headers.length === 0) {
     return {
+      provider,
       mapping: {},
       confidence: 0,
       source: "deterministic-fallback",
-      message: "AI parsing not available for this task in fallback mode."
+      message: "No sample rows with headers were provided.",
     };
-  });
+  }
+
+  const mapping = {};
+  const claimed = new Set();
+  let exactMatches = 0;
+
+  for (const field of targetFields) {
+    const aliases = (EXCEL_HEADER_ALIASES[field] || [String(field)]).map(normalizeHeader);
+
+    let best = headers.find((header) => !claimed.has(header) && aliases.includes(normalizeHeader(header)));
+    if (best) {
+      exactMatches += 1;
+    } else {
+      best = headers.find((header) => {
+        if (claimed.has(header)) return false;
+        const normalized = normalizeHeader(header);
+        return aliases.some((alias) => alias.length >= 3 && (normalized.includes(alias) || alias.includes(normalized)));
+      });
+    }
+
+    if (best) {
+      mapping[field] = best;
+      claimed.add(best);
+    }
+  }
+
+  const matched = Object.keys(mapping).length;
+  // Exact alias hits count fully; fuzzy hits count half.
+  const confidence = targetFields.length === 0
+    ? 0
+    : Number(Math.min(1, (exactMatches + (matched - exactMatches) * 0.5) / targetFields.length).toFixed(2));
+
+  return {
+    provider,
+    mapping,
+    confidence,
+    matchedFields: matched,
+    unmatchedFields: targetFields.filter((field) => !(field in mapping)),
+    source: "deterministic-fallback",
+  };
+}
+
+export async function parseExcelStructure(input) {
+  return executeTask("parse-excel", input, deterministicExcelMapping);
 }
 
 // ==================== COPILOT / INTENT PARSING ====================
@@ -1201,8 +1289,11 @@ function extractEntitiesRuleBased(text) {
     entities.targetProvider = withMatch[1];
   }
 
-  // Extract dates (simplified)
+  // Extract dates (simplified). ISO first: the app stores and displays every
+  // date as YYYY-MM-DD, so a pasted or typed ISO date is the most literal
+  // signal available and must win over weekday words.
   const datePatterns = [
+    /\d{4}-\d{2}-\d{2}/,
     /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
     /(next\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day)/i,
     /(tomorrow|today|next week)/i,

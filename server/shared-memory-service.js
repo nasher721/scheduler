@@ -68,9 +68,14 @@ class SharedMemoryService extends EventEmitter {
     // Load persisted data on init
     this.loadFromDisk();
 
-    // Periodic cleanup and persistence
+    // Periodic cleanup and persistence.
+    // unref() so these timers never by themselves keep the Node process alive:
+    // a live server is held open by its HTTP listener, while a short-lived
+    // process (tests, scripts) can still exit instead of hanging forever.
     this.cleanupInterval = setInterval(() => this.cleanup(), 60000); // Every minute
     this.persistInterval = setInterval(() => this.persistToDisk(), 30000); // Every 30 seconds
+    this.cleanupInterval.unref?.();
+    this.persistInterval.unref?.();
   }
 
   /**
