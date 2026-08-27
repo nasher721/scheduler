@@ -3,6 +3,22 @@
  * Endpoints for shift marketplace operations and broadcast notifications
  */
 
+function providerHasTimeOffOnDate(provider, date) {
+  const requests = provider.time_off_requests || provider.timeOffRequests || provider.time_off || provider.timeOff || [];
+  if (!Array.isArray(requests)) return false;
+  return requests.some((entry) => {
+    if (typeof entry === 'string') return entry === date;
+    if (entry && typeof entry === 'object') return entry.date === date;
+    return false;
+  });
+}
+
+function recipientId(recipient) {
+  if (!recipient) return null;
+  if (typeof recipient === 'string') return recipient;
+  return recipient.id || recipient.providerId || recipient.provider_id || null;
+}
+
 export function registerMarketplaceRoutes(app, supabase) {
   app.post('/api/marketplace/shifts', async (req, res) => {
     try {
@@ -112,8 +128,8 @@ export function registerMarketplaceRoutes(app, supabase) {
         return res.status(404).json({ error: 'Provider not found' });
       }
 
-      const timeOff = provider.time_off || provider.timeOff || [];
-      if (timeOff.includes(shift.date)) {
+      const timeOff = providerHasTimeOffOnDate(provider, shift.date);
+      if (timeOff) {
         return res.status(409).json({ error: 'Provider has time off on this date' });
       }
 
@@ -156,13 +172,12 @@ export function registerMarketplaceRoutes(app, supabase) {
         
       if (providersError) throw providersError;
 
-      const broadcastRecipients = (shift.broadcast_recipients || []).map(r => r.id || r.providerId || r.provider_id || r);
+      const broadcastRecipients = (shift.broadcast_recipients || []).map(recipientId);
       
       const eligibleProviders = allProviders.filter(p => {
         if (p.id === shift.posted_by_provider_id) return false;
         
-        const timeOff = p.time_off || p.timeOff || [];
-        if (timeOff.includes(shift.date)) return false;
+        if (providerHasTimeOffOnDate(p, shift.date)) return false;
 
         if (broadcastRecipients.includes(p.id)) return false;
 
@@ -318,12 +333,11 @@ export function registerMarketplaceRoutes(app, supabase) {
         
       if (providersError) throw providersError;
 
-      const existingRecipients = (shift.broadcast_recipients || []).map(r => r.id);
+      const existingRecipients = (shift.broadcast_recipients || []).map(recipientId);
       
       const eligibleProviders = allProviders.filter(p => {
         if (p.id === shift.posted_by_provider_id) return false;
-        const timeOff = p.time_off || p.timeOff || [];
-        if (timeOff.includes(shift.date)) return false;
+        if (providerHasTimeOffOnDate(p, shift.date)) return false;
         if (existingRecipients.includes(p.id)) return false;
         return true;
       });
@@ -337,9 +351,12 @@ export function registerMarketplaceRoutes(app, supabase) {
 
         return {
           id: p.id,
+          providerId: p.id,
           name: p.name,
           channel: selectedChannel,
-          sentAt: new Date().toISOString()
+          sentAt: new Date().toISOString(),
+          viewedAt: null,
+          respondedAt: null,
         };
       });
 
@@ -427,12 +444,11 @@ export function registerMarketplaceRoutes(app, supabase) {
         
       if (providersError) throw providersError;
 
-      const existingRecipients = (shift.broadcast_recipients || []).map(r => r.id);
+      const existingRecipients = (shift.broadcast_recipients || []).map(recipientId);
       
       const eligibleProviders = allProviders.filter(p => {
         if (p.id === shift.posted_by_provider_id) return false;
-        const timeOff = p.time_off || p.timeOff || [];
-        if (timeOff.includes(shift.date)) return false;
+        if (providerHasTimeOffOnDate(p, shift.date)) return false;
         if (existingRecipients.includes(p.id)) return false;
         return true;
       });
@@ -445,9 +461,12 @@ export function registerMarketplaceRoutes(app, supabase) {
 
         return {
           id: p.id,
+          providerId: p.id,
           name: p.name,
           channel: selectedChannel,
-          sentAt: new Date().toISOString()
+          sentAt: new Date().toISOString(),
+          viewedAt: null,
+          respondedAt: null,
         };
       });
 

@@ -32,8 +32,8 @@ export function Login() {
     const [showHint, setShowHint] = useState(false);
     const login = useScheduleStore((state) => state.login);
 
-    const [adminEmail, setAdminEmail] = useState("");
-    const [adminPassword, setAdminPassword] = useState("");
+    const [adminEmail, setAdminEmail] = useState(DEFAULT_ADMIN_CREDENTIALS.email);
+    const [adminPassword, setAdminPassword] = useState(DEFAULT_ADMIN_CREDENTIALS.password);
     const [showAdminPassword, setShowAdminPassword] = useState(false);
     const [adminLoginError, setAdminLoginError] = useState("");
     const showToast = useScheduleStore((state) => state.showToast);
@@ -43,54 +43,35 @@ export function Login() {
         setAdminLoginError("");
 
         if (!validateDefaultAdmin(adminEmail, adminPassword)) {
-            setAdminLoginError("Invalid admin credentials");
+            setAdminLoginError(
+                `Use ${DEFAULT_ADMIN_CREDENTIALS.email} or adams@hospital.org with password ${DEFAULT_ADMIN_CREDENTIALS.password}`
+            );
             return;
         }
 
         const state = useScheduleStore.getState();
+        const normalizedAdminEmail = adminEmail.trim().toLowerCase();
         const existingProvider = state.providers.find(
+            p => p.email?.toLowerCase() === normalizedAdminEmail
+        ) ?? state.providers.find(
             p => p.email?.toLowerCase() === DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase()
         );
 
-        if (existingProvider) {
-            if (existingProvider.role !== "ADMIN") {
-                state.updateProvider(existingProvider.id, { role: "ADMIN" });
-            }
-            state.login(DEFAULT_ADMIN_CREDENTIALS.email);
-            showToast({
-                type: "success",
-                title: "Admin Access Granted",
-                message: `Welcome, ${existingProvider.name || DEFAULT_ADMIN_CREDENTIALS.name}`
-            });
-            return;
+        if (existingProvider && existingProvider.role !== "ADMIN") {
+            state.updateProvider(existingProvider.id, { role: "ADMIN" });
         }
 
-        const adminProvider = {
-            id: crypto.randomUUID(),
-            name: DEFAULT_ADMIN_CREDENTIALS.name,
-            email: DEFAULT_ADMIN_CREDENTIALS.email,
-            role: "ADMIN" as const,
-            targetWeekDays: 0,
-            targetWeekendDays: 0,
-            targetWeekNights: 0,
-            targetWeekendNights: 0,
-            timeOffRequests: [],
-            preferredDates: [],
-            skills: ["ADMINISTRATIVE", "SCHEDULING"],
-            maxConsecutiveNights: 0,
-            minDaysOffAfterNight: 0,
-        };
-
-        await state.register(adminProvider);
+        await state.login(existingProvider?.email || DEFAULT_ADMIN_CREDENTIALS.email);
         showToast({
             type: "success",
             title: "Admin Access Granted",
-            message: `Welcome, ${DEFAULT_ADMIN_CREDENTIALS.name}`
+            message: `Welcome, ${existingProvider?.name || DEFAULT_ADMIN_CREDENTIALS.name}`
         });
     };
 
     // Check if we're in dev mode with bypass available
     const isDevMode = import.meta.env.DEV || window.location.hostname === 'localhost' || supabaseStatus.isPlaceholder;
+    const requireSupabaseAuth = import.meta.env.VITE_REQUIRE_SUPABASE_AUTH === "true";
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -216,7 +197,9 @@ export function Login() {
                                         <span className="text-xs font-medium">Dev Mode Active</span>
                                     </div>
                                     <p className="text-[10px] text-amber-600 mt-1">
-                                        Local auth mode is enabled. Login works without remote email verification.
+                                        {requireSupabaseAuth
+                                            ? "Real emails receive a magic link. Demo chips (Adams, Baker, Clark) and the admin portal still sign in locally."
+                                            : "Local auth mode is enabled. Login works without remote email verification."}
                                     </p>
                                 </div>
                             )}
@@ -296,7 +279,7 @@ export function Login() {
                                 </div>
 
                                 {adminLoginError && (
-                                    <p className="text-xs text-red-600 font-medium px-1">
+                                    <p className="text-xs text-red-600 font-medium px-1" role="alert">
                                         {adminLoginError}
                                     </p>
                                 )}
@@ -333,7 +316,7 @@ export function Login() {
 
                             <div className="text-center pt-4 border-t border-slate-100">
                                 <p className="text-[9px] font-medium text-slate-400">
-                                    Default: {DEFAULT_ADMIN_CREDENTIALS.email}
+                                    Default: {DEFAULT_ADMIN_CREDENTIALS.email} / {DEFAULT_ADMIN_CREDENTIALS.password}
                                 </p>
                             </div>
                         </div>

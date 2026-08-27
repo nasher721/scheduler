@@ -45,6 +45,7 @@ export async function listShiftRequests(status?: ShiftRequestStatus): Promise<{ 
 }
 
 export async function createShiftRequest(payload: {
+  providerId?: string;
   providerName: string;
   providerEmail?: string;
   date: string;
@@ -55,6 +56,7 @@ export async function createShiftRequest(payload: {
   const { data, error } = await supabase
     .from("shift_requests")
     .insert({
+      provider_id: payload.providerId ?? null,
       provider_name: payload.providerName,
       provider_email: payload.providerEmail,
       date: payload.date,

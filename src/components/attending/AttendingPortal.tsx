@@ -142,6 +142,7 @@ export function AttendingPortal() {
         try {
             const rangeLabel = dates.length > 1 ? `${dates[0]} through ${dates[dates.length - 1]}` : dates[0];
             await createShiftRequest({
+                providerId: me.id,
                 providerName: me.name,
                 providerEmail: me.email,
                 date: dates[0],

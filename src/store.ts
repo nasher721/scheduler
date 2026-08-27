@@ -11,11 +11,33 @@ export const DEFAULT_ADMIN_CREDENTIALS = {
   role: 'ADMIN' as const,
 };
 
+/** Emails accepted by the local admin portal (plus the seeded ADMIN roster row). */
+export const LOCAL_ADMIN_EMAILS = [
+  DEFAULT_ADMIN_CREDENTIALS.email,
+  'adams@hospital.org',
+] as const;
+
+/** Demo roster emails cannot receive magic-link mail; keep local sign-in in DEV. */
+export const LOCAL_DEMO_EMAILS = [
+  ...LOCAL_ADMIN_EMAILS,
+  'baker@hospital.org',
+  'clark@hospital.org',
+] as const;
+
+export function isLocalAdminEmail(email: string): boolean {
+  const normalizedEmail = email.toLowerCase().trim();
+  return LOCAL_ADMIN_EMAILS.some((allowed) => allowed.toLowerCase() === normalizedEmail);
+}
+
+export function isLocalDemoEmail(email: string): boolean {
+  const normalizedEmail = email.toLowerCase().trim();
+  return LOCAL_DEMO_EMAILS.some((allowed) => allowed.toLowerCase() === normalizedEmail);
+}
+
 // Check if provided credentials match default admin
 export function validateDefaultAdmin(email: string, password: string): boolean {
-  const normalizedEmail = email.toLowerCase().trim();
-  const emailMatch = normalizedEmail === DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase();
-  const passwordMatch = password === DEFAULT_ADMIN_CREDENTIALS.password;
+  const emailMatch = isLocalAdminEmail(email);
+  const passwordMatch = password.trim() === DEFAULT_ADMIN_CREDENTIALS.password;
   
   if (!emailMatch || !passwordMatch) {
     console.log('[Admin Auth] Credentials mismatch. Email match:', emailMatch, 'Password match:', passwordMatch);
@@ -392,6 +414,9 @@ interface ScheduleState {
   marketplaceShifts: MarketplaceShift[];
   broadcastHistory: BroadcastHistoryEntry[];
   escalationConfig: EscalationConfig;
+  syncStatus: "idle" | "loading" | "saving" | "synced" | "error";
+  syncError: string | null;
+  lastSyncedAt: string | null;
   addProvider: (provider: Omit<Provider, "id">) => void;
   updateProvider: (id: string, provider: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
@@ -1198,12 +1223,13 @@ export const useScheduleStore = create<ScheduleState>()(
 
       login: async (email) => {
         const normalizedEmail = email.toLowerCase().trim();
-        const isAdminEmail = normalizedEmail === DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase();
+        const isAdminEmail = isLocalAdminEmail(normalizedEmail);
+        const isDemoEmail = import.meta.env.DEV && isLocalDemoEmail(normalizedEmail);
         
         // Check for force local auth via URL parameter or hash
         const urlParams = new URLSearchParams(window.location.search);
         const forceLocalAuth = urlParams.has('local') || window.location.hash === '#admin';
-        const bypassSupabase = shouldUseLocalAuthBypass() || forceLocalAuth || isAdminEmail;
+        const bypassSupabase = shouldUseLocalAuthBypass() || forceLocalAuth || isAdminEmail || isDemoEmail;
 
         if (bypassSupabase) {
           console.log('[Auth] Using local authentication for:', normalizedEmail);
@@ -1222,7 +1248,7 @@ export const useScheduleStore = create<ScheduleState>()(
             });
           } else {
             // Auto-create a provider for unknown emails in local auth mode
-            const isAdminEmail = normalizedEmail === 'admin@neuroicu.com';
+            const isAdminEmail = isLocalAdminEmail(normalizedEmail);
             const newProvider: Provider = {
               id: crypto.randomUUID(),
               name: isAdminEmail ? 'Admin User' : normalizedEmail.split('@')[0],

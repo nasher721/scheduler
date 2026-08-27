@@ -24,6 +24,10 @@ dist-ssr
 *.sw?
 .vercel
 
+# Secrets
+.env
+.env.local
+
 # Backend runtime state
 data/schedule-state.json
 data/ai-apply-history.json

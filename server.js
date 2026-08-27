@@ -41,10 +41,18 @@ import { listSolverProfiles, optimizeWithSolver } from "./solver-service.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env.local') });
+dotenv.config({ path: path.join(__dirname, '.env') });
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-const hasValidSupabase = Boolean(supabaseUrl.startsWith('https://') && supabaseKey.length > 10 && !supabaseUrl.includes('placeholder'));
+const isLocalSupabaseUrl = (url) => url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost');
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+const hasValidSupabase = Boolean(
+  (supabaseUrl.startsWith('https://') || isLocalSupabaseUrl(supabaseUrl))
+  && supabaseKey.length > 10
+  && !supabaseUrl.includes('placeholder')
+);
 const supabase = hasValidSupabase
   ? createClient(supabaseUrl, supabaseKey)
   : createClient('https://placeholder.supabase.co', 'placeholder-anon-key');
@@ -373,6 +381,9 @@ async function readState() {
       credentials: p.credentials || [],
       schedulingRestrictions: p.scheduling_restrictions || {},
       notes: p.notes,
+      communicationPreferences: p.communication_preferences,
+      fatigueMetrics: p.fatigue_metrics,
+      autoApproveClaims: p.auto_approve_claims,
     }));
 
     const { data: slotsData } = await supabase.from('slots').select('*');
@@ -390,6 +401,46 @@ async function readState() {
       locationGroup: s.location_group,
       servicePriority: s.service_priority,
       serviceLocation: s.service_location,
+      isBackup: s.is_backup || false,
+      notes: s.notes,
+    }));
+
+    const { data: ruleRows } = await supabase.from('custom_rules').select('*');
+    const { data: auditRows } = await supabase.from('audit_logs').select('*');
+    const { data: scenarioRows } = await supabase.from('scenarios').select('*');
+    const { data: handoffRows } = await supabase.from('day_handoffs').select('*');
+
+    const customRules = (ruleRows || []).map(row => ({
+      id: row.id,
+      type: row.type,
+      providerA: row.provider_a,
+      providerB: row.provider_b,
+      providerId: row.provider_id,
+      maxShifts: row.max_shifts,
+    }));
+    const auditLog = (auditRows || []).map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      action: row.action,
+      details: row.details,
+      slotId: row.slot_id,
+      providerId: row.provider_id,
+      user: row.actor,
+    }));
+    const scenarios = (scenarioRows || []).map(row => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      startDate: row.start_date,
+      numWeeks: row.num_weeks,
+      providers: row.providers || [],
+      slots: row.slots || [],
+    }));
+    const dayHandoffs = (handoffRows || []).map(row => ({
+      date: row.date,
+      notes: row.notes,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by,
     }));
 
     const result = {
@@ -397,9 +448,10 @@ async function readState() {
       slots,
       startDate: baseState.startDate || new Date().toISOString().split("T")[0],
       numWeeks: baseState.numWeeks || 4,
-      scenarios: baseState.scenarios || [],
-      customRules: baseState.customRules || [],
-      auditLog: baseState.auditLog || [],
+      scenarios: scenarios.length > 0 ? scenarios : baseState.scenarios || [],
+      customRules: customRules.length > 0 ? customRules : baseState.customRules || [],
+      auditLog: auditLog.length > 0 ? auditLog : baseState.auditLog || [],
+      dayHandoffs,
     };
     
     setCachedState(result);
@@ -441,7 +493,7 @@ async function writeState(state) {
           role: p.role || "CLINICIAN",
           target_week_days: p.targetWeekDays,
           target_weekend_days: p.targetWeekendDays,
-          target_week_nights: p.target_week_nights,
+          target_week_nights: p.targetWeekNights,
           target_weekend_nights: p.targetWeekendNights,
           time_off_requests: p.timeOffRequests,
           preferred_dates: p.preferredDates,
@@ -451,6 +503,9 @@ async function writeState(state) {
           credentials: p.credentials || [],
           scheduling_restrictions: p.schedulingRestrictions || {},
           notes: p.notes || null,
+          communication_preferences: p.communicationPreferences || { sms: false, email: true, push: true },
+          fatigue_metrics: p.fatigueMetrics || { consecutiveShiftsWorked: 0, shiftsThisMonth: 0, riskLevel: "low" },
+          auto_approve_claims: p.autoApproveClaims || false,
         }));
         await supabase.from("providers").upsert(providersToUpsert);
       }
@@ -473,12 +528,14 @@ async function writeState(state) {
           is_weekend_layout: s.isWeekendLayout,
           required_skill: s.requiredSkill,
           priority: s.priority,
+          is_backup: s.isBackup || false,
           location: s.location,
           secondary_provider_ids: s.secondaryProviderIds || [],
           is_shared_assignment: s.isSharedAssignment || false,
           location_group: s.locationGroup,
           service_priority: s.servicePriority,
           service_location: s.serviceLocation,
+          notes: s.notes || null,
         }));
 
         for (let i = 0; i < slotsToUpsert.length; i += 500) {
@@ -499,12 +556,50 @@ async function writeState(state) {
         }
       }
 
+      if (Array.isArray(state.customRules) && state.customRules.length > 0) {
+        await supabase.from("custom_rules").upsert(state.customRules.map(rule => ({
+          id: rule.id,
+          type: rule.type,
+          provider_a: rule.providerA ?? null,
+          provider_b: rule.providerB ?? null,
+          provider_id: rule.providerId ?? null,
+          max_shifts: rule.maxShifts ?? null,
+        })));
+      }
+      if (Array.isArray(state.auditLog) && state.auditLog.length > 0) {
+        await supabase.from("audit_logs").upsert(state.auditLog.map(entry => ({
+          id: entry.id,
+          timestamp: entry.timestamp,
+          action: entry.action,
+          details: entry.details,
+          slot_id: entry.slotId ?? null,
+          provider_id: entry.providerId ?? null,
+          actor: entry.user ?? null,
+        })));
+      }
+      if (Array.isArray(state.scenarios) && state.scenarios.length > 0) {
+        await supabase.from("scenarios").upsert(state.scenarios.map(scenario => ({
+          id: scenario.id,
+          name: scenario.name,
+          created_at: scenario.createdAt,
+          start_date: scenario.startDate,
+          num_weeks: scenario.numWeeks,
+          providers: scenario.providers,
+          slots: scenario.slots,
+        })));
+      }
+      if (Array.isArray(state.dayHandoffs) && state.dayHandoffs.length > 0) {
+        await supabase.from("day_handoffs").upsert(state.dayHandoffs.map(handoff => ({
+          date: handoff.date,
+          notes: handoff.notes,
+          updated_at: handoff.updatedAt,
+          updated_by: handoff.updatedBy ?? null,
+        })));
+      }
+
       const configValues = {
         startDate: state.startDate,
         numWeeks: state.numWeeks,
-        scenarios: state.scenarios,
-        customRules: state.customRules,
-        auditLog: state.auditLog,
       };
 
       await supabase.from("global_settings").upsert({

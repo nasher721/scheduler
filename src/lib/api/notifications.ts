@@ -17,6 +17,8 @@ export async function sendNotification(payload: {
   eventType?: string;
   channels?: string[];
   metadata?: Record<string, unknown>;
+  recipientProviderId?: string;
+  recipientProfileId?: string;
 }): Promise<{ notification: NotificationRecord }> {
   const { data, error } = await supabase
     .from("notifications")
@@ -27,6 +29,8 @@ export async function sendNotification(payload: {
       event_type: payload.eventType,
       channels: payload.channels || [],
       metadata: payload.metadata || {},
+      recipient_provider_id: payload.recipientProviderId ?? null,
+      recipient_profile_id: payload.recipientProfileId ?? null,
     })
     .select()
     .single();

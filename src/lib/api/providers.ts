@@ -31,7 +31,6 @@ export async function registerProvider(provider: Omit<Provider, "id">): Promise<
       options: {
         data: {
           name: provider.name,
-          role: provider.role,
         },
       },
     });
@@ -53,7 +52,6 @@ export async function registerProvider(provider: Omit<Provider, "id">): Promise<
         profile_id: authData.user.id,
         name: provider.name,
         email: provider.email,
-        role: provider.role,
         target_week_days: provider.targetWeekDays,
         target_weekend_days: provider.targetWeekendDays,
         target_week_nights: provider.targetWeekNights,

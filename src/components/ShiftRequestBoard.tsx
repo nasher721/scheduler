@@ -31,6 +31,7 @@ const STATUS_OPTIONS: Array<{ value: ShiftRequestStatus | "all"; label: string }
 export function ShiftRequestBoard() {
   const showToast = useScheduleStore((state) => state.showToast);
   const providers = useScheduleStore((state) => state.providers);
+  const currentUser = useScheduleStore((state) => state.currentUser);
   const [requests, setRequests] = useState<ShiftRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ShiftRequestStatus | "all">("all");
@@ -104,7 +105,16 @@ export function ShiftRequestBoard() {
     }
 
     try {
-      await createShiftRequest({ providerName, date, type, notes, source: "app" });
+      const matchedProvider = providers.find((provider) => provider.name === providerName);
+      await createShiftRequest({
+        providerId: matchedProvider?.id ?? currentUser?.id,
+        providerName,
+        providerEmail: matchedProvider?.email ?? currentUser?.email,
+        date,
+        type,
+        notes,
+        source: "app",
+      });
       showToast({ type: "success", title: "Request submitted", message: "Shift request was sent for review." });
       setNotes("");
       await loadRequests();
