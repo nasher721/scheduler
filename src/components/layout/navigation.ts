@@ -54,24 +54,18 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
   {
     id: "plan",
-    label: "Plan",
+    label: "Workspace",
     items: [
       { value: "schedule", label: "Schedule", icon: CalendarDays },
       { value: "shift-requests", label: "Requests", icon: Inbox },
       { value: "templates", label: "Templates", icon: LayoutTemplate },
-    ],
-  },
-  {
-    id: "cover",
-    label: "Cover",
-    items: [
       { value: "swaps", label: "Swaps", icon: ArrowLeftRight },
       { value: "holidays", label: "Holidays", icon: Palmtree },
     ],
   },
   {
     id: "govern",
-    label: "Govern",
+    label: "Planning",
     items: [
       { value: "rules", label: "Rules", icon: Scale },
       { value: "strategy", label: "Solver", icon: Sliders },
@@ -80,7 +74,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "insight",
-    label: "Insight",
+    label: "Insights",
     items: [
       { value: "analytics", label: "Analytics", icon: BarChart3 },
       { value: "predictive", label: "Forecast", icon: Sparkles },

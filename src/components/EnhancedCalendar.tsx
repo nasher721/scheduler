@@ -1,8 +1,10 @@
 import { useState, useMemo } from "react";
+import { WeekSchedule } from "./schedule/WeekSchedule";
+import { MonthSchedule } from "./schedule/MonthSchedule";
 import { useShallow } from "zustand/react/shallow";
 import { useScheduleStore, type ShiftSlot, type Provider, type Conflict, type ShiftType, type ServicePriority } from "../store";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
-import { format, parseISO, isToday, isWeekend, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns";
+import { format, parseISO, isToday, isWeekend } from "date-fns";
 import {
   GripVertical,
   Sun,
@@ -14,8 +16,6 @@ import {
   Stethoscope,
   Clock,
   User,
-  ChevronLeft,
-  ChevronRight,
   StickyNote,
   ArrowRightLeft,
   History,
@@ -35,7 +35,7 @@ import { CoverageAlertDashboard, AlertBadge } from './CoverageAlertDashboard';
 import { ShiftHistoryView } from './ShiftHistoryView';
 import { PrintScheduleView, PrintButton } from './PrintScheduleView';
 import { ShiftIssuesDrawer } from './ShiftIssuesDrawer';
-import { getShiftIssueMarkers, pickMonthDayRepresentativeSlot, shouldOpenIssuesDrawerFirst } from '../lib/shiftConflictUtils';
+import { getShiftIssueMarkers, shouldOpenIssuesDrawerFirst } from '../lib/shiftConflictUtils';
 import { cn, getInitials, getAvatarColor } from "@/lib/utils";
 
 // Service priority configuration
@@ -153,7 +153,7 @@ function ProviderAvatar({ provider, size = "md", showConflict = false }: {
   };
 
   return (
-    <div 
+    <div
       className={cn(
         "relative rounded-full flex items-center justify-center text-white font-bold shadow-sm",
         sizeClasses[size],
@@ -232,6 +232,14 @@ function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = 
         ref={setNodeRef}
         whileHover={{ scale: 1.02 }}
         onClick={() => onClick(slot)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onClick(slot);
+          }
+        }}
+        tabIndex={0}
+        aria-label={`${slot.serviceLocation}, ${provider?.name ?? "open shift"}`}
         className={cn(
           "p-2 rounded-lg border cursor-pointer transition-all",
           isOver ? 'border-primary bg-primary/5' : '',
@@ -282,6 +290,14 @@ function ShiftCard({ slot, provider, hasConflict, conflicts, onClick, compact = 
       layout
       whileHover={{ scale: 1.02, y: -2 }}
       onClick={() => onClick(slot)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(slot);
+        }
+      }}
+      tabIndex={0}
+      aria-label={`${slot.serviceLocation}, ${provider?.name ?? "open shift"}`}
       className={cn(
         "relative p-3 rounded-2xl border-2 transition-all cursor-pointer",
         isOver ? 'border-primary bg-primary/5 scale-105' : '',
@@ -514,6 +530,10 @@ function ListView({
             layout
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
+            role="button"
+            tabIndex={0}
+            aria-label={`${slot.serviceLocation}, ${slot.date}: ${provider?.name || "Assign open shift"}`}
+            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onShiftClick(slot); } }}
             onClick={() => onShiftClick(slot)}
             className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${isCriticalUnfilled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200'
               } ${hasConflict ? 'ring-1 ring-error' : ''}`}
@@ -706,267 +726,6 @@ function BarView({
   );
 }
 
-// 4. WEEK VIEW (Compact weekly overview)
-function WeekView({
-  slots,
-  providers,
-  conflicts,
-  weekDates,
-  onShiftClick,
-  showWorkload = false,
-}: {
-  slots: ShiftSlot[];
-  providers: Provider[];
-  conflicts: Conflict[];
-  weekDates: Date[];
-  onShiftClick: (slot: ShiftSlot) => void;
-  showWorkload?: boolean;
-}) {
-  const providerById = buildProviderIndex(providers);
-  const conflictedSlotIds = buildConflictIndex(conflicts);
-  return (
-    <div className="grid grid-cols-7 gap-3">
-      {weekDates.map((date) => {
-        const dateStr = format(date, "yyyy-MM-dd");
-        const daySlots = slots.filter(s => s.date === dateStr);
-        const isWeekendDay = isWeekend(date);
-        const isTodayDay = isToday(date);
-
-        return (
-          <motion.div
-            key={dateStr}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`min-h-[300px] rounded-2xl border-2 p-3 ${isTodayDay
-              ? 'border-primary bg-primary/5'
-              : isWeekendDay
-                ? 'border-amber-200 bg-amber-50/30'
-                : 'border-slate-200 bg-white'
-              }`}
-          >
-            {/* Day Header */}
-            <div className={`text-center pb-3 mb-3 border-b ${isTodayDay ? 'border-primary/20' : 'border-slate-100'
-              }`}>
-              <div className={`text-xs font-bold uppercase ${isWeekendDay ? 'text-amber-600' : 'text-slate-500'}`}>
-                {format(date, "EEE")}
-              </div>
-              <div className={`text-2xl font-bold ${isTodayDay ? 'text-primary' : 'text-slate-800'}`}>
-                {format(date, "d")}
-              </div>
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                {format(date, "MMM")}
-              </div>
-              <div className="text-[10px] text-slate-400">
-                {daySlots.filter(s => s.providerId).length}/{daySlots.length}
-              </div>
-              {daySlots.length > 0 && <DayHandoffIndicator date={date} />}
-            </div>
-
-            {/* Daily Handoff Card */}
-            <div className="mb-3">
-              <DayHandoffCard date={date} />
-            </div>
-
-            {/* Shifts */}
-            <div className="space-y-2">
-              {/* Critical First */}
-              {daySlots
-                .filter(s => s.servicePriority === "CRITICAL")
-                .map((slot) => {
-                  const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
-                  const hasConflict = conflictedSlotIds.has(slot.id);
-                  return (
-                    <ShiftCard
-                      key={slot.id}
-                      slot={slot}
-                      provider={provider}
-                      hasConflict={hasConflict}
-                      conflicts={conflicts}
-                      onClick={onShiftClick}
-                      compact
-                      showWorkload={showWorkload}
-                    />
-                  );
-                })}
-
-              {/* Standard */}
-              {daySlots
-                .filter(s => s.servicePriority === "STANDARD")
-                .map((slot) => {
-                  const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
-                  const hasConflict = conflictedSlotIds.has(slot.id);
-                  return (
-                    <ShiftCard
-                      key={slot.id}
-                      slot={slot}
-                      provider={provider}
-                      hasConflict={hasConflict}
-                      conflicts={conflicts}
-                      onClick={onShiftClick}
-                      compact
-                      showWorkload={showWorkload}
-                    />
-                  );
-                })}
-
-              {/* Flexible */}
-              {daySlots
-                .filter(s => s.servicePriority === "FLEXIBLE")
-                .map((slot) => {
-                  const provider = slot.providerId ? providerById.get(slot.providerId) : undefined;
-                  const hasConflict = conflictedSlotIds.has(slot.id);
-                  return (
-                    <ShiftCard
-                      key={slot.id}
-                      slot={slot}
-                      provider={provider}
-                      hasConflict={hasConflict}
-                      conflicts={conflicts}
-                      onClick={onShiftClick}
-                      compact
-                      showWorkload={showWorkload}
-                    />
-                  );
-                })}
-            </div>
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-}
-
-// 5. MONTH VIEW
-function MonthView({
-  slots,
-  anchorDate,
-  conflicts,
-  onShiftClick
-}: {
-  slots: ShiftSlot[];
-  anchorDate: Date;
-  conflicts: Conflict[];
-  onShiftClick: (slot: ShiftSlot) => void;
-}) {
-  const [currentMonth, setCurrentMonth] = useState(anchorDate);
-
-  const monthDays = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, [currentMonth]);
-
-  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-  return (
-    <div>
-      {/* Month Navigation */}
-      <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          title="Previous month"
-          className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <h3 className="text-xl font-bold text-slate-800">
-          {format(currentMonth, "MMMM yyyy")}
-        </h3>
-        <button
-          onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          title="Next month"
-          className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1">
-        {/* Week Day Headers */}
-        {weekDays.map(day => (
-          <div key={day} className="p-2 text-center text-xs font-bold text-slate-500 uppercase">
-            {day}
-          </div>
-        ))}
-
-        {/* Days */}
-        {monthDays.map((date) => {
-          const dateStr = format(date, "yyyy-MM-dd");
-          const daySlots = slots.filter(s => s.date === dateStr);
-          const isCurrentMonth = isSameMonth(date, currentMonth);
-          const isWeekendDay = isWeekend(date);
-          const isTodayDay = isToday(date);
-
-          const criticalUnfilled = daySlots.filter(s => s.servicePriority === "CRITICAL" && !s.providerId).length;
-          const totalFilled = daySlots.filter(s => s.providerId).length;
-          const totalSlots = daySlots.length;
-
-          return (
-            <motion.div
-              key={dateStr}
-              whileHover={{ scale: 1.02 }}
-              onClick={() => {
-                const rep = pickMonthDayRepresentativeSlot(daySlots, conflicts);
-                if (rep) onShiftClick(rep);
-              }}
-              className={`min-h-[100px] p-2 rounded-xl border cursor-pointer transition-all ${!isCurrentMonth
-                ? 'bg-slate-50 border-slate-100 opacity-50'
-                : isTodayDay
-                  ? 'bg-primary/5 border-primary'
-                  : isWeekendDay
-                    ? 'bg-amber-50/30 border-amber-100'
-                    : 'bg-white border-slate-200 hover:border-slate-300'
-                }`}
-            >
-              <div className={`text-sm font-bold mb-1 ${isTodayDay ? 'text-primary' : isCurrentMonth ? 'text-slate-700' : 'text-slate-400'
-                }`}>
-                {format(date, "d")}
-              </div>
-
-              {daySlots.length > 0 && (
-                <div className="space-y-1">
-                  {/* Indicators */}
-                  <div className="flex flex-wrap gap-0.5">
-                    {daySlots.slice(0, 6).map((slot, idx) => {
-                      const config = servicePriorityConfig[slot.servicePriority];
-                      const isFilled = !!slot.providerId;
-                      return (
-                        <div
-                          key={idx}
-                          className={`w-2 h-2 rounded-full ${isFilled ? config.indicatorColor : 'bg-slate-200'
-                            }`}
-                          title={slot.serviceLocation}
-                        />
-                      );
-                    })}
-                    {daySlots.length > 6 && (
-                      <div className="w-2 h-2 rounded-full bg-slate-300 text-[6px] flex items-center justify-center">
-                        +
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Stats */}
-                  <div className="text-[9px] text-slate-500">
-                    {totalFilled}/{totalSlots}
-                  </div>
-
-                  {criticalUnfilled > 0 && (
-                    <div className="text-[9px] text-rose-600 font-bold">
-                      {criticalUnfilled} critical
-                    </div>
-                  )}
-                </div>
-              )}
-            </motion.div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // 6. TIMELINE VIEW
 function TimelineView({
   slots,
@@ -1073,45 +832,6 @@ function TimelineView({
 }
 
 // Coverage Summary Component
-function CoverageSummary({ slots }: { slots: ShiftSlot[] }) {
-  const stats = useMemo(() => {
-    const byPriority: Record<ServicePriority, { total: number; filled: number }> = {
-      CRITICAL: { total: 0, filled: 0 },
-      STANDARD: { total: 0, filled: 0 },
-      FLEXIBLE: { total: 0, filled: 0 }
-    };
-
-    slots.forEach(slot => {
-      byPriority[slot.servicePriority].total++;
-      if (slot.providerId) {
-        byPriority[slot.servicePriority].filled++;
-      }
-    });
-
-    return byPriority;
-  }, [slots]);
-
-  return (
-    <div className="flex flex-wrap gap-3 mb-4">
-      {(Object.entries(stats) as [ServicePriority, { total: number; filled: number }][]).map(([priority, stat]) => {
-        const percentage = stat.total > 0 ? Math.round((stat.filled / stat.total) * 100) : 0;
-        const config = servicePriorityConfig[priority];
-        return (
-          <div key={priority} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${config.badgeColor}`}>
-            <span className={`w-2 h-2 rounded-full ${config.indicatorColor}`} />
-            <span className="text-xs font-bold">{config.label}</span>
-            <span className="text-sm font-bold">
-              {stat.filled}/{stat.total}
-            </span>
-            <span className="text-xs opacity-75">({percentage}%)</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Main Enhanced Calendar Component
 export function EnhancedCalendar() {
   const { slots, providers, conflicts, setSelectedDate } = useScheduleStore(
     useShallow((s) => ({
@@ -1121,16 +841,16 @@ export function EnhancedCalendar() {
       setSelectedDate: s.setSelectedDate,
     })),
   );
-  const { scheduleViewport, weekDates } = useScheduleViewport();
+  const { scheduleViewport, weekDates, anchorDate } = useScheduleViewport();
 
   // Edit modal state
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [issuesDrawerSlotId, setIssuesDrawerSlotId] = useState<string | null>(null);
-  
+
   // Workload heatmap toggle
   const [showWorkload, setShowWorkload] = useState(false);
-  
+
   // New feature modals
   const [isSwapBoardOpen, setIsSwapBoardOpen] = useState(false);
   const [isAvailabilityPanelOpen, setIsAvailabilityPanelOpen] = useState(false);
@@ -1141,29 +861,22 @@ export function EnhancedCalendar() {
   const [selectedSlotForHistory] = useState<string | null>(null);
   const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
 
-  const activeMonthLabel = useMemo(() => {
-    const monthLabels = Array.from(new Set(weekDates.map((date) => format(date, "MMMM yyyy"))));
-    return monthLabels.join(" · ");
-  }, [weekDates]);
-
   // Filter slots for current view
   const visibleSlots = useMemo(() => {
     const dateStrs = weekDates.map(d => format(d, "yyyy-MM-dd"));
 
     return slots.filter(s => {
       if (scheduleViewport.shiftTypeFilter !== "all" && s.type !== scheduleViewport.shiftTypeFilter) return false;
-      if (scheduleViewport.showConflictsOnly) {
-        return conflicts.some(c => c.slotId === s.id && !c.resolvedAt);
-      }
-      if (scheduleViewport.showUnfilledOnly && s.providerId) return false;
+      if (scheduleViewport.showConflictsOnly && !conflicts.some(c => c.slotId === s.id && !c.resolvedAt)) return false;
+      if (scheduleViewport.showUnfilledOnly && (s.providerId || s.type === "VACATION")) return false;
 
       // For non-month views, filter to the active week range.
       if (scheduleViewport.calendarPresentationMode !== "month" && !dateStrs.includes(s.date)) return false;
 
       if (scheduleViewport.providerSearchTerm) {
-        const provider = providers.find((p) => p.id === s.providerId);
-        if (!provider) return false;
-        return provider.name.toLowerCase().includes(scheduleViewport.providerSearchTerm.toLowerCase());
+        const query = scheduleViewport.providerSearchTerm.toLowerCase();
+        const providerIds = [s.providerId, ...(s.secondaryProviderIds ?? [])].filter(Boolean);
+        return providerIds.some((providerId) => providers.find((p) => p.id === providerId)?.name.toLowerCase().includes(query));
       }
 
       return true;
@@ -1206,71 +919,11 @@ export function EnhancedCalendar() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="satin-panel overflow-hidden"
+      className="min-w-0"
     >
-      {/* Header — the surface, layout and filter controls live in the schedule
-          toolbar above; only calendar-specific tools belong here. */}
-      <div className="border-b border-border/70 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[13px] text-foreground-tertiary">
-            <span className="font-semibold text-foreground">{activeMonthLabel}</span>
-            <span className="mx-1.5 text-foreground-muted/50">·</span>
-            {visibleSlots.length} shifts
-          </p>
-
-          <div className="flex-1" />
-
-          <button
-            onClick={() => setIsAlertDashboardOpen(true)}
-            className="flex items-center gap-2"
-            aria-label="Open coverage alerts"
-          >
-            <AlertBadge count={conflicts.filter(c => !c.acknowledged && c.severity === 'CRITICAL').length} />
-          </button>
-
-          <WorkloadHeatmapToggle
-            isActive={showWorkload}
-            onToggle={() => setShowWorkload(!showWorkload)}
-          />
-
-          <div className="flex items-center gap-0.5 rounded-lg bg-secondary/70 p-0.5">
-            <button
-              onClick={() => setIsSwapBoardOpen(true)}
-              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
-              title="Shift swap board"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Swaps</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsBulkModeOpen(true)}
-              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
-              title="Bulk assignment"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Bulk</span>
-            </button>
-            <button
-              onClick={() => setIsHistoryViewOpen(true)}
-              className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
-              title="History"
-            >
-              <History className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">History</span>
-            </button>
-            <PrintButton onClick={() => setIsPrintViewOpen(true)} />
-          </div>
-        </div>
-
-        {/* Coverage Summary */}
-        <div className="mt-3">
-          <CoverageSummary slots={visibleSlots} />
-        </div>
-      </div>
-
       {/* Calendar Content */}
-      <div className="p-6 overflow-auto max-h-[calc(100vh-350px)]">
+      <div className="min-w-0">
+        {visibleSlots.length === 0 && <div className="mb-3 rounded-lg border border-border bg-surface p-8 text-center"><h3 className="text-lg font-semibold">No matching shifts</h3><p className="mt-2 text-sm text-foreground-secondary">Try another date or clear the filters to see more of the schedule.</p></div>}
         <AnimatePresence mode="wait">
           <motion.div
             key={scheduleViewport.calendarPresentationMode}
@@ -1280,14 +933,7 @@ export function EnhancedCalendar() {
             transition={{ duration: 0.2 }}
           >
             {scheduleViewport.calendarPresentationMode === "grid" && (
-              <GridView
-                slots={visibleSlots}
-                providers={providers}
-                conflicts={conflicts}
-                weekDates={weekDates}
-                onShiftClick={handleShiftClick}
-                showWorkload={showWorkload}
-              />
+              <WeekSchedule slots={visibleSlots} providers={providers} conflicts={conflicts} dates={weekDates} onEdit={handleShiftClick} />
             )}
 
             {scheduleViewport.calendarPresentationMode === "list" && (
@@ -1311,24 +957,10 @@ export function EnhancedCalendar() {
             )}
 
             {scheduleViewport.calendarPresentationMode === "week" && (
-              <WeekView
-                slots={visibleSlots}
-                providers={providers}
-                conflicts={conflicts}
-                weekDates={weekDates}
-                onShiftClick={handleShiftClick}
-                showWorkload={showWorkload}
-              />
+              <GridView slots={visibleSlots} providers={providers} conflicts={conflicts} weekDates={weekDates} onShiftClick={handleShiftClick} showWorkload={showWorkload} />
             )}
-
             {scheduleViewport.calendarPresentationMode === "month" && (
-              <MonthView
-                key={format(weekDates[0], "yyyy-MM")}
-                slots={visibleSlots}
-                anchorDate={weekDates[0]}
-                conflicts={conflicts}
-                onShiftClick={handleShiftClick}
-              />
+              <MonthSchedule key={format(anchorDate, "yyyy-MM")} slots={visibleSlots} providers={providers} anchor={anchorDate} onEdit={handleShiftClick} />
             )}
 
             {scheduleViewport.calendarPresentationMode === "timeline" && (
@@ -1343,6 +975,58 @@ export function EnhancedCalendar() {
           </motion.div>
         </AnimatePresence>
       </div>
+      <p className="mt-3 text-sm text-foreground-secondary">Select any shift to edit. Drag a physician onto a shift to assign.</p>
+      <details className="no-print mt-4 rounded-lg border border-border bg-surface"><summary className="cursor-pointer px-4 py-3 text-sm font-medium">Scheduling tools</summary>
+      <div className="border-t border-border/70 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-1" />
+
+          <button
+            onClick={() => setIsAlertDashboardOpen(true)}
+            className="flex items-center gap-2"
+            aria-label="Open coverage alerts"
+          >
+            <AlertBadge count={conflicts.filter(c => !c.acknowledged && c.severity === 'CRITICAL').length} />
+          </button>
+
+          <WorkloadHeatmapToggle
+            isActive={showWorkload}
+            onToggle={() => setShowWorkload(!showWorkload)}
+          />
+
+          <div className="flex items-center gap-0.5 rounded-lg bg-secondary/70 p-0.5">
+            <button
+              onClick={() => setIsSwapBoardOpen(true)}
+              className="flex h-11 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+              title="Shift swap board"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Swaps</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsBulkModeOpen(true)}
+              className="flex h-11 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+              title="Bulk assignment"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bulk</span>
+            </button>
+            <button
+              onClick={() => setIsHistoryViewOpen(true)}
+              className="flex h-11 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+              title="History"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            <PrintButton onClick={() => setIsPrintViewOpen(true)} />
+          </div>
+        </div>
+
+      </div>
+      </details>
+
 
       <ShiftIssuesDrawer
         slot={issuesDrawerSlot}
@@ -1358,36 +1042,36 @@ export function EnhancedCalendar() {
         isOpen={isEditModalOpen}
         onClose={handleCloseModal}
       />
-      
+
       {/* Feature Modals */}
       <ShiftSwapBoard
         isOpen={isSwapBoardOpen}
         onClose={() => setIsSwapBoardOpen(false)}
       />
-      
+
       <ProviderAvailabilityPanel
         isOpen={isAvailabilityPanelOpen}
         onClose={() => setIsAvailabilityPanelOpen(false)}
         selectedSlot={selectedSlotForAvailability}
       />
-      
+
       <BulkAssignmentMode
         isOpen={isBulkModeOpen}
         onClose={() => setIsBulkModeOpen(false)}
         slots={slots}
       />
-      
+
       <CoverageAlertDashboard
         isOpen={isAlertDashboardOpen}
         onClose={() => setIsAlertDashboardOpen(false)}
       />
-      
+
       <ShiftHistoryView
         isOpen={isHistoryViewOpen}
         onClose={() => setIsHistoryViewOpen(false)}
         selectedSlotId={selectedSlotForHistory}
       />
-      
+
       <PrintScheduleView
         isOpen={isPrintViewOpen}
         onClose={() => setIsPrintViewOpen(false)}

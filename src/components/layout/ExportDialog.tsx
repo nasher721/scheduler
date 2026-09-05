@@ -1,6 +1,7 @@
 import { Calendar, FileSpreadsheet, Printer, X } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { exportScheduleToExcel } from "@/lib/excelUtils";
 import { generateProviderICal } from "@/lib/icalUtils";
 import { useScheduleStore } from "@/store";
@@ -18,6 +19,38 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const { providers, slots, showToast } = useScheduleStore(
     useShallow((s) => ({ providers: s.providers, slots: s.slots, showToast: s.showToast })),
   );
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      returnFocusRef.current?.focus();
+      returnFocusRef.current = null;
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -70,22 +103,26 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
       onClick={onClose}
+      role="presentation"
     >
       <motion.div
         initial={{ y: 8, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         role="dialog"
-        aria-label="Export schedule"
+        aria-modal="true"
+        aria-labelledby="export-dialog-title"
+        ref={dialogRef}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-surface shadow-xl"
+        className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-          <h2 className="text-[15px] font-semibold tracking-tight">Export</h2>
+          <h2 id="export-dialog-title" className="text-xl font-semibold tracking-tight">Export schedule</h2>
           <button
             type="button"
             onClick={onClose}
+            ref={closeButtonRef}
             aria-label="Close export"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-secondary"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-secondary"
           >
             <X className="h-4 w-4" />
           </button>
@@ -99,8 +136,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
           >
             <FileSpreadsheet className="h-4 w-4 shrink-0 text-foreground-muted" strokeWidth={1.8} />
             <span className="min-w-0">
-              <span className="block text-[13.5px] font-medium">Institutional workbook</span>
-              <span className="block text-xs text-foreground-muted">Every service and date as .xlsx</span>
+              <span className="block text-sm font-medium">Excel workbook</span>
+              <span className="block text-sm text-foreground-muted">Every service and date. Edit in Excel, then import.</span>
             </span>
           </button>
 

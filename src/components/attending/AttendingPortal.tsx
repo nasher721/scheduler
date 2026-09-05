@@ -44,6 +44,7 @@ const SWAP_STATUS_STYLES: Record<SwapRequestStatus, string> = {
 };
 
 const UPCOMING_PREVIEW_COUNT = 8;
+type MobilePortalView = "calendar" | "upcoming" | "requests";
 
 /**
  * Attending-facing portal: personal month calendar, workload stats vs the
@@ -58,6 +59,7 @@ export function AttendingPortal() {
     const [showTimeOffModal, setShowTimeOffModal] = useState(false);
     const [swapModalSlotId, setSwapModalSlotId] = useState<string | null | false>(false);
     const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+    const [mobileView, setMobileView] = useState<MobilePortalView>("calendar");
 
     const todayISO = format(new Date(), "yyyy-MM-dd");
     const monthKey = format(month, "yyyy-MM");
@@ -177,6 +179,13 @@ export function AttendingPortal() {
     const visibleUpcoming = showAllUpcoming ? myUpcoming : myUpcoming.slice(0, UPCOMING_PREVIEW_COUNT);
     const loadDelta = monthlyLoad ? Math.round((monthlyLoad.total - deptAverage) * 10) / 10 : 0;
 
+    const openNextShiftRoster = () => {
+        if (!nextShift) return;
+        setMonth(parseISO(nextShift.date));
+        setSelectedDate(nextShift.date);
+        setMobileView("calendar");
+    };
+
     return (
         <div className="min-h-dvh bg-background text-foreground">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
@@ -215,6 +224,23 @@ export function AttendingPortal() {
                         </button>
                     </div>
                 </motion.header>
+
+                <nav className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-surface p-1 lg:hidden" aria-label="Portal sections">
+                    {(["calendar", "upcoming", "requests"] as MobilePortalView[]).map((view) => (
+                        <button
+                            key={view}
+                            type="button"
+                            onClick={() => setMobileView(view)}
+                            aria-current={mobileView === view ? "page" : undefined}
+                            className={cn(
+                                "min-h-11 rounded-lg px-2 text-xs font-semibold capitalize transition-colors",
+                                mobileView === view ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground-muted hover:bg-secondary/60",
+                            )}
+                        >
+                            {view === "calendar" ? "Calendar" : view === "upcoming" ? "My shifts" : "Requests"}
+                        </button>
+                    ))}
+                </nav>
 
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -256,6 +282,15 @@ export function AttendingPortal() {
                                 ? `${format(parseISO(nextShift.date), "EEE MMM d")} · ${nextShift.type} · ${nextShift.serviceLocation}`
                                 : "Nothing scheduled"}
                         </span>
+                        {nextShift && (
+                            <button
+                                type="button"
+                                onClick={openNextShiftRoster}
+                                className="mt-1 self-start text-xs font-semibold text-primary underline-offset-2 hover:underline"
+                            >
+                                View team roster
+                            </button>
+                        )}
                     </div>
                     <div className="stone-panel flex flex-col gap-1 p-4">
                         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground-muted">
@@ -274,20 +309,26 @@ export function AttendingPortal() {
                     transition={{ delay: 0.15 }}
                     className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]"
                 >
-                    <div className="flex min-w-0 flex-col gap-4">
-                        <MyMonthCalendar
-                            month={month}
-                            onMonthChange={(next) => {
-                                setMonth(next);
-                                setSelectedDate(null);
-                            }}
-                            slots={safeSlots}
-                            providerId={me.id}
-                            timeOffDates={timeOffDates}
-                            selectedDate={selectedDate}
-                            onSelectDate={setSelectedDate}
-                        />
+                    <div className={cn("flex min-w-0 flex-col gap-4", mobileView === "requests" && "hidden lg:flex")}>
+                        <div className={cn(mobileView !== "calendar" && "hidden lg:block")}>
+                            <MyMonthCalendar
+                                month={month}
+                                onMonthChange={(next) => {
+                                    setMonth(next);
+                                    setSelectedDate(null);
+                                }}
+                                slots={safeSlots}
+                                providerId={me.id}
+                                timeOffDates={timeOffDates}
+                                selectedDate={selectedDate}
+                                onSelectDate={(date) => {
+                                    setSelectedDate(date);
+                                    if (date) setMobileView("calendar");
+                                }}
+                            />
+                        </div>
 
+                        <div className={cn(mobileView !== "calendar" && "hidden lg:block")}>
                         <AnimatePresence>
                             {selectedDate && (
                                 <motion.div
@@ -304,8 +345,9 @@ export function AttendingPortal() {
                                 </motion.div>
                             )}
                         </AnimatePresence>
+                        </div>
 
-                        <section className="satin-panel p-4 sm:p-6" aria-label="Upcoming shifts">
+                        <section className={cn("satin-panel p-4 sm:p-6", mobileView !== "upcoming" && "hidden lg:block")} aria-label="Upcoming shifts">
                             <div className="mb-4 flex items-center justify-between">
                                 <h3 className="flex items-center gap-2 text-sm font-bold">
                                     <CalendarDays className="h-4 w-4 text-primary" /> Upcoming shifts
@@ -378,7 +420,7 @@ export function AttendingPortal() {
                         </section>
                     </div>
 
-                    <div className="flex min-w-0 flex-col gap-4">
+                    <div className={cn("flex min-w-0 flex-col gap-4", mobileView !== "requests" && "hidden lg:flex")}>
                         <section className="satin-panel p-4 sm:p-6" aria-label="Time off">
                             <div className="mb-3 flex items-center justify-between">
                                 <h3 className="flex items-center gap-2 text-sm font-bold">

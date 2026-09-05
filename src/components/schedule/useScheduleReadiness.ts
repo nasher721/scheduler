@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { Provider, ShiftSlot, CustomRule } from "@/types";
 import { buildAuthoritativeMetrics } from "@/lib/scheduleRisk";
 
-export type ReadinessSaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+export type ReadinessSaveStatus = "idle" | "pending" | "saving" | "saved" | "local" | "error";
 export type ReadinessSeverity = "success" | "warning" | "error" | "info";
 
 export interface ScheduleReadiness {
@@ -40,6 +40,8 @@ function getSyncState(autoSaveStatus: ReadinessSaveStatus, isOnline: boolean): P
       return { syncLabel: "Saving", syncSeverity: "info" };
     case "saved":
       return { syncLabel: "Saved", syncSeverity: "success" };
+    case "local":
+      return { syncLabel: "Saved on this device · cloud unavailable", syncSeverity: "warning" };
     case "error":
       return { syncLabel: "Save failed", syncSeverity: "error" };
     case "idle":
@@ -99,5 +101,4 @@ export function useScheduleReadiness({
     };
   }, [slots, providers, customRules, anomalyAlertCount, autoSaveStatus, isOnline]);
 }
-
 

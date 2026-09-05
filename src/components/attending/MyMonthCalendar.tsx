@@ -145,6 +145,7 @@ export function MyMonthCalendar({
                                     <span
                                         className="h-1.5 w-1.5 rounded-full bg-error"
                                         title={`${cell.unfilledCritical} unfilled critical slot(s)`}
+                                        aria-label={`${cell.unfilledCritical} unfilled critical slot${cell.unfilledCritical === 1 ? "" : "s"}`}
                                     />
                                 )}
                             </span>
@@ -170,6 +171,12 @@ export function MyMonthCalendar({
                         </button>
                     ),
                 )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-[11px] text-foreground-muted" aria-label="Calendar key">
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" aria-hidden /> Your shift</span>
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-error" aria-hidden /> Critical coverage gap</span>
+                <span className="flex items-center gap-1.5"><span className="rounded border border-border bg-secondary px-1 text-[9px] font-bold" aria-hidden>Off</span> Time off</span>
             </div>
 
             {!hasScheduleData && (

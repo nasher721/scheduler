@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore, type Provider } from "../store";
 import { format, parseISO } from "date-fns";
@@ -39,6 +39,32 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
   const [notes, setNotes] = useState(slot?.notes || "");
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+      if (event.key !== "Tab") return;
+      const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex="0"]') || []).filter((item) => item.getClientRects().length > 0);
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => { cancelAnimationFrame(focusFrame); document.body.style.overflow = overflow; window.removeEventListener("keydown", handleKeyDown); previous?.focus(); };
+  }, [isOpen]);
+
+  useEffect(() => {
+    setNotes(slot?.notes || "");
+    setIsEditingNotes(false);
+  }, [slot?.id, slot?.notes]);
 
   if (!isOpen || !slot) return null;
 
@@ -170,7 +196,13 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed inset-0 flex items-center justify-center z-50 p-4 pointer-events-none"
           >
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden pointer-events-auto flex flex-col">
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="shift-edit-title"
+              className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90dvh] overflow-hidden pointer-events-auto flex flex-col"
+            >
               {/* Header */}
               <div className={`p-6 border-b ${priorityConfig.border} ${priorityConfig.bg} flex-shrink-0`}>
                 <div className="flex items-start justify-between">
@@ -185,7 +217,7 @@ export function ShiftEditModal({ slotId, isOpen, onClose }: ShiftEditModalProps)
                         </span>
                       )}
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-900">
+                    <h2 id="shift-edit-title" className="text-2xl font-bold text-slate-900">
                       {shiftTypeLabels[slot.type] ?? slot.type}
                     </h2>
                     <p className="text-slate-500 flex items-center gap-2 mt-1">

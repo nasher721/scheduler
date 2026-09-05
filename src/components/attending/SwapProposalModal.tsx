@@ -65,7 +65,8 @@ export function SwapProposalModal({
             className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
-            aria-label="Propose shift swap"
+            aria-labelledby="swap-proposal-title"
+            aria-describedby="swap-proposal-description"
         >
             <motion.form
                 initial={{ y: 8, opacity: 0 }}
@@ -76,11 +77,11 @@ export function SwapProposalModal({
             >
                 <div className="mb-5 flex items-start justify-between">
                     <div>
-                        <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                        <h3 id="swap-proposal-title" className="flex items-center gap-2 text-lg font-semibold text-foreground">
                             <ArrowLeftRight className="h-4 w-4 text-primary" />
                             Propose a swap
                         </h3>
-                        <p className="mt-0.5 text-sm text-foreground-muted">
+                        <p id="swap-proposal-description" className="mt-0.5 text-sm text-foreground-muted">
                             The scheduler reviews and applies approved swaps automatically.
                         </p>
                     </div>

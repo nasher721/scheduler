@@ -14,22 +14,22 @@
 @layer base {
   :root {
     /* ========== COLOR — clinical neutral + deep indigo ========== */
-    --background: 210 24% 97%;
+    --background: 210 33% 98%;
     --background-secondary: 210 20% 94%;
     --background-tertiary: 210 18% 90%;
 
-    --foreground: 240 10% 12%;
-    --foreground-secondary: 240 6% 28%;
-    --foreground-tertiary: 240 4% 42%;
-    --foreground-muted: 240 4% 58%;
+    --foreground: 218 62% 17%;
+    --foreground-secondary: 219 24% 32%;
+    --foreground-tertiary: 219 16% 40%;
+    --foreground-muted: 219 12% 44%;
 
     --surface: 0 0% 100%;
     --surface-elevated: 210 24% 99%;
     --surface-overlay: 210 24% 97%;
 
     /* One bold accent — deep indigo */
-    --primary: 239 84% 42%;
-    --primary-hover: 239 84% 36%;
+    --primary: 203 100% 32%;
+    --primary-hover: 203 100% 26%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 214 18% 92%;
@@ -54,7 +54,7 @@
     --border: 214 20% 86%;
     --border-strong: 214 14% 72%;
     --input: 214 20% 88%;
-    --ring: 239 84% 42%;
+    --ring: 203 100% 32%;
 
     /* ========== SHIFT TYPE COLORS ========== */
     /* Refined medical schedule colors */
@@ -187,19 +187,27 @@
     background-color: hsl(var(--background));
 
     /* Subtle clinical depth without decorative blobs */
-    background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--background-secondary)) 100%);
-    background-attachment: fixed;
+    background-image: none;
+  }
+
+  :where(button, a, input, select, textarea, summary, [role="button"]):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
   }
 
   /* Typography — Serif for hero only; weight/size for hierarchy */
   h1,
   h2,
   h3 {
-    font-family: 'Instrument Serif', serif;
-    font-weight: 400;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 600;
     letter-spacing: -0.02em;
     color: hsl(var(--foreground));
-    font-style: italic;
+    font-style: normal;
   }
 
   h4,

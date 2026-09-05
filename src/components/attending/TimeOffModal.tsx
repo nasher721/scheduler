@@ -42,7 +42,8 @@ export function TimeOffModal({ onClose, onSubmit }: TimeOffModalProps) {
             className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
-            aria-label="Request time off"
+            aria-labelledby="time-off-title"
+            aria-describedby="time-off-description"
         >
             <motion.form
                 initial={{ y: 8, opacity: 0 }}
@@ -53,8 +54,8 @@ export function TimeOffModal({ onClose, onSubmit }: TimeOffModalProps) {
             >
                 <div className="mb-5 flex items-start justify-between">
                     <div>
-                        <h3 className="text-lg font-semibold text-foreground">Request time off</h3>
-                        <p className="mt-0.5 text-sm text-foreground-muted">
+                        <h3 id="time-off-title" className="text-lg font-semibold text-foreground">Request time off</h3>
+                        <p id="time-off-description" className="mt-0.5 text-sm text-foreground-muted">
                             Blocked dates are excluded from auto-scheduling and sent to the scheduler for review.
                         </p>
                     </div>

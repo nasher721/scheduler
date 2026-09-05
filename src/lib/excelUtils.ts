@@ -1,4 +1,4 @@
-import { format, parseISO, addDays, startOfWeek, differenceInCalendarDays } from "date-fns";
+import { format } from "date-fns";
 import type * as XLSXType from "xlsx";
 
 // xlsx is ~400 kB minified; load it on demand so it stays out of the main
@@ -189,11 +189,15 @@ const HEADER_ALIASES: Record<ImportFieldKey, string[]> = {
   vacation: ["vacations", "vacation", "time off", "pto", "vacations "],
 };
 
-const REQUIRED_FIELDS: ImportFieldKey[] = ["date", "night"];
+// Date is the only required field. Service columns are intentionally optional
+// so a partial workbook can update one service without clearing other services.
+const REQUIRED_FIELDS: ImportFieldKey[] = ["date"];
 
 interface ImportSnapshot {
   providers: Provider[];
   slots: ShiftSlot[];
+  startDate: string;
+  numWeeks: number;
 }
 
 let lastImportSnapshot: ImportSnapshot | null = null;
@@ -231,9 +235,11 @@ const reportProgress = (onProgress: ProgressCallback | undefined, percent: numbe
   }
 };
 
-const createImportSnapshot = (providers: Provider[], slots: ShiftSlot[]): ImportSnapshot => ({
+const createImportSnapshot = (providers: Provider[], slots: ShiftSlot[], startDate = useScheduleStore.getState().startDate, numWeeks = useScheduleStore.getState().numWeeks): ImportSnapshot => ({
   providers: structuredClone(providers),
   slots: structuredClone(slots),
+  startDate,
+  numWeeks,
 });
 
 const createFileSizeWarning = (fileName: string, fileSizeBytes: number): FileSizeWarning | null => {
@@ -309,7 +315,7 @@ export interface ParsedAssignment {
   rawValue: string;
 }
 
-const parseProviderCell = (value: unknown): ParsedAssignment | null => {
+export const parseProviderCell = (value: unknown): ParsedAssignment | null => {
   if (typeof value !== "string") {
     return null;
   }
@@ -323,7 +329,8 @@ const parseProviderCell = (value: unknown): ParsedAssignment | null => {
   const providers = rawValue
     .split(/(?:\s*&\s*|\s+and\s+|\s*\/\s*|\s*\+\s*)/i)
     .map((entry) => normalizeProviderName(entry.trim()))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((provider, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === provider.toLowerCase()) === index);
 
   if (providers.length === 0) {
     return null;
@@ -342,7 +349,7 @@ const parseProviderCell = (value: unknown): ParsedAssignment | null => {
  * Excel epoch is December 30, 1899 (don't ask why not 1900)
  */
 export const excelSerialToDate = (serial: number): string | null => {
-  if (!Number.isFinite(serial) || serial <= 0) {
+  if (!Number.isFinite(serial) || serial <= 0 || serial > 2958465) {
     return null;
   }
 
@@ -353,13 +360,13 @@ export const excelSerialToDate = (serial: number): string | null => {
   const EXCEL_EPOCH = new Date(Date.UTC(1899, 11, 30));
   const msPerDay = 24 * 60 * 60 * 1000;
 
-  const date = new Date(EXCEL_EPOCH.getTime() + serial * msPerDay);
+  const date = new Date(EXCEL_EPOCH.getTime() + Math.trunc(serial) * msPerDay);
 
   if (Number.isNaN(date.getTime())) {
     return null;
   }
 
-  return format(date, "yyyy-MM-dd");
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 };
 
 export const normalizeDate = (value: unknown): string | null => {
@@ -373,7 +380,7 @@ export const normalizeDate = (value: unknown): string | null => {
         return null;
       }
 
-      return format(value, "yyyy-MM-dd");
+      return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
     }
 
     if (typeof value === "number") {
@@ -385,7 +392,7 @@ export const normalizeDate = (value: unknown): string | null => {
       // Fall back to timestamp interpretation
       const date = new Date(value);
       if (!Number.isNaN(date.getTime())) {
-        return format(date, "yyyy-MM-dd");
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
       }
       return null;
     }
@@ -396,17 +403,35 @@ export const normalizeDate = (value: unknown): string | null => {
     }
 
     // Already in ISO format
-    if (/^\d{4}-\d{2}-\d{2}$/.test(asString)) {
+    const isoDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(asString);
+    if (isoDate) {
+      const [, year, month, day] = isoDate;
+      const candidate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+      if (candidate.getUTCFullYear() !== Number(year) || candidate.getUTCMonth() !== Number(month) - 1 || candidate.getUTCDate() !== Number(day)) {
+        return null;
+      }
       return asString;
     }
 
-    // Try parsing as date string
+    // Avoid the host-dependent parsing of ambiguous dates. Excel exports and
+    // the app's own workbook use ISO dates; accept common US dates explicitly.
+    const usDate = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(asString);
+    if (usDate) {
+      const [, month, day, year] = usDate;
+      const candidate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+      if (candidate.getUTCFullYear() !== Number(year) || candidate.getUTCMonth() !== Number(month) - 1 || candidate.getUTCDate() !== Number(day)) {
+        return null;
+      }
+      return `${candidate.getUTCFullYear()}-${String(candidate.getUTCMonth() + 1).padStart(2, "0")}-${String(candidate.getUTCDate()).padStart(2, "0")}`;
+    }
+
+    // Try parsing date strings that carry an unambiguous month name.
     const parsedDate = new Date(asString);
     if (Number.isNaN(parsedDate.getTime())) {
       return null;
     }
 
-    return format(parsedDate, "yyyy-MM-dd");
+    return `${parsedDate.getUTCFullYear()}-${String(parsedDate.getUTCMonth() + 1).padStart(2, "0")}-${String(parsedDate.getUTCDate()).padStart(2, "0")}`;
   } catch {
     return null;
   }
@@ -836,58 +861,61 @@ export const getAiHeaderMapping = async (
 };
 
 export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportResult => {
-  const previousSnapshot = lastImportSnapshot ? createImportSnapshot(lastImportSnapshot.providers, lastImportSnapshot.slots) : null;
+  const previousSnapshot = lastImportSnapshot ? createImportSnapshot(lastImportSnapshot.providers, lastImportSnapshot.slots, lastImportSnapshot.startDate, lastImportSnapshot.numWeeks) : null;
   let transactionSnapshot: ImportSnapshot | null = null;
 
   try {
+    const blockingIssues = preview.issues.filter((issue) => issue.type === "error");
+    const hasRequiredMapping = REQUIRED_FIELDS.every((field) => Boolean(preview.mapping[field]));
+    const hasAssignmentMapping = ASSIGNMENT_IMPORT_FIELDS.some((field) => Boolean(preview.mapping[field]));
+    if (blockingIssues.length > 0 || !hasRequiredMapping || !hasAssignmentMapping || preview.validRows === 0) {
+      return {
+        success: false,
+        appliedAssignments: 0,
+        skippedRows: preview.invalidRows,
+        error: new ExcelError("IMPORT_APPLY_FAILED", "This workbook cannot be imported until its errors are fixed.", {
+          details: {
+            errorCount: blockingIssues.length,
+            missingRequiredFields: REQUIRED_FIELDS.filter((field) => !preview.mapping[field]),
+            assignmentMappingRequired: !hasAssignmentMapping,
+            validRows: preview.validRows,
+          },
+        }),
+      };
+    }
     const store = useScheduleStore.getState();
-    transactionSnapshot = createImportSnapshot(store.providers, store.slots);
+    transactionSnapshot = createImportSnapshot(store.providers, store.slots, store.startDate, store.numWeeks);
 
     const providers = structuredClone(transactionSnapshot.providers);
 
-    // ── Determine the date range covered by the imported rows ──────────────────
-    const validDates = preview.rows
-      .map(r => r.date)
-      .filter((d): d is string => Boolean(d) && /^\d{4}-\d{2}-\d{2}$/.test(d));
-
-    let slotsForImport: ShiftSlot[];
-
-    if (validDates.length > 0) {
-      const sortedDates = [...validDates].sort();
-      const minDate = sortedDates[0];
-      const maxDate = sortedDates[sortedDates.length - 1];
-
-      // Snap to the Monday of the first week through the Sunday of the last week
-      const importStart = startOfWeek(parseISO(minDate), { weekStartsOn: 1 });
-      const importEnd = parseISO(maxDate);
-      const daySpan = differenceInCalendarDays(importEnd, importStart);
-      const numWeeks = Math.ceil((daySpan + 1) / 7);
-
-      const importStartStr = format(importStart, "yyyy-MM-dd");
-
-      // Generate a complete set of slots for the imported date range
-      const freshImportSlots = generateInitialSlots(importStartStr, Math.max(numWeeks, 1));
-
-      // Build a set of all dates covered by the import
-      const importDateSet = new Set<string>();
-      for (let i = 0; i <= daySpan + 7; i++) {
-        importDateSet.add(format(addDays(importStart, i), "yyyy-MM-dd"));
-      }
-
-      // Keep existing slots that fall OUTSIDE the import range (preserve other months)
-      const existingOutsideRange = structuredClone(transactionSnapshot.slots).filter(
-        slot => !importDateSet.has(slot.date)
-      );
-
-      slotsForImport = [...existingOutsideRange, ...freshImportSlots];
-    } else {
-      // No valid dates — fall back to existing slots
-      slotsForImport = structuredClone(transactionSnapshot.slots);
-    }
+    // Imports are row scoped: preserve the rest of the schedule and only edit
+    // dates represented in the workbook. This avoids clearing adjacent days
+    // when a clinician exports/imports a partial week.
+    const slotsForImport = structuredClone(transactionSnapshot.slots);
+    const existingSlotKeys = new Set(slotsForImport.map((slot) => `${slot.date}::${slot.serviceLocation}`));
+    const importedDates = preview.rows
+      .map((row) => row.date)
+      .filter((date): date is string => Boolean(date) && /^\d{4}-\d{2}-\d{2}$/.test(date));
+    // Add only missing slots for imported dates. The generated week is filtered
+    // back to the requested date, so adjacent days are never introduced.
+    importedDates.forEach((date) => {
+      generateInitialSlots(date, 1)
+        .filter((slot) => slot.date === date)
+        .forEach((slot) => {
+          const key = `${slot.date}::${slot.serviceLocation}`;
+          if (!existingSlotKeys.has(key)) {
+            slotsForImport.push(slot);
+            existingSlotKeys.add(key);
+          }
+        });
+    });
 
     const providerIdByName = new Map<string, string>();
+    const providerIdsByCanonicalName = new Map<string, string[]>();
     providers.forEach((provider) => {
       providerIdByName.set(provider.name.trim().toLowerCase(), provider.id);
+      const canonicalName = normalizeProviderName(provider.name).toLowerCase();
+      providerIdsByCanonicalName.set(canonicalName, [...(providerIdsByCanonicalName.get(canonicalName) ?? []), provider.id]);
     });
 
     const ignoredProviderNames = new Set(["unassigned", "open", "n/a", ""]);
@@ -903,6 +931,12 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
       if (existingProviderId) {
         return existingProviderId;
       }
+      const canonicalName = normalizeProviderName(cleanName).toLowerCase();
+      const candidates = providerIdsByCanonicalName.get(canonicalName) ?? [];
+      if (candidates.length > 1) {
+        throw new Error(`More than one physician matches "${cleanName}". Give these physicians distinct names before importing.`);
+      }
+      if (candidates.length === 1) return candidates[0];
 
       const newProvider: Provider = {
         id: crypto.randomUUID(),
@@ -920,6 +954,7 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
 
       providers.push(newProvider);
       providerIdByName.set(normalizedName, newProvider.id);
+      providerIdsByCanonicalName.set(canonicalName, [newProvider.id]);
       return newProvider.id;
     };
 
@@ -940,12 +975,20 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
       ASSIGNMENT_IMPORT_FIELDS.forEach((field) => {
         const slotSpec = fieldToSlotSpec[field];
         const names = row.assignments[field];
-        if (!slotSpec || !names || names.length === 0) {
+        // Unmapped services are outside this workbook's scope and must remain
+        // untouched. A mapped blank cell explicitly clears that service.
+        if (!slotSpec || !preview.mapping[field]) {
           return;
         }
 
         // Handle vacation specially - mark as time off for providers
         if (field === "vacation") {
+          if (!names || names.length === 0) {
+            providers.forEach((provider) => {
+              provider.timeOffRequests = provider.timeOffRequests.filter((request) => !(request.date === row.date && request.type === "PTO"));
+            });
+            return;
+          }
           names.forEach((name) => {
             const providerId = getOrCreateProviderId(name);
             if (providerId) {
@@ -969,6 +1012,13 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
           return;
         }
 
+        if (!names || names.length === 0) {
+          slot.providerId = null;
+          slot.secondaryProviderIds = [];
+          slot.isSharedAssignment = false;
+          return;
+        }
+
         // Handle primary provider
         const primaryProviderId = getOrCreateProviderId(names[0]);
         if (!primaryProviderId) {
@@ -976,6 +1026,8 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
         }
 
         slot.providerId = primaryProviderId;
+        slot.secondaryProviderIds = [];
+        slot.isSharedAssignment = false;
 
         // Handle secondary providers (shared assignments)
         if (names.length > 1) {
@@ -1002,7 +1054,7 @@ export const applyScheduleImport = (preview: ImportPreviewResult): ApplyImportRe
 
     if (transactionSnapshot) {
       try {
-        useScheduleStore.setState({ providers: transactionSnapshot.providers, slots: transactionSnapshot.slots });
+        useScheduleStore.setState({ providers: transactionSnapshot.providers, slots: transactionSnapshot.slots, startDate: transactionSnapshot.startDate, numWeeks: transactionSnapshot.numWeeks });
         useScheduleStore.getState().detectConflicts();
       } catch (rollbackError) {
         rollbackFailure = rollbackError;
@@ -1029,10 +1081,12 @@ export const rollbackLastImport = (): boolean => {
       return false;
     }
 
-    const snapshot = createImportSnapshot(lastImportSnapshot.providers, lastImportSnapshot.slots);
+    const snapshot = createImportSnapshot(lastImportSnapshot.providers, lastImportSnapshot.slots, lastImportSnapshot.startDate, lastImportSnapshot.numWeeks);
     useScheduleStore.setState({
       providers: snapshot.providers,
       slots: snapshot.slots,
+      startDate: snapshot.startDate,
+      numWeeks: snapshot.numWeeks,
     });
     useScheduleStore.getState().detectConflicts();
 
@@ -1067,7 +1121,7 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
     // Column order and exact header text (incl. trailing spaces from master)
     const MASTER_HEADERS = [
       "Month ", "G20 ", "H22", "Akron ", "Nights",
-      "Consults ", "AMET", "Jeopardy", "Recovery", "Vacations ",
+      "Consults ", "AMET", "NMET", "Jeopardy", "Recovery", "Vacations ",
     ] as const;
 
     // 0-based column indices
@@ -1078,12 +1132,13 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
     const COL_NIGHTS = 4;  // E
     const COL_CONSULTS = 5;  // F
     const COL_AMET = 6;  // G
-    const COL_JEOPARDY = 7;  // H
-    const COL_RECOVERY = 8;  // I
-    const COL_VACATIONS = 9;  // J
-    const NUM_COLS = 10;
+    const COL_NMET = 7;  // H
+    const COL_JEOPARDY = 8;  // I
+    const COL_RECOVERY = 9;  // J
+    const COL_VACATIONS = 10;  // K
+    const NUM_COLS = 11;
 
-    // slot.serviceLocation → export column (handles both AMET and NMET → col G)
+    // Each clinical service has its own workbook column.
     const svcToCol: Record<string, number> = {
       G20: COL_G20,
       H22: COL_H22,
@@ -1091,7 +1146,7 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
       Nights: COL_NIGHTS,
       Consults: COL_CONSULTS,
       AMET: COL_AMET,
-      NMET: COL_AMET,
+      NMET: COL_NMET,
       Jeopardy: COL_JEOPARDY,
       Recovery: COL_RECOVERY,
       Vacation: COL_VACATIONS,
@@ -1151,8 +1206,8 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
       const rowStyle = isNewMonth ? { s: { fill: goldFill } } : undefined;
 
       // Column A: Excel date serial + master number format
-      const epoch = new Date(1899, 11, 30);
-      const serial = Math.round((d.getTime() - epoch.getTime()) / 86400000);
+      const epoch = Date.UTC(1899, 11, 30);
+      const serial = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - epoch) / 86400000);
       ws[addr(ri, COL_DATE)] = {
         v: serial,
         t: "n",
@@ -1186,6 +1241,20 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
           : cell(name, "s");
       });
 
+      // PTO lives on the provider record rather than as an ordinary slot.
+      // Include it in the master sheet so an export can be imported again
+      // without losing vacation requests.
+      const vacationNames = providers
+        .filter((provider) => provider.timeOffRequests.some((request) => request.date === dateStr && request.type === "PTO"))
+        .map((provider) => provider.name)
+        .filter(Boolean)
+        .join(" & ");
+      if (vacationNames) {
+        ws[addr(ri, COL_VACATIONS)] = rowStyle
+          ? cell(vacationNames, "s", rowStyle)
+          : cell(vacationNames, "s");
+      }
+
       ri++;
     });
 
@@ -1199,9 +1268,10 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
       { wch: 11.3 }, // E – Nights
       { wch: 13.7 }, // F – Consults
       { wch: 13.7 }, // G – AMET
-      { wch: 10 }, // H – Jeopardy
-      { wch: 17.9 }, // I – Recovery
-      { wch: 30.3 }, // J – Vacations
+      { wch: 10 }, // H – NMET
+      { wch: 10 }, // I – Jeopardy
+      { wch: 17.9 }, // J – Recovery
+      { wch: 30.3 }, // K – Vacations
     ];
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1216,6 +1286,10 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
 
     const yr = new Date(startDate).getFullYear();
     const fteRows: (string | number)[][] = [fteHeaders];
+    const lastScheduleRow = Math.max(ri, 2);
+    const dateRange = `'2026 Sch'!A$2:A$${lastScheduleRow}`;
+    const weekendCount = (column: string, row: number) =>
+      `=SUMPRODUCT(--('2026 Sch'!${column}$2:${column}$${lastScheduleRow}=A${row}),--(${dateRange}>=DATE(${yr},1,1)),--(IFERROR(WEEKDAY(${dateRange},2),0)>5))`;
 
     providers.forEach((p, idx) => {
       const r = idx + 2;
@@ -1224,14 +1298,14 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
         `=COUNTIF('2026 Sch'!B:B,A${r})`,
         `=COUNTIF('2026 Sch'!C:C,A${r})`,
         `=COUNTIF('2026 Sch'!E:E,A${r})`,
-        `=COUNTIFS('2026 Sch'!B:B,A${r},'2026 Sch'!A:A,">="&DATE(${yr},1,1),WEEKDAY('2026 Sch'!A:A,2)>5)`,
-        `=COUNTIFS('2026 Sch'!E:E,A${r},'2026 Sch'!A:A,">="&DATE(${yr},1,1),WEEKDAY('2026 Sch'!A:A,2)>5)`,
+        weekendCount('B', r),
+        weekendCount('E', r),
         `=COUNTIF('2026 Sch'!D:D,A${r})`,
-        `=COUNTIFS('2026 Sch'!D:D,A${r},'2026 Sch'!A:A,">="&DATE(${yr},1,1),WEEKDAY('2026 Sch'!A:A,2)>5)`,
+        weekendCount('D', r),
         `=COUNTIF('2026 Sch'!F:F,A${r})`,
         `=SUM(B${r}:E${r},G${r}:I${r})`,
         `=F${r}+H${r}`,
-        `=COUNTIF('2026 Sch'!H:H,A${r})`,
+        `=COUNTIF('2026 Sch'!I:I,A${r})`,
         p.targetWeekDays + p.targetWeekendDays,
         p.targetWeekNights + p.targetWeekendNights,
         `=J${r}`,
@@ -1242,6 +1316,19 @@ export const exportScheduleToExcel = async (): Promise<ExcelOperationResult> => 
       ]);
     });
     const fteSheet = XLSX.utils.aoa_to_sheet(fteRows);
+    // Only known calculation columns become formulas. Physician names and
+    // free-text notes must remain strings, even when they begin with '='.
+    const formulaColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 15, 16, 17];
+    providers.forEach((_, index) => {
+      formulaColumns.forEach((column) => {
+        const formulaCell = fteSheet[XLSX.utils.encode_cell({ r: index + 1, c: column })];
+        if (formulaCell && typeof formulaCell.v === 'string' && formulaCell.v.startsWith('=')) {
+          formulaCell.f = formulaCell.v.slice(1);
+          formulaCell.v = 0;
+          formulaCell.t = 'n';
+        }
+      });
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SHEET 3: Swap Tracker
