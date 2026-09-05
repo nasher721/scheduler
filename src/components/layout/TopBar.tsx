@@ -40,10 +40,15 @@ export function TopBar({
   const statusTone = !isOnline || saveStatus === "error" ? "error" : saveStatus === "saved" ? "success" : "muted";
 
   return (
-    <header className="no-print sticky top-0 z-30 flex min-h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-surface px-4 sm:gap-3 sm:px-7">
+    <header className="workspace-topbar no-print sticky top-0 z-30 flex min-h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-surface px-4 sm:gap-3 sm:px-7 2xl:px-10">
       <button
         type="button"
-        onClick={onOpenSidebar}
+        onClick={(event) => {
+          // Safari does not focus buttons on pointer activation. Give the drawer
+          // a stable trigger to restore when it closes.
+          event.currentTarget.focus();
+          onOpenSidebar();
+        }}
         className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-foreground-secondary transition-colors hover:bg-secondary/70 xl:hidden"
         aria-label="Open navigation"
       >
@@ -58,7 +63,7 @@ export function TopBar({
       <button
         type="button"
         onClick={onOpenSearch}
-        className="hidden h-11 w-52 items-center gap-2 rounded-md border border-border bg-surface px-3 text-left transition-colors hover:border-border-strong md:flex 2xl:w-72"
+        className="hidden h-11 w-52 items-center gap-2 rounded-lg border border-border bg-background px-3 text-left transition-colors hover:border-border-strong md:flex 2xl:w-64"
         aria-label="Search people and shifts"
       >
         <Search className="h-3.5 w-3.5 shrink-0 text-foreground-muted" />

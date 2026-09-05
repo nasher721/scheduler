@@ -1,0 +1,123 @@
+/* The authenticated workspace has its own palette; dialogs inherit these tokens. */
+.scheduler-app {
+  color-scheme: light;
+  --background: 45 20% 97%;
+  --background-secondary: 40 14% 94%;
+  --foreground: 207 32% 17%;
+  --foreground-secondary: 207 12% 39%;
+  --foreground-tertiary: 207 10% 43%;
+  --foreground-muted: 207 9% 45%;
+  --primary: 173 57% 26%;
+  --primary-hover: 173 57% 21%;
+  --ring: 173 57% 32%;
+  --secondary: 40 14% 93%;
+  --border: 40 12% 86%;
+  --border-strong: 40 10% 72%;
+  --input: 40 12% 86%;
+}
+
+.workspace-sidebar {
+  --foreground: 180 20% 95%;
+  --foreground-secondary: 206 17% 75%;
+  --foreground-muted: 207 16% 64%;
+  --secondary: 207 27% 23%;
+  --primary: 165 45% 74%;
+  --border: 207 22% 28%;
+  --ring: 165 45% 74%;
+  background: #172c38;
+  color: hsl(var(--foreground));
+}
+
+.workspace-brand {
+  color: #b1ddcd;
+  background: #23434b;
+  border: 1px solid #36545a;
+}
+
+.workspace-nav-active {
+  background: #29464d;
+  box-shadow: inset 3px 0 0 #a5d8c4;
+}
+
+.workspace-nav-item:hover { background-color: hsl(var(--secondary)); }
+.workspace-topbar { background: hsl(var(--surface) / 0.96); }
+.scheduler-app .workspace-title {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: clamp(2.5rem, 3.4vw, 3.5rem);
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+.workspace-primary-action { box-shadow: 0 2px 3px rgb(16 69 60 / 12%); }
+.workspace-summary { box-shadow: 0 2px 5px rgb(28 43 35 / 3%); }
+.workspace-calendar { border-top: 1px solid hsl(var(--border)); padding-top: 22px; }
+
+.workspace-assignment[data-assigned="true"][data-shift-type="NIGHT"] {
+  background: #f1eef9;
+  border-color: #ddd5ed;
+  color: #514273;
+}
+.workspace-assignment[data-assigned="true"][data-shift-type="JEOPARDY"] {
+  background: #fbf5e9;
+  border-color: #e7d8b9;
+  color: #715622;
+}
+.workspace-assignment[data-shift-type="NIGHT"] .workspace-initials,
+.workspace-assignment[data-shift-type="JEOPARDY"] .workspace-initials {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: inherit;
+}
+.workspace-assignment:hover { filter: brightness(0.98); }
+
+.dark .scheduler-app {
+  color-scheme: dark;
+  --background: 207 27% 11%;
+  --surface: 207 25% 15%;
+  --surface-elevated: 207 25% 18%;
+  --foreground: 180 15% 93%;
+  --foreground-secondary: 207 13% 76%;
+  --foreground-tertiary: 207 11% 68%;
+  --foreground-muted: 207 11% 65%;
+  --primary: 166 44% 69%;
+  --primary-hover: 166 44% 77%;
+  --primary-foreground: 207 32% 14%;
+  --ring: 166 44% 69%;
+  --secondary: 207 23% 22%;
+  --border: 207 20% 28%;
+  --border-strong: 207 17% 42%;
+  --input: 207 20% 28%;
+}
+.dark .workspace-assignment[data-assigned="true"][data-shift-type="NIGHT"] {
+  background: #302b42;
+  border-color: #514362;
+  color: #d9cbed;
+}
+.dark .workspace-assignment[data-assigned="true"][data-shift-type="JEOPARDY"] {
+  background: #393426;
+  border-color: #605537;
+  color: #e5d3a7;
+}
+.scheduler-app .workspace-assignment[data-conflict="true"] {
+  border-color: hsl(var(--error));
+}
+
+@media print {
+  .scheduler-app { --background: 0 0% 100%; --foreground: 0 0% 0%; }
+  .workspace-intro { break-after: avoid; }
+  .workspace-summary { box-shadow: none; }
+  /* Assignments are buttons on screen, but essential schedule content on paper. */
+  .scheduler-app .workspace-assignment,
+  .scheduler-app .workspace-summary button,
+  .scheduler-app [aria-label="Monthly schedule"] button {
+    display: flex !important;
+    color: black !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+  .scheduler-app [aria-label="Monthly schedule"] button { display: block !important; }
+  .workspace-calendar-controls > div:first-child > :not(:first-child),
+  .workspace-calendar-controls > div + div {
+    display: none !important;
+  }
+  .workspace-calendar { padding-top: 12px; }
+}

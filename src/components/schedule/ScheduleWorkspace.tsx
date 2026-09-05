@@ -19,7 +19,7 @@ export function ScheduleWorkspace() {
   ]);
 
   return (
-    <div className="w-full">
+    <div className="workspace-calendar w-full">
       <ScheduleToolbar />
       <AnimatePresence mode="wait">
         <motion.div

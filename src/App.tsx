@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
+import "./styles/workspace.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState, loadScheduleState } from "./lib/api";
@@ -508,16 +509,17 @@ export default function App() {
           onChange={handleImport}
         />
 
-        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5">
           {isScheduleView ? (
-            <section className="flex flex-col justify-between gap-4 pb-1 sm:flex-row sm:items-center" aria-label="Scheduling workspace">
+            <section className="workspace-intro flex flex-col justify-between gap-4 pb-2 sm:flex-row sm:items-center" aria-label="Scheduling workspace">
               <div>
-                <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">Coverage, clearly.</h1>
-                <p className="mt-2 text-sm text-foreground-secondary sm:text-base">Your team. Every service. One shared schedule.</p>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">The scheduling workspace</p>
+                <h1 className="workspace-title">Coverage, clearly.</h1>
+                <p className="mt-2 text-sm text-foreground-secondary">Your team. Every service. One shared schedule.</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={isImportBusy} onClick={() => fileInputRef.current?.click()} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-primary/50 bg-surface px-4 text-sm font-medium text-primary sm:flex-none"><Upload className="h-4 w-4" aria-hidden="true" />{isImportBusy ? "Reading workbook…" : "Import Excel"}</button>
-                <button type="button" onClick={() => setIsExportOpen(true)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover sm:flex-none"><Download className="h-4 w-4" aria-hidden="true" />Export schedule</button>
+                <button type="button" disabled={isImportBusy} onClick={() => fileInputRef.current?.click()} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:border-primary/50 disabled:opacity-50 sm:flex-none"><Upload className="h-4 w-4" aria-hidden="true" />{isImportBusy ? "Reading workbook…" : "Import Excel"}</button>
+                <button type="button" onClick={() => setIsExportOpen(true)} className="workspace-primary-action flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover sm:flex-none"><Download className="h-4 w-4" aria-hidden="true" />Export schedule</button>
               </div>
             </section>
           ) : (

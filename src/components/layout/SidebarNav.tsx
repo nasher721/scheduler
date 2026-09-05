@@ -57,18 +57,18 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
       .toUpperCase() || "?";
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="workspace-sidebar flex h-full min-h-0 flex-col">
       <div className="flex h-24 shrink-0 items-center gap-3 px-5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary text-primary">
+        <span className="workspace-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
           <Activity className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
         </span>
-        <span className="min-w-0"><span className="block text-lg font-semibold tracking-tight">Neuro ICU</span><span className="block text-xs text-foreground-secondary">Cleveland Clinic</span></span>
+        <span className="min-w-0"><span className="block text-lg font-semibold tracking-tight">Neuro ICU<span className="text-primary">.</span></span><span className="mt-0.5 block text-[11px] tracking-wide text-foreground-secondary">Cleveland Clinic</span></span>
       </div>
 
       <nav aria-label="Workspace" className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {NAV_SECTIONS.map((section) => (
           <div key={section.id}>
-            <p className="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-[0.07em] text-foreground-muted">
+            <p className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">
               {section.label}
             </p>
             <ul className="flex flex-col gap-0.5">
@@ -82,10 +82,10 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
                       onClick={() => select(item.value)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors",
+                        "workspace-nav-item flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                         isActive
-                          ? "bg-primary/10 font-semibold text-primary"
+                          ? "workspace-nav-active font-semibold text-primary"
                           : "font-medium text-foreground-secondary hover:bg-secondary/60 hover:text-foreground",
                       )}
                     >
@@ -106,7 +106,7 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
 
       {currentUser && (
         <div className="flex h-20 shrink-0 items-center gap-3 border-t border-border/60 px-5">
-          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-secondary text-[10.5px] font-semibold text-foreground-secondary">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-secondary text-xs font-semibold text-foreground-secondary">
             {initials}
           </span>
           <span className="min-w-0 flex-1">

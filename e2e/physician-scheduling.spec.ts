@@ -138,3 +138,16 @@ test('mobile layout contains the calendar and supports keyboard navigation drawe
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeFocused();
   await captureWorkspace(page, 'mobile');
 });
+
+
+test('print keeps physician assignments visible in week and month views', async ({ page }) => {
+  await openSchedule(page);
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.getByRole('button', { name: /G20, 2026-09-07: Dr. Patel/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View 28 open shifts' })).toBeVisible();
+  await expect(page.getByRole('banner')).toBeHidden();
+  await page.emulateMedia({ media: 'screen' });
+  await page.getByRole('button', { name: 'Month', exact: true }).click();
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.getByRole('button', { name: /Monday, September 7,.*View day roster/ })).toBeVisible();
+});

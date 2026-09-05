@@ -27,24 +27,24 @@ export function ScheduleToolbar() {
   const navigate = (delta: number) => isMonth ? goToDate(startOfMonth(addMonths(anchorDate, delta))) : shiftWeekOffset(delta);
 
   return (
-    <section className="mb-4 space-y-4" aria-label="Schedule view controls">
+    <section className="workspace-calendar-controls mb-4 space-y-4" aria-label="Schedule view controls">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="mr-1 text-xl font-semibold tabular-nums">{periodLabel}</h2>
+        <div className="mr-1"><h2 className="text-xl font-semibold tracking-tight tabular-nums">{periodLabel}</h2><p className="mt-0.5 text-[11px] text-foreground-muted">{isMonth ? "Monthly overview" : `${format(weekDates[0], "MMM d")} – ${format(weekDates[6], "MMM d")} · Weekly roster`}</p></div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => navigate(-1)} aria-label={isMonth ? "Previous month" : "Previous week"} className="flex h-11 w-11 items-center justify-center rounded-md border border-border bg-surface hover:bg-secondary"><ChevronLeft className="h-4 w-4" /></button>
           <button type="button" onClick={() => goToDate(new Date())} className="h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-secondary">Today</button>
           <button type="button" onClick={() => navigate(1)} aria-label={isMonth ? "Next month" : "Next week"} className="flex h-11 w-11 items-center justify-center rounded-md border border-border bg-surface hover:bg-secondary"><ChevronRight className="h-4 w-4" /></button>
         </div>
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-          <div className="flex overflow-hidden rounded-md border border-border bg-surface" role="group" aria-label="Calendar views">
-            {VIEWS.map(({ value, label }) => <button key={value} type="button" onClick={() => selectView(value)} aria-pressed={active === value} className={cn("min-h-11 border-r border-border px-3 text-sm font-medium last:border-r-0 sm:px-4", active === value ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary")}>{label}</button>)}
+          <div className="flex rounded-lg border border-border bg-secondary/60 p-1" role="group" aria-label="Calendar views">
+            {VIEWS.map(({ value, label }) => <button key={value} type="button" onClick={() => selectView(value)} aria-pressed={active === value} className={cn("min-h-11 rounded-md px-3 text-[13px] font-medium transition-colors sm:px-4", active === value ? "bg-surface text-primary shadow-sm" : "text-foreground-secondary hover:bg-surface/60")}>{label}</button>)}
           </div>
           <select aria-label="More calendar views" value={["week", "bar", "timeline"].includes(active) ? active : ""} onChange={(event) => { if (event.target.value) selectView(event.target.value as CalendarPresentationMode); }} className="h-11 max-w-full rounded-md border border-border bg-surface px-3 text-sm font-medium"><option value="" disabled>More views</option><option value="week">Day cards</option><option value="bar">Workload bars</option><option value="timeline">Timeline</option></select>
           <input type="date" aria-label="Jump to date" value={format(anchorDate, "yyyy-MM-dd")} onChange={(event) => { if (event.target.value) goToDate(parseISO(event.target.value)); }} className="h-11 min-w-0 rounded-md border border-border bg-surface px-2 text-sm text-foreground-secondary" />
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3" aria-label="Schedule filters">
-        <div className="relative min-w-[180px] flex-1">
+      <div className="flex flex-wrap items-center gap-3" aria-label="Schedule filters">
+        <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" aria-hidden="true" />
           <input type="search" value={viewport.providerSearchTerm} onChange={(event) => setProviderSearchTerm(event.target.value)} placeholder="Find a physician" aria-label="Filter providers by name" className="h-11 w-full rounded-md border border-border bg-surface pl-10 pr-3 text-sm placeholder:text-foreground-muted" />
         </div>

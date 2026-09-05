@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "schedule": {
+      "targetKind": "existing-ui",
+      "projectId": "3588a3f5-c4ba-4827-9d1e-6953f77cf65f",
+      "activeDraftId": "8918c68e-2c7f-464b-9df8-c9f8e58de306",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        "docs/design/premium-workspace.md",
+        "src/styles/workspace.css",
+        "src/components/layout/SidebarNav.tsx",
+        "src/components/layout/navigation.ts",
+        "src/components/schedule/AdminReadinessBanner.tsx",
+        "src/components/schedule/ScheduleToolbar.tsx",
+        "src/components/schedule/WeekSchedule.tsx"
+      ],
+      "fingerprints": {
+        "docs/design/premium-workspace.md": "bc53a9d146aabde7fd6624ec95d777f89157240c63f3fbd32f941067e49c7be8",
+        "src/styles/workspace.css": "d3b60ab369d20b4abb439617ca3ac5647932a64ba0aecde3d2eb3e8fdb1718de",
+        "src/components/layout/SidebarNav.tsx": "bc35105717aa5c307ba65e5feb6a6d0ce3ff1b55e3fb30115e8d54e8b38e6f8b",
+        "src/components/layout/navigation.ts": "9281401d7c92f03754163412b02040569a36fc76696f5c5aa94c4fc6e4b82483",
+        "src/components/schedule/AdminReadinessBanner.tsx": "4cb5b120a4e7ae3b6e5ac70b9b3f92c43bab5d5d390c2c5003a7ce30698c28be",
+        "src/components/schedule/ScheduleToolbar.tsx": "1e7942e03121cc232f4bb12f91f1094dc839274eaf0b5e3bf7b4f1c011b06846",
+        "src/components/schedule/WeekSchedule.tsx": "58611f3bd65b4902cbad9c441887855a6b47a2d5e0a01a3fd31a8ec088666916"
+      },
+      "drafts": {
+        "8918c68e-2c7f-464b-9df8-c9f8e58de306": {
+          "title": "Neuro ICU Clinical Scheduling Workspace",
+          "visualDirection": "Ink navy navigation, warm neutral surfaces, editorial serif title and restrained teal service colors",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-09-05T00:55:49.255255+00:00",
+      "implementationNote": "Remote draft is a visual reference. Working React implementation preserves all existing services and controls and includes additional dark-mode and accessibility refinements."
+    }
+  }
+}

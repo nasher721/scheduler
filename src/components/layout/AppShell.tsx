@@ -55,7 +55,7 @@ export function AppShell({
   return (
     <div className="scheduler-app flex min-h-dvh bg-background text-foreground">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:p-3 focus:text-white">Skip to schedule content</a>
-      <aside className="no-print sticky top-0 hidden h-dvh w-[216px] shrink-0 border-r border-border/70 xl:block">
+      <aside className="no-print sticky top-0 hidden h-dvh w-[224px] shrink-0 xl:block">
         <SidebarNav view={view} onChange={onViewChange} />
       </aside>
 
@@ -84,7 +84,7 @@ export function AppShell({
               <button
                 type="button"
                 onClick={() => onSidebarOpenChange(false)}
-                className="absolute right-1 top-1 z-10 flex h-11 w-11 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-secondary"
+                className="absolute right-1 top-1 z-10 flex h-11 w-11 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-white/10"
                 aria-label="Close navigation"
               >
                 <X className="h-4.5 w-4.5" />
@@ -97,7 +97,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {topBar}
-        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none sm:px-7">{children}</main>
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none sm:px-7 sm:py-8 2xl:px-10">{children}</main>
       </div>
     </div>
   );
