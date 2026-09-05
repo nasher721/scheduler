@@ -103,7 +103,7 @@ export function WorkspaceMenu(props: WorkspaceMenuProps) {
         aria-expanded={isOpen}
         aria-label="More actions"
         className={cn(
-          "flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground-secondary transition-colors hover:bg-secondary/70",
+          "flex h-11 w-11 items-center justify-center rounded-md border border-border text-foreground-secondary transition-colors hover:bg-secondary/70",
           isOpen && "bg-secondary text-foreground",
         )}
       >

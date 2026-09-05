@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useScheduleStore } from "../store";
 import { supabaseStatus } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Lock, Sparkles, User, UserPlus, Bug, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { ArrowRight, Lock, User, UserPlus, Bug, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Register } from "./Register";
 import { AdminRegister } from "./AdminRegister";
 import { DEFAULT_ADMIN_CREDENTIALS, validateDefaultAdmin } from "../store";
@@ -107,18 +107,18 @@ export function Login() {
                                     Neuro <span className="text-primary italic font-serif">ICU</span> Staffing
                                 </h1>
                                 <p className="text-sm font-medium text-slate-500">
-                                    Clinical orchestrator for neurovascular critical care.
+                                    Staff access for the Cleveland Clinic Neuro ICU schedule.
                                 </p>
                                 <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    Fast secure access
+                                    <Lock className="h-3.5 w-3.5" aria-hidden />
+                                    Physician scheduling workspace
                                 </div>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                            <form onSubmit={handleSubmit} className="flex flex-col gap-4" aria-describedby="provider-login-help">
                                 <div className="flex flex-col gap-2">
                                     <label htmlFor="provider-email" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">
-                                        Provider Email
+                                        Staff email
                                     </label>
                                     <div className="relative">
                                         <input
@@ -128,7 +128,7 @@ export function Login() {
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             onBlur={() => setShowHint(true)}
-                                            placeholder="e.g. adams@hospital.org"
+                                            placeholder="name@hospital.org"
                                             className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                                         />
                                         <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -144,12 +144,13 @@ export function Login() {
                                     <ArrowRight className="h-4 w-4" />
                                 </button>
 
+                                <p id="provider-login-help" className="text-xs text-slate-500">Enter the email associated with your provider roster record.</p>
                                 {showHint && email.trim() && !email.includes("@") ? (
-                                    <p className="text-xs text-amber-600 font-medium px-1">Use your hospital email address.</p>
+                                    <p className="text-xs text-amber-600 font-medium px-1" role="alert">Use a valid staff email address.</p>
                                 ) : null}
                             </form>
 
-                            <div className="flex flex-wrap items-center justify-center gap-2">
+                            <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Demo provider shortcuts">
                                 {presetUsers.map((user) => (
                                     <button
                                         key={user.email}
@@ -185,7 +186,7 @@ export function Login() {
 
                             <div className="text-center pt-4 border-t border-slate-100 italic">
                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-300">
-                                    Demo Access: adams@hospital.org (Admin)
+                                    Local development shortcuts are available when enabled.
                                 </p>
                             </div>
 

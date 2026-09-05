@@ -58,17 +58,17 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
-        <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-primary text-primary-foreground">
-          <Activity className="h-[15px] w-[15px]" strokeWidth={2.2} />
+      <div className="flex h-24 shrink-0 items-center gap-3 px-5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary text-primary">
+          <Activity className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
         </span>
-        <span className="truncate text-sm font-semibold tracking-tight">Neuro ICU</span>
+        <span className="min-w-0"><span className="block text-lg font-semibold tracking-tight">Neuro ICU</span><span className="block text-xs text-foreground-secondary">Cleveland Clinic</span></span>
       </div>
 
       <nav aria-label="Workspace" className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {NAV_SECTIONS.map((section) => (
           <div key={section.id}>
-            <p className="px-2 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.09em] text-foreground-muted">
+            <p className="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-[0.07em] text-foreground-muted">
               {section.label}
             </p>
             <ul className="flex flex-col gap-0.5">
@@ -82,7 +82,7 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
                       onClick={() => select(item.value)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex h-[34px] w-full items-center gap-2.5 rounded-lg px-2 text-[13.5px] transition-colors",
+                        "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                         isActive
                           ? "bg-primary/10 font-semibold text-primary"
@@ -90,7 +90,7 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
                       )}
                     >
                       <Icon
-                        className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-foreground-muted")}
+                        className={cn("h-[18px] w-[18px] shrink-0", isActive ? "text-primary" : "text-foreground-muted")}
                         strokeWidth={1.7}
                       />
                       <span className="truncate">{item.label}</span>
@@ -105,7 +105,7 @@ export function SidebarNav({ view, onChange, onNavigate }: SidebarNavProps) {
       </nav>
 
       {currentUser && (
-        <div className="flex h-14 shrink-0 items-center gap-2.5 border-t border-border/60 px-4">
+        <div className="flex h-20 shrink-0 items-center gap-3 border-t border-border/60 px-5">
           <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-secondary text-[10.5px] font-semibold text-foreground-secondary">
             {initials}
           </span>

@@ -51,7 +51,7 @@ export function isCriticalCoverageSlot(
 export function getProviderLoadSignals(slots: ShiftSlot[], providers: Provider[]): ProviderLoadSignal[] {
   return providers
     .map((provider) => {
-      const assignedSlots = slots.filter((slot) => slot.providerId === provider.id);
+      const assignedSlots = slots.filter((slot) => slot.type !== "VACATION" && slot.providerId === provider.id);
       const totalAssigned = assignedSlots.length;
       const totalTarget =
         provider.targetWeekDays +
@@ -81,7 +81,7 @@ export function buildAuthoritativeMetrics(
   customRules: CustomRule[] = [],
   anomalyAlertCount: number = 0,
 ): AuthoritativeScheduleMetrics {
-  const safeSlots = Array.isArray(slots) ? slots : [];
+  const safeSlots = Array.isArray(slots) ? slots.filter((slot) => slot.type !== "VACATION") : [];
   const safeProviders = Array.isArray(providers) ? providers : [];
   const safeRules = Array.isArray(customRules) ? customRules : [];
 

@@ -27,23 +27,27 @@ import {
   Bot,
   Layers,
   Save,
-  Sparkles,
   Trash,
   Users,
+  Upload,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import "./styles/PrintStyles.css";
 import { DndContext, type DragEndEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, getAiHeaderMapping, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
+import { applyScheduleImport, hasImportRollback, parseScheduleImportFile, rollbackLastImport, type ImportFieldKey, type ImportPreviewResult } from "./lib/excelUtils";
 import { saveScheduleState, loadScheduleState } from "./lib/api";
 import { AutoScheduleButton } from "./components/AutoScheduleButton";
 import type { OptimizationPreview } from "./components/ScheduleChangePreview";
 import { useScheduleReadiness } from "./components/schedule/useScheduleReadiness";
-import { supabase } from "./lib/supabase";
+import { supabase, supabaseStatus } from "./lib/supabase";
 import { useMemo, useRef, useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { motion, AnimatePresence } from "framer-motion";
 import { buildScheduleRiskDigest } from "@/lib/scheduleRisk";
+import { weekOffsetForDate } from "./components/schedule/scheduleViewportUtils";
+import { parseISO } from "date-fns";
+import { ImportPreviewDialog } from "./components/schedule/ImportPreviewDialog";
 
 export default function App() {
   // Select only the fields this component uses (shallow-compared) — a bare
@@ -148,7 +152,8 @@ export default function App() {
   const [columnMapping, setColumnMapping] = useState<Partial<Record<ImportFieldKey, string>>>({});
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [canRollbackImport, setCanRollbackImport] = useState(hasImportRollback());
-  const [isAiMapping, setIsAiMapping] = useState(false);
+  const [isImportBusy, setIsImportBusy] = useState(false);
+  const importFileRef = useRef<File | null>(null);
   const [showLanding, setShowLanding] = useState(() => {
     if (typeof window !== "undefined" && window.location.hash === "#admin") return false;
     return !currentUser;
@@ -159,11 +164,21 @@ export default function App() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<SaveStatus>("idle");
   const [showStaffRail, setShowStaffRail] = useState(() => {
     const stored = localStorage.getItem('nicu-availability-panel-open');
-    return stored !== 'false';
+    return stored === 'true';
   });
   const isOnline = useNetworkStatus();
   const { alerts: anomalyAlerts } = useAnomalyAlerts();
   const onboarding = useOnboardingTour();
+
+  useEffect(() => {
+    if (!showStaffRail || window.matchMedia('(min-width: 1280px)').matches) return;
+    const frame = requestAnimationFrame(() => {
+      const team = document.getElementById('physician-team');
+      team?.focus();
+      team?.scrollIntoView({ block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showStaffRail]);
 
   const safeSlots = useMemo(() => Array.isArray(slots) ? slots : [], [slots]);
   const safeProviders = useMemo(() => Array.isArray(providers) ? providers : [], [providers]);
@@ -175,7 +190,7 @@ export default function App() {
   const performSave = useCallback(async () => {
     setAutoSaveStatus("saving");
     try {
-      await saveScheduleState({
+      const result = await saveScheduleState({
         providers: safeProviders,
         startDate,
         numWeeks,
@@ -184,8 +199,7 @@ export default function App() {
         customRules,
         auditLog,
       });
-      setAutoSaveStatus("saved");
-      setTimeout(() => setAutoSaveStatus("idle"), 2000);
+      setAutoSaveStatus(result.offline ? "local" : "saved");
     } catch {
       setAutoSaveStatus("error");
       setTimeout(() => setAutoSaveStatus("idle"), 3000);
@@ -208,7 +222,7 @@ export default function App() {
 
   // ── Real-time: reload when another client mutates slots in Supabase ───
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || supabaseStatus.isPlaceholder) return;
     const channel = supabase
       .channel("slots-realtime")
       .on(
@@ -268,46 +282,36 @@ export default function App() {
     }
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const preview = await parseScheduleImportFile(file, columnMapping);
-        setImportPreview(preview);
-        setColumnMapping(preview.mapping);
-        setIsImportOpen(true);
-      } catch {
-        showToast({ type: "error", title: "Import failed", message: "File could not be parsed. Confirm that the workbook has a header row and date column." });
-      }
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    importFileRef.current = file;
+    setIsImportBusy(true);
+    try {
+      const preview = await parseScheduleImportFile(file);
+      setImportPreview(preview);
+      setColumnMapping(preview.mapping);
+      setIsImportOpen(true);
+    } catch {
+      showToast({ type: "error", title: "Import failed", message: "File could not be parsed. Confirm that the workbook has a header row and date column." });
+    } finally {
+      setIsImportBusy(false);
     }
   };
 
-  const rerunImportPreview = async (fileName: string) => {
-    const file = fileInputRef.current?.files?.[0];
-    if (!file || file.name !== fileName) return;
-    const preview = await parseScheduleImportFile(file, columnMapping);
-    setImportPreview(preview);
-  };
-
-  const handleSmartMap = async () => {
-    if (!importPreview) return;
-    setIsAiMapping(true);
+  const rerunImportPreview = async () => {
+    const file = importFileRef.current;
+    if (!file) return;
+    setIsImportBusy(true);
     try {
-      const { mapping, confidence } = await getAiHeaderMapping(importPreview.rows.map(r => ({ ...r.assignments, date: r.date })));
-      if (Object.keys(mapping).length > 0) {
-        setColumnMapping(prev => ({ ...prev, ...mapping }));
-        showToast({
-          type: "success",
-          title: "Smart Mapping Applied",
-          message: `AI suggested ${Object.keys(mapping).length} mappings with ${Math.round(confidence * 100)}% confidence.`,
-        });
-      } else {
-        showToast({ type: "info", title: "Smart Map", message: "AI could not find a better mapping than the current one." });
-      }
+      const preview = await parseScheduleImportFile(file, columnMapping);
+      setImportPreview(preview);
+      setColumnMapping(preview.mapping);
     } catch {
-      showToast({ type: "error", title: "Smart Map Failed", message: "Unable to reach the AI engine." });
+      showToast({ type: "error", title: "Validation failed", message: "Check the column mapping and try again." });
     } finally {
-      setIsAiMapping(false);
+      setIsImportBusy(false);
     }
   };
 
@@ -348,7 +352,7 @@ export default function App() {
 
   const handleServerSave = async () => {
     try {
-      await saveScheduleState({
+      const result = await saveScheduleState({
         providers: safeProviders,
         startDate,
         numWeeks,
@@ -357,7 +361,8 @@ export default function App() {
         customRules,
         auditLog,
       });
-      showToast({ type: "success", title: "Saved to Server", message: "Current schedule state is now persisted on the backend." });
+      setAutoSaveStatus(result.offline ? "local" : "saved");
+      showToast({ type: result.offline ? "info" : "success", title: result.offline ? "Saved on this device" : "Saved to cloud", message: result.offline ? "Cloud storage is unavailable. Export a workbook to share or back up this schedule." : "The current schedule has been saved to cloud storage." });
     } catch {
       showToast({ type: "error", title: "Save Failed", message: "Unable to reach API server." });
     }
@@ -439,7 +444,6 @@ export default function App() {
             onOpenSidebar={() => setIsSidebarOpen(true)}
             actions={
               <div className="flex shrink-0 items-center gap-1.5">
-                <AutoScheduleButton />
                 {isScheduleView && (
                   <button
                     type="button"
@@ -448,11 +452,12 @@ export default function App() {
                     title="Staff panel"
                     aria-label="Toggle staff panel"
                     className={cn(
-                      "hidden h-8 w-8 items-center justify-center rounded-lg border border-border transition-colors xl:flex",
+                      "flex h-11 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm transition-colors",
                       showStaffRail ? "bg-secondary text-foreground" : "text-foreground-secondary hover:bg-secondary/70",
                     )}
                   >
                     <Users className="h-4 w-4" />
+                    <span className="hidden sm:inline">Staff</span>
                   </button>
                 )}
                 <button
@@ -462,7 +467,7 @@ export default function App() {
                   title="AI assistant"
                   aria-label="Toggle AI assistant"
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                    "flex h-11 w-11 items-center justify-center rounded-md border transition-colors",
                     isCopilotOpen
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border text-foreground-secondary hover:bg-secondary/70",
@@ -497,13 +502,27 @@ export default function App() {
         <input
           title="Import"
           type="file"
-          accept=".xlsx"
+          accept=".xlsx,.xls,.csv"
           className="hidden"
           ref={fileInputRef}
           onChange={handleImport}
         />
 
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4">
+          {isScheduleView ? (
+            <section className="flex flex-col justify-between gap-4 pb-1 sm:flex-row sm:items-center" aria-label="Scheduling workspace">
+              <div>
+                <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">Coverage, clearly.</h1>
+                <p className="mt-2 text-sm text-foreground-secondary sm:text-base">Your team. Every service. One shared schedule.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={isImportBusy} onClick={() => fileInputRef.current?.click()} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-primary/50 bg-surface px-4 text-sm font-medium text-primary sm:flex-none"><Upload className="h-4 w-4" aria-hidden="true" />{isImportBusy ? "Reading workbook…" : "Import Excel"}</button>
+                <button type="button" onClick={() => setIsExportOpen(true)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover sm:flex-none"><Download className="h-4 w-4" aria-hidden="true" />Export schedule</button>
+              </div>
+            </section>
+          ) : (
+            <div className="pb-2"><h1 className="text-3xl font-semibold">{VIEW_META[viewMode].title}</h1><p className="mt-2 text-sm text-foreground-secondary">{VIEW_META[viewMode].hint}</p></div>
+          )}
           <AnimatePresence>
             {showScenarios && (
               <motion.div
@@ -586,6 +605,14 @@ export default function App() {
               <AdminReadinessBanner
                 readiness={scheduleReadiness}
                 onViewAlerts={() => setViewMode("notifications")}
+                onViewOpenShifts={() => {
+                  const state = useScheduleStore.getState();
+                  state.resetScheduleViewportFilters();
+                  state.setShowUnfilledOnly(true);
+                  const firstOpen = safeSlots.find((slot) => slot.type !== "VACATION" && !slot.providerId);
+                  const offset = firstOpen ? weekOffsetForDate(startDate, parseISO(firstOpen.date)) : null;
+                  if (offset !== null) state.setCurrentWeekOffset(offset);
+                }}
               />
             </Suspense>
           ) : (
@@ -605,7 +632,7 @@ export default function App() {
             </div>
 
             {showRail && (
-              <aside className="no-print hidden min-w-0 flex-col gap-4 xl:flex">
+              <aside id="physician-team" tabIndex={-1} className="no-print flex min-w-0 scroll-mt-20 flex-col gap-4 outline-none" aria-label="Physician team">
                 <Suspense><ProviderManager /></Suspense>
                 <Suspense fallback={<div className="rounded-xl border border-border bg-surface p-4 text-sm text-foreground-muted">Loading staff dashboard…</div>}>
                   <ProviderAvailabilityPanel
@@ -618,94 +645,21 @@ export default function App() {
               </aside>
             )}
           </div>
+          {isScheduleView && <div className="no-print flex flex-wrap items-center gap-3 border-t border-border pt-4"><AutoScheduleButton /><p className="text-sm text-foreground-secondary">Review suggested assignments before applying them to the schedule.</p></div>}
         </div>
       </AppShell>
 
-      <AnimatePresence>
-        {isImportOpen && importPreview && (
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-foreground/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6">
-            <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 8, opacity: 0 }} className="bg-surface border border-border rounded-2xl w-full max-w-4xl p-6 max-h-[85vh] overflow-auto shadow-xl">
-              <div className="flex justify-between items-start mb-5">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">Import preview</h3>
-                  <p className="text-sm text-foreground-muted mt-0.5">{importPreview.validRows} valid / {importPreview.invalidRows} invalid of {importPreview.totalRows} rows.</p>
-                </div>
-                <button onClick={() => setIsImportOpen(false)} className="text-sm font-medium text-foreground-muted hover:text-foreground transition-colors p-1">Close</button>
-              </div>
-
-              {importPreview.requiresMapping && (
-                <div className="mb-5 rounded-xl p-4 bg-warning/5 border border-warning/20">
-                  <div className="flex items-start gap-3 mb-3">
-                    <span className="w-5 h-5 flex-shrink-0 mt-0.5 text-warning">⚠</span>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Column mapping required</p>
-                      <p className="text-xs text-foreground-muted mt-0.5">Map Excel columns to schedule fields below, then click "Re-validate" or use "AI Smart Map" for automatic mapping.</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(["date", "night", "dayG20", "dayH22", "dayAkron", "consults", "dayAmet", "dayNmet", "jeopardy", "recovery", "vacation"] as ImportFieldKey[]).map((field) => (
-                      <label key={field} className="flex flex-col gap-1 text-sm text-foreground-secondary">
-                        <span className="font-medium text-foreground">{field} {field === "date" && <span className="text-warning ml-1">*</span>}</span>
-                        <select value={columnMapping[field] ?? ""} onChange={(e) => setColumnMapping((prev) => ({ ...prev, [field]: e.target.value }))} className="input-base rounded-lg py-2" required={field === "date"}>
-                          <option value="">Select column</option>
-                          {importPreview.availableHeaders.map((header) => <option key={header} value={header}>{header}</option>)}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <button onClick={() => rerunImportPreview(importPreview.fileName)} className="px-3 py-2 text-sm font-medium rounded-lg bg-foreground text-primary-foreground hover:opacity-90 transition-opacity">Re-validate</button>
-                    <button
-                      onClick={handleSmartMap}
-                      disabled={isAiMapping}
-                      className="px-3 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 flex items-center gap-2 disabled:opacity-50 transition-colors"
-                    >
-                      <Sparkles className={`w-3.5 h-3.5 ${isAiMapping ? "animate-pulse" : ""}`} />
-                      {isAiMapping ? "Analyzing…" : "AI Smart Map"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl p-4 border border-border">
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Issues</h4>
-                  <ul className="space-y-1.5 text-sm text-foreground-secondary max-h-56 overflow-auto">
-                    {importPreview.issues.map((issue, idx) => (
-                      <li key={`${issue.code}-${idx}`} className="flex gap-2">
-                        <span className={cn("font-medium shrink-0", issue.type === "error" ? "text-error" : "text-warning")}>{issue.type}</span>
-                        <span>{issue.message} {issue.action ? `· ${issue.action}` : ""}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="rounded-xl p-4 border border-border">
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Row preview</h4>
-                  <div className="max-h-56 overflow-auto text-sm">
-                    <table className="w-full text-left">
-                      <thead className="text-foreground-muted text-xs font-medium"><tr><th className="pb-2">Date</th><th className="pb-2">Assignments</th><th className="pb-2">Status</th></tr></thead>
-                      <tbody className="text-foreground-secondary">
-                        {importPreview.rows.slice(0, 30).map((row, idx) => (
-                          <tr key={`${row.date}-${idx}`} className="border-t border-border">
-                            <td className="py-1.5 pr-2">{row.date || "—"}</td>
-                            <td className="py-1.5 pr-2">{Object.values(row.assignments).flat().slice(0, 3).join(", ") || "—"}</td>
-                            <td className="py-1.5">{row.issues.some((i) => i.type === "error") ? "Invalid" : row.issues.length ? "Warning" : "Valid"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-2">
-                <button onClick={() => setIsImportOpen(false)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-secondary/50 transition-colors">Cancel</button>
-                <button onClick={handleApplyImport} disabled={importPreview.requiresMapping} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">Apply import</button>
-              </div>
-            </motion.div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+      {isImportOpen && importPreview && (
+        <ImportPreviewDialog
+          preview={importPreview}
+          mapping={columnMapping}
+          busy={isImportBusy}
+          onMappingChange={(field, value) => setColumnMapping((previous) => ({ ...previous, [field]: value }))}
+          onValidate={rerunImportPreview}
+          onApply={handleApplyImport}
+          onClose={() => setIsImportOpen(false)}
+        />
+      )}
 
       <Suspense>
         <GlobalSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />

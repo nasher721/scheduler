@@ -2892,11 +2892,9 @@ export const useScheduleStore = create<ScheduleState>()(
             showConflictsOnly: false,
             showUnfilledOnly: false,
             providerSearchTerm: "",
-            currentWeekOffset: 0,
           },
-          startDate: getWeekStart(),
         }));
-        get().showToast({ type: "info", title: "Filters Reset", message: "All filters and date range have been reset." });
+        get().showToast({ type: "info", title: "Filters Reset", message: "Schedule filters have been cleared." });
       },
 
       pendingAISuggestions: [],

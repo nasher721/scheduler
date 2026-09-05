@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { SidebarNav } from "./SidebarNav";
@@ -26,9 +26,36 @@ export function AppShell({
   topBar,
   children,
 }: AppShellProps) {
+  const drawerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    drawerRef.current?.querySelector<HTMLElement>("button")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onSidebarOpenChange(false);
+      if (event.key !== "Tab") return;
+      const items = drawerRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]');
+      if (!items?.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
+  }, [isSidebarOpen, onSidebarOpenChange]);
+
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
-      <aside className="no-print sticky top-0 hidden h-dvh w-[232px] shrink-0 border-r border-border/70 xl:block">
+    <div className="scheduler-app flex min-h-dvh bg-background text-foreground">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:p-3 focus:text-white">Skip to schedule content</a>
+      <aside className="no-print sticky top-0 hidden h-dvh w-[216px] shrink-0 border-r border-border/70 xl:block">
         <SidebarNav view={view} onChange={onViewChange} />
       </aside>
 
@@ -44,6 +71,10 @@ export function AppShell({
               aria-hidden="true"
             />
             <motion.aside
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Workspace navigation"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -53,7 +84,7 @@ export function AppShell({
               <button
                 type="button"
                 onClick={() => onSidebarOpenChange(false)}
-                className="absolute right-2 top-3.5 z-10 flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-secondary"
+                className="absolute right-1 top-1 z-10 flex h-11 w-11 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-secondary"
                 aria-label="Close navigation"
               >
                 <X className="h-4.5 w-4.5" />
@@ -66,7 +97,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {topBar}
-        <main className="min-w-0 flex-1 px-4 py-4 sm:px-5">{children}</main>
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none sm:px-7">{children}</main>
       </div>
     </div>
   );
